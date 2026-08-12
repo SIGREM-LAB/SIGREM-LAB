@@ -135,6 +135,22 @@ a resolver.
 </Grid>
 ```
 
+**Las props de sistema van en `sx`, no sueltas.** MUI 9 dejó de aceptarlas
+directamente en `Stack`, `Typography` y compañía. Truena en compilación, no en
+tiempo de ejecución, pero es lo primero que se escribe por costumbre:
+
+```tsx
+// ✗ No compila en MUI 9
+<Stack alignItems="center" py={6}>
+<Typography color="text.secondary" textAlign="center">
+
+// ✓
+<Stack sx={{ alignItems: 'center', py: 6 }}>
+<Typography sx={{ color: 'text.secondary', textAlign: 'center' }}>
+```
+
+`spacing` y `direction` sí siguen siendo props propias de `Stack`.
+
 **Colores desde el tema, nunca hex en el componente.** La paleta institucional
 (guinda `#C10230`) se define una vez en el tema y se usa como
 `color="primary"` o `sx={{ color: 'primary.main' }}`. Un hex suelto en un
@@ -175,10 +191,40 @@ import { Icon } from '@iconify/react'
 | Condicionales por almacén en el formulario | Los perfiles existen justo para eso; agregar un almacén obligaría a redesplegar |
 | Editar `src/types/database.ts` | Se sobreescribe en el siguiente `pnpm gen:types` |
 
-## Antes de decir que está listo
+## Al entregar una pantalla
+
+Toda entrega de interfaz tiene exactamente tres partes, en este orden:
+
+**1. Qué se construyó.** Una o dos líneas.
+
+**2. Verificación automática.** La salida real de los comandos, no la promesa:
 
 ```bash
-pnpm typecheck && pnpm lint && pnpm build
+pnpm test && pnpm typecheck && pnpm lint && pnpm build
 ```
 
-Los tres en cero.
+**3. Guion de prueba manual.** Pasos numerados. Cada paso dice qué hacer y qué
+debería pasar, para que se pueda seguir sin conocer el código:
+
+```
+1. `pnpm dev` y entra como n3@uaeh.local / sigrem2026
+   -> Cae en el inventario de N3, y la cabecera dice "Laboratorio N3"
+2. Cambia el filtro de almacén a N4
+   -> Ves sus existencias, pero el botón de editar aparece deshabilitado
+3. Recarga la página con F5
+   -> Sigues dentro, sin pasar por el login ni ver un parpadeo
+```
+
+El guion cubre lo que las pruebas automáticas no alcanzan. En este proyecto,
+casi siempre:
+
+| Zona | Qué comprobar a mano |
+|---|---|
+| RLS con usuarios reales | Entrar como responsable de un almacén y confirmar que no puede escribir en otro |
+| Formulario dinámico | Que N3 pida los dos pesos del frasco y N4 no |
+| Sesión | Recargar con F5 y seguir dentro; cerrar sesión y no poder volver con el botón atrás |
+| Errores | Apagar el stack (`supabase stop`) y ver que sale un mensaje entendible, no una pantalla en blanco |
+| Teclado | Recorrer el formulario con Tab y enviarlo con Enter |
+| Pantalla chica | Reducir a ~1024 px, que es la resolución de las máquinas del almacén |
+
+Si una parte no aplica, dilo explícitamente en vez de omitirla.

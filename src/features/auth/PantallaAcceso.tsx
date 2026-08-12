@@ -1,0 +1,235 @@
+import { Icon } from '@iconify/react'
+import { zodResolver } from '@hookform/resolvers/zod'
+import {
+  Alert,
+  Box,
+  Button,
+  Divider,
+  InputAdornment,
+  Paper,
+  Stack,
+  TextField,
+  Typography,
+} from '@mui/material'
+import { useState } from 'react'
+import { Controller, useForm } from 'react-hook-form'
+import { z } from 'zod'
+
+import { supabase } from '@/lib/supabase'
+
+export type AuthAcceso = {
+  signInWithPassword(credenciales: { email: string; password: string }): Promise<{
+    error: { message: string } | null
+  }>
+}
+
+const esquema = z.object({
+  correo: z
+    .string()
+    .min(1, 'Escribe tu correo')
+    .refine((v) => v.includes('@'), 'Eso no parece un correo'),
+  contrasena: z.string().min(1, 'Escribe tu contraseña'),
+})
+type Valores = z.infer<typeof esquema>
+
+/** Supabase contesta en ingles; el responsable del almacen no. */
+function traducir(mensaje: string): string {
+  if (mensaje.includes('Invalid login credentials')) {
+    return 'El correo o la contraseña no coinciden.'
+  }
+  if (mensaje.includes('Email not confirmed')) {
+    return 'La cuenta todavía no está confirmada. Avisa al administrador.'
+  }
+  if (mensaje.includes('fetch')) {
+    return 'No se pudo contactar al servidor. Revisa tu conexión.'
+  }
+  return 'No se pudo entrar. Intenta otra vez o avisa al administrador.'
+}
+
+/** Icono a la izquierda del campo, como en el prototipo. */
+function adorno(icono: string) {
+  return {
+    input: {
+      startAdornment: (
+        <InputAdornment position="start">
+          <Icon icon={icono} width={18} color="#6F6F6E" />
+        </InputAdornment>
+      ),
+    },
+  }
+}
+
+export function PantallaAcceso({ auth = supabase.auth }: { auth?: AuthAcceso }) {
+  const [fallo, setFallo] = useState<string | null>(null)
+
+  const {
+    control,
+    handleSubmit,
+    formState: { isSubmitting },
+  } = useForm<Valores>({
+    resolver: zodResolver(esquema),
+    defaultValues: { correo: '', contrasena: '' },
+  })
+
+  const enviar = handleSubmit(async (valores) => {
+    setFallo(null)
+    const { error } = await auth.signInWithPassword({
+      email: valores.correo.trim(),
+      password: valores.contrasena,
+    })
+    // El proveedor de sesion se entera solo por onAuthStateChange; aqui no hay
+    // que navegar a ningun lado.
+    if (error) setFallo(traducir(error.message))
+  })
+
+  return (
+    <Box
+      sx={{
+        position: 'relative',
+        overflow: 'hidden',
+        minHeight: '100dvh',
+        display: 'grid',
+        placeItems: 'center',
+        bgcolor: 'background.default',
+        p: 2,
+      }}
+    >
+      {/* Dos manchas de color institucional, muy tenues, para que el fondo no
+          sea un gris plano. Decorativas: no las lee un lector de pantalla. */}
+      <Box
+        aria-hidden
+        sx={{
+          position: 'absolute',
+          top: -170,
+          left: -170,
+          width: 420,
+          height: 420,
+          borderRadius: '50%',
+          bgcolor: 'primary.main',
+          opacity: 0.06,
+        }}
+      />
+      <Box
+        aria-hidden
+        sx={{
+          position: 'absolute',
+          bottom: -170,
+          right: -170,
+          width: 420,
+          height: 420,
+          borderRadius: '50%',
+          bgcolor: 'secondary.main',
+          opacity: 0.07,
+        }}
+      />
+
+      <Box sx={{ position: 'relative', width: '100%', maxWidth: 430 }}>
+        <Paper
+          elevation={0}
+          sx={{ overflow: 'hidden', borderRadius: 3, boxShadow: '0 18px 44px rgba(20,22,26,0.12)' }}
+        >
+          <Stack spacing={1.75} sx={{ bgcolor: 'primary.main', color: 'common.white', px: 4, py: 3.5 }}>
+            <Box
+              sx={{
+                bgcolor: 'common.white',
+                borderRadius: 2,
+                px: 1.5,
+                py: 1,
+                alignSelf: 'flex-start',
+              }}
+            >
+              <Box
+                component="img"
+                src="/logo-uaeh.webp"
+                alt="Universidad Autónoma del Estado de Hidalgo"
+                sx={{ height: 40, width: 'auto', display: 'block' }}
+              />
+            </Box>
+
+            <Box>
+              <Typography variant="h1" component="h1" sx={{ fontSize: '1.5rem' }}>
+                SIGREM-LAB
+              </Typography>
+              <Typography variant="body2" sx={{ color: 'rgba(255,255,255,0.85)' }}>
+                Unidad Central de Laboratorios
+              </Typography>
+            </Box>
+          </Stack>
+
+          <Box sx={{ px: 4, py: 3.5 }}>
+            <Typography variant="h2" component="h2" sx={{ color: 'primary.main' }}>
+              Iniciar sesión
+            </Typography>
+            <Typography variant="body2" sx={{ color: 'text.secondary', mb: 3 }}>
+              Escribe tus datos para entrar al sistema
+            </Typography>
+
+            <Stack component="form" onSubmit={enviar} spacing={2.5} noValidate>
+              <Controller
+                name="correo"
+                control={control}
+                render={({ field, fieldState }) => (
+                  <TextField
+                    {...field}
+                    label="Correo"
+                    type="email"
+                    size="medium"
+                    autoComplete="username"
+                    autoFocus
+                    error={!!fieldState.error}
+                    helperText={fieldState.error?.message}
+                    slotProps={adorno('mdi:account-outline')}
+                  />
+                )}
+              />
+
+              <Controller
+                name="contrasena"
+                control={control}
+                render={({ field, fieldState }) => (
+                  <TextField
+                    {...field}
+                    label="Contraseña"
+                    type="password"
+                    size="medium"
+                    autoComplete="current-password"
+                    error={!!fieldState.error}
+                    helperText={fieldState.error?.message}
+                    slotProps={adorno('mdi:lock-outline')}
+                  />
+                )}
+              />
+
+              {fallo && (
+                <Alert severity="error" icon={<Icon icon="mdi:alert-circle-outline" width={20} />}>
+                  {fallo}
+                </Alert>
+              )}
+
+              <Button type="submit" variant="contained" size="large" disabled={isSubmitting}>
+                {isSubmitting ? 'Entrando…' : 'Entrar'}
+              </Button>
+            </Stack>
+
+            <Divider sx={{ mt: 3, mb: 2 }} />
+
+            <Typography
+              variant="caption"
+              sx={{ display: 'block', textAlign: 'center', color: 'text.secondary' }}
+            >
+              El almacén asignado se detecta automáticamente a partir de tu usuario
+            </Typography>
+          </Box>
+        </Paper>
+
+        <Typography
+          variant="caption"
+          sx={{ display: 'block', textAlign: 'center', color: 'text.secondary', mt: 2 }}
+        >
+          Universidad Autónoma del Estado de Hidalgo · Sistema Integral de Gestión de Reactivos,
+          Materiales y Equipos
+        </Typography>
+      </Box>
+    </Box>
+  )
+}

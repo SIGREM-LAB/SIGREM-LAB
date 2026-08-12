@@ -222,15 +222,23 @@ begin
 
     uid := gen_random_uuid();
 
+    -- Las columnas de token van en cadena vacia, NUNCA en null. GoTrue las lee
+    -- en un `string` de Go, no en un puntero, y un null hace que /token
+    -- conteste 500 con "converting NULL to string is unsupported". El usuario
+    -- se crea bien y aun asi no puede entrar.
     insert into auth.users (
       instance_id, id, aud, role, email, encrypted_password,
       email_confirmed_at, created_at, updated_at,
-      raw_app_meta_data, raw_user_meta_data
+      raw_app_meta_data, raw_user_meta_data,
+      confirmation_token, recovery_token,
+      email_change, email_change_token_new, email_change_token_current,
+      phone_change, phone_change_token, reauthentication_token
     ) values (
       '00000000-0000-0000-0000-000000000000', uid, 'authenticated', 'authenticated',
       u.correo, extensions.crypt('sigrem2026', extensions.gen_salt('bf')),
       now(), now(), now(),
-      '{"provider":"email","providers":["email"]}'::jsonb, '{}'::jsonb
+      '{"provider":"email","providers":["email"]}'::jsonb, '{}'::jsonb,
+      '', '', '', '', '', '', '', ''
     );
 
     insert into auth.identities (

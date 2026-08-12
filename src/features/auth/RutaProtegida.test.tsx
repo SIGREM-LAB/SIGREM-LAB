@@ -2,7 +2,7 @@ import { render, screen } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { describe, expect, test } from 'vitest'
 
-import { RutaProtegida } from './RutaProtegida'
+import { RutaProtegida, SoloInvitados } from './RutaProtegida'
 import { ContextoSesion, type EstadoSesion } from './contexto'
 
 function montar(sesion: EstadoSesion) {
@@ -42,5 +42,36 @@ describe('RutaProtegida', () => {
     montar({ estado: 'con-sesion', usuarioId: 'u-1' })
 
     expect(screen.getByText('Inventario del almacen')).toBeInTheDocument()
+  })
+})
+
+function montarAcceso(sesion: EstadoSesion) {
+  return render(
+    <ContextoSesion.Provider value={sesion}>
+      <MemoryRouter initialEntries={['/entrar']}>
+        <Routes>
+          <Route path="/" element={<p>Inventario del almacen</p>} />
+          <Route element={<SoloInvitados />}>
+            <Route path="/entrar" element={<p>Pantalla de acceso</p>} />
+          </Route>
+        </Routes>
+      </MemoryRouter>
+    </ContextoSesion.Provider>,
+  )
+}
+
+describe('SoloInvitados', () => {
+  // Sin esto, al entrar correctamente la pantalla de acceso se queda puesta:
+  // la sesion cambia pero la ruta sigue siendo /entrar.
+  test('saca de la pantalla de acceso a quien ya tiene sesion', () => {
+    montarAcceso({ estado: 'con-sesion', usuarioId: 'u-1' })
+
+    expect(screen.getByText('Inventario del almacen')).toBeInTheDocument()
+  })
+
+  test('deja ver la pantalla de acceso a quien no tiene sesion', () => {
+    montarAcceso({ estado: 'sin-sesion' })
+
+    expect(screen.getByText('Pantalla de acceso')).toBeInTheDocument()
   })
 })
