@@ -41,6 +41,10 @@ export type Database = {
           creado_en: string
           id: number
           nombre: string
+          padre_id: number | null
+          personas_expuestas: number | null
+          uso_principal: string | null
+          zona_riesgo: string | null
         }
         Insert: {
           activo?: boolean
@@ -48,6 +52,10 @@ export type Database = {
           creado_en?: string
           id?: never
           nombre: string
+          padre_id?: number | null
+          personas_expuestas?: number | null
+          uso_principal?: string | null
+          zona_riesgo?: string | null
         }
         Update: {
           activo?: boolean
@@ -55,8 +63,43 @@ export type Database = {
           creado_en?: string
           id?: never
           nombre?: string
+          padre_id?: number | null
+          personas_expuestas?: number | null
+          uso_principal?: string | null
+          zona_riesgo?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "almacen_padre_id_fkey"
+            columns: ["padre_id"]
+            isOneToOne: false
+            referencedRelation: "almacen"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      almacen_alias: {
+        Row: {
+          almacen_id: number
+          texto: string
+        }
+        Insert: {
+          almacen_id: number
+          texto: string
+        }
+        Update: {
+          almacen_id?: number
+          texto?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "almacen_alias_almacen_id_fkey"
+            columns: ["almacen_id"]
+            isOneToOne: false
+            referencedRelation: "almacen"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       articulo: {
         Row: {
@@ -64,6 +107,7 @@ export type Database = {
           creado_en: string
           creado_por: string | null
           descripcion: string | null
+          familia: string | null
           id: number
           nombre_canonico: string
           unidad_base: string
@@ -74,6 +118,7 @@ export type Database = {
           creado_en?: string
           creado_por?: string | null
           descripcion?: string | null
+          familia?: string | null
           id?: never
           nombre_canonico: string
           unidad_base: string
@@ -84,6 +129,7 @@ export type Database = {
           creado_en?: string
           creado_por?: string | null
           descripcion?: string | null
+          familia?: string | null
           id?: never
           nombre_canonico?: string
           unidad_base?: string
@@ -134,11 +180,12 @@ export type Database = {
       articulo_reactivo: {
         Row: {
           articulo_id: number
-          caracteristica_fisica: string | null
           caracteristica_quimica: string | null
+          caracteristica_toxica: string | null
           clasificacion_ghs: string | null
           color_almacenamiento: string | null
           estado_fisico: Database["public"]["Enums"]["estado_fisico"] | null
+          implica_actividad_peligro: boolean | null
           peligro_especial: string | null
           requiere_hoja_seguridad: boolean | null
           riesgo_inflamabilidad: number | null
@@ -148,11 +195,12 @@ export type Database = {
         }
         Insert: {
           articulo_id: number
-          caracteristica_fisica?: string | null
           caracteristica_quimica?: string | null
+          caracteristica_toxica?: string | null
           clasificacion_ghs?: string | null
           color_almacenamiento?: string | null
           estado_fisico?: Database["public"]["Enums"]["estado_fisico"] | null
+          implica_actividad_peligro?: boolean | null
           peligro_especial?: string | null
           requiere_hoja_seguridad?: boolean | null
           riesgo_inflamabilidad?: number | null
@@ -162,11 +210,12 @@ export type Database = {
         }
         Update: {
           articulo_id?: number
-          caracteristica_fisica?: string | null
           caracteristica_quimica?: string | null
+          caracteristica_toxica?: string | null
           clasificacion_ghs?: string | null
           color_almacenamiento?: string | null
           estado_fisico?: Database["public"]["Enums"]["estado_fisico"] | null
+          implica_actividad_peligro?: boolean | null
           peligro_especial?: string | null
           requiere_hoja_seguridad?: boolean | null
           riesgo_inflamabilidad?: number | null
@@ -184,6 +233,33 @@ export type Database = {
           },
         ]
       }
+      campo_capturable: {
+        Row: {
+          ayuda: string | null
+          campo: string
+          destino: string
+          etiqueta_default: string
+          opciones: string[] | null
+          tipo_dato: string
+        }
+        Insert: {
+          ayuda?: string | null
+          campo: string
+          destino: string
+          etiqueta_default: string
+          opciones?: string[] | null
+          tipo_dato: string
+        }
+        Update: {
+          ayuda?: string | null
+          campo?: string
+          destino?: string
+          etiqueta_default?: string
+          opciones?: string[] | null
+          tipo_dato?: string
+        }
+        Relationships: []
+      }
       existencia: {
         Row: {
           almacen_id: number
@@ -195,11 +271,19 @@ export type Database = {
           estado: Database["public"]["Enums"]["estado_existencia"]
           fecha_adquisicion: string | null
           fecha_caducidad: string | null
+          fecha_chequeo: string | null
           id: number
+          mantenimiento: string | null
           marca: string | null
+          modelo: string | null
           numero_inventario_uaeh: string | null
           numero_serie: string | null
+          observaciones: string | null
+          partida: string | null
+          peso_frasco_vacio: number | null
+          peso_total: number | null
           presentacion: string | null
+          revisado_por: string | null
           ubicacion_id: number | null
         }
         Insert: {
@@ -212,11 +296,19 @@ export type Database = {
           estado?: Database["public"]["Enums"]["estado_existencia"]
           fecha_adquisicion?: string | null
           fecha_caducidad?: string | null
+          fecha_chequeo?: string | null
           id?: never
+          mantenimiento?: string | null
           marca?: string | null
+          modelo?: string | null
           numero_inventario_uaeh?: string | null
           numero_serie?: string | null
+          observaciones?: string | null
+          partida?: string | null
+          peso_frasco_vacio?: number | null
+          peso_total?: number | null
           presentacion?: string | null
+          revisado_por?: string | null
           ubicacion_id?: number | null
         }
         Update: {
@@ -229,11 +321,19 @@ export type Database = {
           estado?: Database["public"]["Enums"]["estado_existencia"]
           fecha_adquisicion?: string | null
           fecha_caducidad?: string | null
+          fecha_chequeo?: string | null
           id?: never
+          mantenimiento?: string | null
           marca?: string | null
+          modelo?: string | null
           numero_inventario_uaeh?: string | null
           numero_serie?: string | null
+          observaciones?: string | null
+          partida?: string | null
+          peso_frasco_vacio?: number | null
+          peso_total?: number | null
           presentacion?: string | null
+          revisado_por?: string | null
           ubicacion_id?: number | null
         }
         Relationships: [
@@ -385,6 +485,77 @@ export type Database = {
           },
         ]
       }
+      perfil_campo: {
+        Row: {
+          campo: string
+          etiqueta: string | null
+          obligatorio: boolean
+          orden: number
+          perfil_id: number
+        }
+        Insert: {
+          campo: string
+          etiqueta?: string | null
+          obligatorio?: boolean
+          orden: number
+          perfil_id: number
+        }
+        Update: {
+          campo?: string
+          etiqueta?: string | null
+          obligatorio?: boolean
+          orden?: number
+          perfil_id?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "perfil_campo_campo_fkey"
+            columns: ["campo"]
+            isOneToOne: false
+            referencedRelation: "campo_capturable"
+            referencedColumns: ["campo"]
+          },
+          {
+            foreignKeyName: "perfil_campo_perfil_id_fkey"
+            columns: ["perfil_id"]
+            isOneToOne: false
+            referencedRelation: "perfil_captura"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      perfil_captura: {
+        Row: {
+          almacen_id: number
+          clasificacion: Database["public"]["Enums"]["clasificacion_articulo"]
+          id: number
+          nombre: string
+          notas: string | null
+        }
+        Insert: {
+          almacen_id: number
+          clasificacion: Database["public"]["Enums"]["clasificacion_articulo"]
+          id?: never
+          nombre: string
+          notas?: string | null
+        }
+        Update: {
+          almacen_id?: number
+          clasificacion?: Database["public"]["Enums"]["clasificacion_articulo"]
+          id?: never
+          nombre?: string
+          notas?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "perfil_captura_almacen_id_fkey"
+            columns: ["almacen_id"]
+            isOneToOne: false
+            referencedRelation: "almacen"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ubicacion: {
         Row: {
           almacen_id: number
@@ -429,6 +600,22 @@ export type Database = {
           similitud: number
           unidad_base: string
           verificado: boolean
+        }[]
+      }
+      formulario: {
+        Args: {
+          p_almacen: number
+          p_clasificacion: Database["public"]["Enums"]["clasificacion_articulo"]
+        }
+        Returns: {
+          ayuda: string
+          campo: string
+          destino: string
+          etiqueta: string
+          obligatorio: boolean
+          opciones: string[]
+          orden: number
+          tipo_dato: string
         }[]
       }
       fusionar_articulo: {

@@ -14,7 +14,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 
-select plan(19);
+select plan(23);
 
 
 -- ---------------------------------------------------------------------------
@@ -238,6 +238,53 @@ select pg_temp.como('admin@uaeh.local');
 select lives_ok(
   $$ update public.existencia set marca = 'CORREGIDA' where id = 900002 $$,
   'El admin puede editar existencias de cualquier almacen'
+);
+
+
+-- ---------------------------------------------------------------------------
+-- 20-22. Perfiles de captura
+-- ---------------------------------------------------------------------------
+-- El formulario sale de datos, no de condicionales en React. Estas pruebas
+-- fijan esa promesa: si alguien borra un campo del perfil de N3, truena aqui.
+select is(
+  (select count(*)::int from public.formulario(
+     (select id from public.almacen where clave = 'N3'), 'reactivo')
+    where campo in ('peso_total', 'peso_frasco_vacio')),
+  2,
+  'El formulario de reactivos de N3 pide los dos pesos del frasco'
+);
+
+select is(
+  (select count(*)::int from public.formulario(
+     (select id from public.almacen where clave = 'N4'), 'reactivo')
+    where campo in ('peso_total', 'peso_frasco_vacio')),
+  0,
+  'El de N4 no los pide: ahi la cantidad se captura directa'
+);
+
+select pg_temp.como('n3@uaeh.local');
+
+-- Cambiar un perfil altera el alta de todo un almacen: no es cosa de un
+-- responsable, por muy suyo que sea el almacen.
+--
+-- DELETE solo tiene USING, no WITH CHECK. Con el USING en falso la fila es
+-- invisible y el borrado afecta cero filas SIN lanzar error, asi que no basta
+-- con esperar una excepcion: hay que comprobar que el campo sigue ahi.
+select lives_ok(
+  $$ delete from public.perfil_campo
+      where campo = 'peso_total'
+        and perfil_id = (select p.id from public.perfil_captura p
+                           join public.almacen a on a.id = p.almacen_id
+                          where a.clave = 'N3' and p.clasificacion = 'reactivo') $$,
+  'El borrado de un campo de perfil no lanza error: afecta cero filas'
+);
+
+select is(
+  (select count(*)::int from public.formulario(
+     (select id from public.almacen where clave = 'N3'), 'reactivo')
+    where campo = 'peso_total'),
+  1,
+  'El campo sigue en el perfil: un responsable no cambia la forma del formulario'
 );
 
 
