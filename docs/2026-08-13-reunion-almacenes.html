@@ -1,0 +1,479 @@
+<title>Decisiones pendientes UCL</title>
+<style>
+  :root {
+    --papel:      #FBF8F8;
+    --superficie: #FFFFFF;
+    --tinta:      #1A1416;
+    --tinta-2:    #5A5052;
+    --guinda:     #A80E2A;
+    --guinda-sup: #F6E7EA;
+    --gris:       #6F6F6E;
+    --borde:      #E4DBDC;
+    --ambar:      #8A5A08;
+    --ambar-sup:  #FBF1DF;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --papel:      #161213;
+      --superficie: #1E1819;
+      --tinta:      #EFE8E9;
+      --tinta-2:    #A79B9D;
+      --guinda:     #F0798D;
+      --guinda-sup: #33181E;
+      --gris:       #9A9494;
+      --borde:      #362C2E;
+      --ambar:      #E3B15F;
+      --ambar-sup:  #2E2413;
+    }
+  }
+  :root[data-theme="dark"] {
+    --papel:      #161213;
+    --superficie: #1E1819;
+    --tinta:      #EFE8E9;
+    --tinta-2:    #A79B9D;
+    --guinda:     #F0798D;
+    --guinda-sup: #33181E;
+    --gris:       #9A9494;
+    --borde:      #362C2E;
+    --ambar:      #E3B15F;
+    --ambar-sup:  #2E2413;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    background: var(--papel);
+    color: var(--tinta);
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    font-size: 16.5px;
+    line-height: 1.62;
+    margin: 0;
+    padding: 3.5rem 1.5rem 6rem;
+  }
+
+  .hoja { max-width: 46rem; margin: 0 auto; display: flex; flex-direction: column; gap: 3.25rem; }
+
+  h1, h2, h3 {
+    font-family: Georgia, "Iowan Old Style", "Times New Roman", serif;
+    font-weight: 600;
+    text-wrap: balance;
+    margin: 0;
+    letter-spacing: -0.008em;
+  }
+  h1 { font-size: 2.3rem; line-height: 1.16; }
+  h2 { font-size: 1.42rem; line-height: 1.25; }
+  h3 { font-size: 1.09rem; line-height: 1.35; }
+  p  { margin: 0; }
+
+  .eyebrow {
+    font-size: 0.735rem;
+    letter-spacing: 0.13em;
+    text-transform: uppercase;
+    color: var(--gris);
+    font-weight: 600;
+  }
+
+  header { display: flex; flex-direction: column; gap: 0.9rem; }
+  header .meta { color: var(--tinta-2); font-size: 0.95rem; }
+  header .rule { height: 3px; background: var(--guinda); width: 4.5rem; border-radius: 2px; }
+
+  section { display: flex; flex-direction: column; gap: 1.5rem; }
+  .sec-head { display: flex; flex-direction: column; gap: 0.45rem; }
+  .sec-head p { color: var(--tinta-2); font-size: 0.97rem; }
+
+  .q {
+    display: flex; flex-direction: column; gap: 0.85rem;
+    background: var(--superficie);
+    border: 1px solid var(--borde);
+    border-left: 3px solid var(--guinda);
+    padding: 1.4rem 1.5rem;
+  }
+  .q.blanda { border-left-color: var(--gris); }
+
+  .q-head { display: flex; gap: 0.85rem; align-items: baseline; }
+  .q-num {
+    font-family: ui-monospace, "Cascadia Code", Consolas, monospace;
+    font-size: 0.8rem; font-weight: 700; color: var(--guinda);
+    letter-spacing: 0.04em; flex-shrink: 0; padding-top: 0.12rem;
+  }
+  .q.blanda .q-num { color: var(--gris); }
+
+  .decir {
+    border-left: 2px solid var(--borde);
+    padding-left: 0.95rem;
+    font-family: Georgia, "Iowan Old Style", serif;
+    font-size: 1.04rem;
+    color: var(--tinta);
+  }
+
+  .cambia { font-size: 0.95rem; color: var(--tinta-2); }
+  .cambia strong { color: var(--tinta); font-weight: 600; }
+
+  .tabla-envoltura { overflow-x: auto; }
+  table { border-collapse: collapse; width: 100%; font-size: 0.9rem; }
+  th, td { text-align: left; padding: 0.42rem 0.8rem 0.42rem 0; border-bottom: 1px solid var(--borde); }
+  th { font-size: 0.73rem; text-transform: uppercase; letter-spacing: 0.09em; color: var(--gris); font-weight: 600; }
+  td.n, th.n { text-align: right; font-variant-numeric: tabular-nums; font-family: ui-monospace, Consolas, monospace; padding-right: 0; }
+  tbody tr:last-child td { border-bottom: none; }
+  .ojo { color: var(--guinda); font-weight: 600; }
+
+  .nota {
+    background: var(--ambar-sup);
+    border: 1px solid color-mix(in srgb, var(--ambar) 30%, transparent);
+    padding: 1rem 1.2rem;
+    font-size: 0.94rem;
+    display: flex; flex-direction: column; gap: 0.4rem;
+  }
+  .nota .eyebrow { color: var(--ambar); }
+
+  .cerrado { display: flex; flex-direction: column; gap: 0.6rem; }
+  .cerrado div {
+    display: flex; gap: 0.7rem; align-items: baseline;
+    font-size: 0.95rem; color: var(--tinta-2);
+    padding-bottom: 0.6rem; border-bottom: 1px solid var(--borde);
+  }
+  .cerrado div:last-child { border-bottom: none; }
+  .cerrado b { color: var(--tinta); font-weight: 600; }
+
+  footer { color: var(--gris); font-size: 0.88rem; border-top: 1px solid var(--borde); padding-top: 1.5rem; }
+</style>
+
+<div class="hoja">
+
+  <header>
+    <p class="eyebrow">Reunión del 13 de agosto de 2026</p>
+    <h1>Lo que hay que cerrar con los responsables de almacén</h1>
+    <div class="rule"></div>
+    <p class="meta">
+      El esquema de la base de datos ya está construido y probado. Lo que falta no es técnico:
+      son decisiones que solo pueden tomar quienes manejan los almacenes. Las cifras de abajo
+      salen de medir los 10 archivos completos, no de una muestra.
+    </p>
+  </header>
+
+  <div class="nota">
+    <p class="eyebrow">Cómo llevar la reunión</p>
+    <p>
+      El bloque A son tres decisiones que desbloquean el calendario: si sales con esas tres,
+      la reunión valió la pena aunque no llegues al resto. El bloque B son preguntas de datos
+      que puedes repartir por almacén y recoger después por escrito. El bloque C ya está
+      decidido y solo se menciona para que nadie lo reabra.
+    </p>
+  </div>
+
+  <section>
+    <div class="sec-head">
+      <p class="eyebrow">Bloque A · Decisiones que bloquean</p>
+      <h2>Las tres que no pueden salir sin respuesta</h2>
+    </div>
+
+    <article class="q">
+      <div class="q-head">
+        <span class="q-num">A1</span>
+        <h3>¿Reorganizamos lo que ya existe o se captura todo de cero?</h3>
+      </div>
+      <p class="decir">
+        «Tenemos ~5,500 renglones en los Excel. Podemos aprovecharlos o empezar en limpio.
+        ¿Qué prefieren?»
+      </p>
+      <p>
+        La propuesta es una tercera vía: <b>migrar la estructura y recontar las cantidades</b>.
+        Del Excel salen los nombres, marcas, presentaciones, ubicaciones y los datos de la NOM
+        —que es lo caro de recapturar y lo que casi no cambia—. Las cantidades las fija el
+        primer conteo físico dentro del sistema.
+      </p>
+      <p class="cambia">
+        <strong>Qué cambia:</strong> capturar 5,500 renglones a mano son ~46 horas-persona
+        <em>solo de tecleo</em>, sin contar localizar ni pesar nada. Si de todos modos hay que
+        recontar, esta vía no cuesta trabajo extra y además deja el conteo registrado como el
+        primer respaldo de auditoría del sistema.
+      </p>
+    </article>
+
+    <article class="q">
+      <div class="q-head">
+        <span class="q-num">A2</span>
+        <h3>¿Cuándo se hace el primer conteo físico y con cuánta gente?</h3>
+      </div>
+      <p class="decir">
+        «¿Qué semana pueden dedicarle, y cuántas personas por almacén?»
+      </p>
+      <div class="tabla-envoltura">
+        <table>
+          <thead><tr><th>Almacén</th><th class="n">Reactivos</th><th class="n">Materiales</th><th class="n">Equipos</th></tr></thead>
+          <tbody>
+            <tr><td>N3</td>  <td class="n">1,118</td><td class="n">606</td><td class="n">—</td></tr>
+            <tr><td>N4</td>  <td class="n">619</td>  <td class="n">370</td><td class="n">—</td></tr>
+            <tr><td>LUM</td> <td class="n">925</td>  <td class="n">727</td><td class="n">68</td></tr>
+            <tr><td>LE</td>  <td class="n">—</td>    <td class="n">712</td><td class="n">254</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="cambia">
+        <strong>Qué cambia:</strong> es el hito que convierte al sistema en confiable. Hasta que
+        un almacén termine su conteo, sus existencias salen marcadas como <em>por confirmar</em>.
+        Este tiempo hay que negociarlo por adelantado, no asumirlo.
+      </p>
+    </article>
+
+    <article class="q">
+      <div class="q-head">
+        <span class="q-num">A3</span>
+        <h3>¿Quién será el dueño del catálogo?</h3>
+      </div>
+      <p class="decir">
+        «Cuando alguien dé de alta un artículo que no existía, ¿quién revisa que no sea un
+        duplicado del que ya estaba?»
+      </p>
+      <p>
+        El sistema deja crear artículos a cualquier responsable, pero antes lo obliga a buscar:
+        si escribe «acido suxinico» le sugiere <em>Ácido succínico</em> aunque venga con acentos
+        y errores de dedo. Lo que no puede automatizarse es el juicio final.
+      </p>
+      <p class="cambia">
+        <strong>Qué cambia:</strong> sin un dueño que revise la cola, en seis meses el catálogo
+        tiene «Ácido succínico», «acido succinico» y «Ac. succínico» como tres cosas distintas,
+        y volvimos al problema del Excel. Es un compromiso organizacional, no una tabla.
+      </p>
+    </article>
+  </section>
+
+  <section>
+    <div class="sec-head">
+      <p class="eyebrow">Bloque B · Preguntas de datos</p>
+      <h2>Lo que encontramos al medir los archivos</h2>
+      <p>Se pueden repartir por almacén y responder por escrito después.</p>
+    </div>
+
+    <article class="q">
+      <div class="q-head">
+        <span class="q-num">B1</span>
+        <h3>Los nombres repetidos, ¿son frascos distintos o el mismo capturado dos veces?</h3>
+      </div>
+      <div class="tabla-envoltura">
+        <table>
+          <thead><tr><th>Archivo</th><th class="n">Filas</th><th class="n">Nombres únicos</th><th class="n">Repetidos</th></tr></thead>
+          <tbody>
+            <tr><td>Reactivos LUM</td>   <td class="n">925</td>  <td class="n">628</td><td class="n ojo">297</td></tr>
+            <tr><td>Reactivos N3</td>    <td class="n">1,118</td><td class="n">840</td><td class="n ojo">278</td></tr>
+            <tr><td>Materiales LUM</td>  <td class="n">727</td>  <td class="n">661</td><td class="n">66</td></tr>
+            <tr><td>Reactivos N4</td>    <td class="n">619</td>  <td class="n">566</td><td class="n">53</td></tr>
+            <tr><td>Materiales N3</td>   <td class="n">606</td>  <td class="n">595</td><td class="n">11</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="decir">
+        «Hay tres renglones de Ácido succínico con marcas distintas. ¿Son tres frascos reales
+        en el anaquel, o el mismo frasco capturado tres veces?»
+      </p>
+      <p class="cambia">
+        <strong>Qué cambia:</strong> si son frascos reales, cada uno lleva su propia etiqueta
+        QR y su propio peso. Si son errores de captura, se fusionan en uno. Son ~700 renglones:
+        es la diferencia entre 700 etiquetas de más o 700 registros perdidos.
+      </p>
+    </article>
+
+    <article class="q">
+      <div class="q-head">
+        <span class="q-num">B2</span>
+        <h3>Los pesos del frasco: ¿se conservan o solo importa la cantidad?</h3>
+      </div>
+      <p class="decir">
+        «LUM y N3 anotan el peso del frasco lleno y el del vacío, y restan. N4 anota la cantidad
+        directa. ¿El peso del frasco vacío hay que guardarlo?»
+      </p>
+      <p class="cambia">
+        <strong>Qué cambia:</strong> si se guarda, en el siguiente conteo basta con pesar el
+        frasco lleno y el sistema calcula solo. Si no, cada conteo obliga a vaciar y pesar el
+        envase otra vez, o a confiar en un número que ya nadie puede reconstruir.
+      </p>
+    </article>
+
+    <article class="q">
+      <div class="q-head">
+        <span class="q-num">B3</span>
+        <h3>La columna «Almacén» tiene siete valores distintos</h3>
+      </div>
+      <div class="tabla-envoltura">
+        <table>
+          <thead><tr><th>Valor tal cual</th><th class="n">Filas</th><th>Duda</th></tr></thead>
+          <tbody>
+            <tr><td>N3</td>        <td class="n">1,096</td><td>—</td></tr>
+            <tr><td>4</td>         <td class="n">617</td>  <td>Se asume N4</td></tr>
+            <tr><td>LUM-1</td>     <td class="n">464</td>  <td class="ojo">¿Dos almacenes o dos zonas?</td></tr>
+            <tr><td>LUM-2</td>     <td class="n">460</td>  <td class="ojo">↑</td></tr>
+            <tr><td>N1-1</td>      <td class="n">16</td>   <td class="ojo">¿Qué es esto?</td></tr>
+            <tr><td><em>vacío</em></td><td class="n">13</td><td class="ojo">¿A cuál pertenecen?</td></tr>
+            <tr><td>N4</td>        <td class="n">1</td>    <td>—</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="decir">
+        «¿LUM-1 y LUM-2 son dos almacenes separados o dos zonas del mismo? ¿Y qué es N1-1?»
+      </p>
+    </article>
+
+    <article class="q">
+      <div class="q-head">
+        <span class="q-num">B4</span>
+        <h3>Hay nueve colores de almacenaje, y la NOM define cinco</h3>
+      </div>
+      <div class="tabla-envoltura">
+        <table>
+          <thead><tr><th>Valor</th><th class="n">Filas</th><th>Situación</th></tr></thead>
+          <tbody>
+            <tr><td>Verde</td>     <td class="n">1,155</td><td>NOM</td></tr>
+            <tr><td>Azul</td>      <td class="n">331</td>  <td>NOM</td></tr>
+            <tr><td>Rojo</td>      <td class="n">303</td>  <td>NOM</td></tr>
+            <tr><td>Blanco</td>    <td class="n">262</td>  <td>NOM</td></tr>
+            <tr><td><em>vacío</em></td><td class="n">153</td><td class="ojo">Sin clasificar</td></tr>
+            <tr><td>Amarillo</td>  <td class="n">147</td>  <td>NOM</td></tr>
+            <tr><td>NO TÓXICO</td> <td class="n">143</td>  <td class="ojo">No es un color</td></tr>
+            <tr><td>Naranja</td>   <td class="n">136</td>  <td class="ojo">Fuera de la NOM</td></tr>
+            <tr><td>BLANCO</td>    <td class="n">37</td>   <td>Mayúsculas de «Blanco»</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="decir">
+        «¿"NO TÓXICO" y "Naranja" son categorías que ustedes usan a propósito, o se colaron?»
+      </p>
+      <p class="cambia">
+        <strong>Qué cambia:</strong> esta columna va en el formato oficial que se presenta en
+        auditoría. Si son categorías propias de la UCL hay que documentarlas como valores fuera
+        de la norma; si son errores, corregirlas antes de migrar. Mapear «Naranja» a otro color
+        por nuestra cuenta alteraría el documento oficial, así que no lo vamos a hacer sin que
+        ustedes lo digan.
+      </p>
+    </article>
+
+    <article class="q">
+      <div class="q-head">
+        <span class="q-num">B5</span>
+        <h3>Hay 29 unidades de medida distintas</h3>
+      </div>
+      <div class="tabla-envoltura">
+        <table>
+          <thead><tr><th>Valor</th><th class="n">Filas</th><th>Duda</th></tr></thead>
+          <tbody>
+            <tr><td>pieza</td>              <td class="n">1,055</td><td>—</td></tr>
+            <tr><td>Individual</td>         <td class="n">431</td>  <td class="ojo">¿Es «pieza»?</td></tr>
+            <tr><td>Caja</td>               <td class="n">58</td>   <td>¿De cuántas piezas?</td></tr>
+            <tr><td>Paquete</td>            <td class="n">42</td>   <td>¿De cuántas piezas?</td></tr>
+            <tr><td>cm</td>                 <td class="n">35</td>   <td>Cable, lija</td></tr>
+            <tr><td>Kg · kg · kilo</td>     <td class="n">21</td>   <td>Tres formas del mismo</td></tr>
+            <tr><td>Caja de 100 piezas</td> <td class="n">1</td>    <td class="ojo">Unidad con contenido</td></tr>
+            <tr><td>Bidón</td>              <td class="n">1</td>    <td>¿Se da de alta?</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="decir">
+        «¿Cuál es la lista oficial de unidades? Y "Individual", ¿significa pieza?»
+      </p>
+      <p class="cambia">
+        <strong>Qué cambia:</strong> sin una lista cerrada no se puede sumar nada. Poner
+        «pieza» por defecto donde falta corrompería los renglones de reactivos, cuya unidad
+        real es gramo o mililitro.
+      </p>
+    </article>
+
+    <article class="q">
+      <div class="q-head">
+        <span class="q-num">B6</span>
+        <h3>¿La diferencia entre «Insumo» y «Material» sirve para algo?</h3>
+      </div>
+      <div class="tabla-envoltura">
+        <table>
+          <thead><tr><th>Clasificación</th><th class="n">Filas</th></tr></thead>
+          <tbody>
+            <tr><td>Material</td> <td class="n">1,372</td></tr>
+            <tr><td>Insumo</td>   <td class="n">285</td></tr>
+            <tr><td>Equipo</td>   <td class="n">47</td></tr>
+            <tr><td>Reactivo</td> <td class="n ojo">46</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="decir">
+        «¿Un insumo y un material se tratan distinto en la práctica, o es solo una etiqueta?
+        Y hay 46 reactivos dentro de los archivos de materiales: ¿deberían estar ahí?»
+      </p>
+    </article>
+
+    <article class="q blanda">
+      <div class="q-head">
+        <span class="q-num">B7</span>
+        <h3>Hay diez cantidades negativas y una fórmula rota</h3>
+      </div>
+      <p>
+        Siete renglones en N3 y tres en LUM tienen cantidad negativa; uno de LUM dice
+        <code>#REF!</code>. Una existencia negativa no puede guardarse, así que el sistema los
+        va a rechazar.
+      </p>
+      <p class="decir">«¿Quién los revisa y cuándo?»</p>
+    </article>
+
+    <article class="q blanda">
+      <div class="q-head">
+        <span class="q-num">B8</span>
+        <h3>¿Se migra el histórico por semestre o solo la cantidad actual?</h3>
+      </div>
+      <p>
+        LUM arrastra seis columnas de periodos anteriores, N4 tres, Análisis Sensorial dos y
+        N3 una. El sistema puede guardar esa historia como movimientos de conteo fechados.
+      </p>
+      <p class="decir">«¿Les sirve poder comparar contra semestres anteriores?»</p>
+    </article>
+
+    <article class="q blanda">
+      <div class="q-head">
+        <span class="q-num">B9</span>
+        <h3>Los equipos con cantidad mayor a uno, ¿se separan?</h3>
+      </div>
+      <p>
+        En las incorporaciones de Electrónica hay 10 medidores LCR y 9 multímetros en un solo
+        renglón; en LUM, 11 unidades de Móvil CASSY-2.
+      </p>
+      <p class="decir">
+        «¿Cada aparato lleva su etiqueta y su número de serie, o se cuentan juntos?»
+      </p>
+      <p class="cambia">
+        <strong>Qué cambia:</strong> si van separados, cada uno se presta y se devuelve por su
+        cuenta y se sabe cuál está descompuesto. Si van juntos, solo se sabe cuántos hay.
+      </p>
+    </article>
+
+    <article class="q blanda">
+      <div class="q-head">
+        <span class="q-num">B10</span>
+        <h3>La lista de laboratorios que dependen de cada almacén</h3>
+      </div>
+      <p class="decir">
+        «Necesito los nombres de los laboratorios donde se dan prácticas, agrupados por el
+        almacén del que sacan material.»
+      </p>
+      <p class="cambia">
+        <strong>Qué cambia:</strong> hoy solo tenemos Análisis Sensorial colgando de N4. Sin la
+        lista completa, el módulo de prácticas no tiene dónde registrar nada.
+      </p>
+    </article>
+  </section>
+
+  <section>
+    <div class="sec-head">
+      <p class="eyebrow">Bloque C · Ya decidido</p>
+      <h2>Se menciona para que nadie lo reabra</h2>
+    </div>
+    <div class="cerrado">
+      <div><b>El formato NOM no se genera todavía.</b> Los datos de riesgo sí se guardan completos, para poder generarlo después sin recapturar nada.</div>
+      <div><b>Todos ven todo, cada quien edita lo suyo.</b> Cualquier responsable consulta el inventario de los otros almacenes para saber a quién pedir prestado, pero solo escribe en el suyo.</div>
+      <div><b>El sistema necesita conexión.</b> No funciona sin red.</div>
+      <div><b>La primera versión es solo Inventario.</b> El registro de prácticas viene después, sobre un inventario en el que ya se confíe.</div>
+      <div><b>Los almacenes son cuatro:</b> N3, N4, LUM y LE. Los demás laboratorios dependen de estos.</div>
+    </div>
+  </section>
+
+  <footer>
+    Cifras medidas sobre los 10 archivos completos recibidos de los almacenes.
+    Sistema de inventarios · Unidad Central de Laboratorios · UAEH
+  </footer>
+
+</div>

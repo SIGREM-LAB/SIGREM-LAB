@@ -12,6 +12,26 @@ dist
 dist-ssr
 *.local
 
+# Variables de entorno — NUNCA commitear (llaves de Supabase)
+.env
+.env.local
+.env.*.local
+
+# Supabase CLI
+supabase/.branches
+supabase/.temp
+.supabase
+
+# Python (ETL)
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Datos de origen: los Excel viven en el OneDrive del equipo, no en git
+etl/datos/*
+!etl/datos/README.md
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

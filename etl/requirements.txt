@@ -1,0 +1,8 @@
+# ETL de migracion de los Excel de almacen.
+# Solo lo necesita quien corra la migracion, no el equipo de frontend.
+#   python -m venv .venv && .venv\Scripts\activate && pip install -r etl/requirements.txt
+
+openpyxl>=3.1.5
+pandas>=2.2
+python-dotenv>=1.0
+psycopg[binary]>=3.2
