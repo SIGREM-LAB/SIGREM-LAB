@@ -66,7 +66,18 @@ La separación entre catálogo y existencia es lo que permite preguntar *"¿qué
 
 ### 3.2 Esquema
 
-> Las definiciones siguientes son un **bosquejo de diseño**. Al escribir las migraciones reales se validarán contra las buenas prácticas de Postgres de Supabase (índices, tipos, políticas, `search_path` de funciones).
+> **El esquema autoritativo vive en `supabase/migrations/`.** Lo de abajo es el bosquejo de diseño con el que se discutió; ante cualquier diferencia, manda la migración.
+>
+> Al escribirlas se validaron contra las buenas prácticas de Postgres de Supabase, y eso corrigió cuatro cosas del bosquejo:
+>
+> | Bosquejo | Corrección | Motivo |
+> |---|---|---|
+> | `existencia.id uuid default gen_random_uuid()` | `bigint generated always as identity` | UUIDv4 es aleatorio y fragmenta el índice en cada inserción |
+> | Políticas con subconsulta a `perfil` | Helpers `security definer` en esquema `private`, envueltos en `(select …)` | Sin eso la función se evalúa **una vez por fila** en vez de una por sentencia |
+> | Índices donde se me ocurrió | Índice explícito en **cada** columna FK, más parciales en las consultas del día a día | Postgres no indexa las FK solo; sin índice, los JOIN son seq scan |
+> | `movimiento.almacen_id` enviado por el cliente | Lo escribe el trigger `BEFORE INSERT` desde la existencia | **Agujero de seguridad:** un cliente podía mandar el almacén ajeno y escribir donde no le tocaba. El `WITH CHECK` corre después del trigger, sobre la fila ya corregida |
+>
+> La política `perfil_propio` además tenía una recursión infinita: consultaba `perfil` dentro de su propio `WITH CHECK`, y esa subconsulta volvía a pasar por la misma política. Se resolvió con `private.rol_actual()`.
 
 #### Organización
 
@@ -153,7 +164,7 @@ Los grados NFPA vienen como texto en el Excel (`'Grado 3: Riesgo serio'`) y se n
 
 ```sql
 create table existencia (
-  id                     uuid primary key default gen_random_uuid(),
+  id                     bigint generated always as identity primary key,
   articulo_id            bigint   not null references articulo(id),
   almacen_id             smallint not null references almacen(id),
   ubicacion_id           bigint   references ubicacion(id),
@@ -182,8 +193,9 @@ create table existencia (
 ```sql
 create table movimiento (
   id               bigint primary key generated always as identity,
-  existencia_id    uuid     not null references existencia(id),
-  almacen_id       smallint not null references almacen(id),  -- desnormalizado: RLS sin join
+  existencia_id    bigint not null references existencia(id),
+  almacen_id       bigint not null references almacen(id),  -- desnormalizado: RLS sin join
+                                                            -- lo escribe el trigger, NO el cliente
   tipo             text not null check (tipo in
                      ('entrada','consumo','merma','ajuste_conteo','prestamo','devolucion','baja')),
   cantidad         numeric(14,4) not null,      -- con signo
