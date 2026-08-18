@@ -7,7 +7,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 
-select plan(4);
+select plan(7);
 
 -- Los valores de un enum son un contrato con el ETL y con el frontend. Si
 -- alguien agrega o quita uno sin actualizar el resto, esto lo detiene.
@@ -40,6 +40,26 @@ select is(
   'acido succinico',
   'norm_texto baja a minusculas y quita acentos'
 );
+
+
+-- ---------------------------------------------------------------------------
+-- Organizacion
+-- ---------------------------------------------------------------------------
+
+-- almacen_alias existia para mapear el texto sucio de la columna Almacen
+-- ('4', 'n4', 'N1-1'). En el formato unificado el almacen lo dice el nombre del
+-- archivo, asi que la tabla sobra. Si alguien la revive, esto lo detiene.
+select hasnt_table('public', 'almacen_alias',
+  'almacen_alias no existe: la sub-ubicacion es ubicacion, no almacen');
+
+select hasnt_column('public', 'almacen', 'padre_id',
+  'almacen no tiene padre_id: LUM-1 y LUM-2 son sub-ubicaciones');
+
+-- Redundante con la PK a primera vista, pero es lo que permite la FK compuesta
+-- de existencia. Sin esta llave candidata no hay forma declarativa de exigir
+-- que el laboratorio de una existencia pertenezca a su mismo almacen.
+select col_is_unique('public', 'laboratorio', array['id','almacen_id'],
+  'laboratorio(id, almacen_id) es unico: habilita la FK compuesta de existencia');
 
 select * from finish();
 rollback;
