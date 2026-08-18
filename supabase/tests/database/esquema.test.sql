@@ -7,7 +7,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 
-select plan(15);
+select plan(30);
 
 -- Las pruebas corren como postgres, que se salta la RLS. Es lo correcto aqui:
 -- este archivo prueba la forma del esquema, no quien puede ver que. Eso es
@@ -141,6 +141,138 @@ select is(
   2,
   'buscar_articulo ignora acentos y mayusculas, y devuelve un renglon por articulo'
 );
+
+
+-- ---------------------------------------------------------------------------
+-- Inventario
+-- ---------------------------------------------------------------------------
+select pg_temp.como_postgres();
+
+create function pg_temp.id_almacen(clave text) returns bigint
+language sql as $$ select id from public.almacen where almacen.clave = $1 $$;
+
+insert into public.articulo (id, nombre_canonico, clasificacion, unidad_base)
+overriding system value
+values (900001, 'Acido succinico, solido, grado reactivo', 'reactivo', 'g'),
+       (900002, 'Agitador vortex',                        'equipo',   'pieza');
+
+insert into public.ubicacion (id, almacen_id, etiqueta, componentes)
+overriding system value
+values (900001, pg_temp.id_almacen('N3'), 'Anaquel 2 / 3 / 4',
+        '{"sub_ubicacion":"N3","mueble":"Anaquel 2","repisa":"3","fila_cajon":"4"}'),
+       (900002, pg_temp.id_almacen('N4'), 'Gabinete 301',
+        '{"sub_ubicacion":"N4","mueble":"Gabinete 301"}');
+
+-- Hoy nada impide que una existencia de N3 apunte a un anaquel de N4. Con la FK
+-- compuesta es imposible por construccion, sin triggers ni validacion en la app.
+select throws_ok(
+  $$ insert into public.existencia (articulo_id, almacen_id, ubicacion_id)
+     values (900001, pg_temp.id_almacen('N3'), 900002) $$,
+  '23503',
+  null,
+  'Una existencia de N3 no puede apuntar a una ubicacion de N4'
+);
+
+select lives_ok(
+  $$ insert into public.existencia (articulo_id, almacen_id, ubicacion_id)
+     values (900001, pg_temp.id_almacen('N3'), 900001) $$,
+  'Una existencia de N3 si puede apuntar a una ubicacion de N3'
+);
+
+-- Regla 6 del formato: celda vacia significa cero. El estado tiene que salir
+-- coherente aunque ningun movimiento haya corrido todavia.
+select is(
+  (select estado::text from public.existencia
+    where articulo_id = 900001 and ubicacion_id = 900001),
+  'agotado',
+  'Una existencia recien creada con cantidad 0 nace agotada, no disponible'
+);
+
+select matches(
+  (select codigo from public.existencia
+    where articulo_id = 900001 and ubicacion_id = 900001),
+  '^N3-[0-9]{5}$',
+  'El codigo del QR lleva la clave del almacen y cinco digitos'
+);
+
+-- Regla 10: la serie y el numero de inventario no se repiten entre renglones.
+-- Hoy en N4 tres numeros de serie se repiten en 30 equipos y nada lo impide.
+insert into public.existencia (id, articulo_id, almacen_id, numero_serie, numero_inventario_uaeh)
+overriding system value
+values (900101, 900002, pg_temp.id_almacen('N4'), '10017662023004', '5311308867');
+
+select throws_ok(
+  $$ insert into public.existencia (articulo_id, almacen_id, numero_serie)
+     values (900002, pg_temp.id_almacen('N4'), '10017662023004') $$,
+  '23505',
+  null,
+  'Dos equipos no pueden compartir numero de serie'
+);
+
+select throws_ok(
+  $$ insert into public.existencia (articulo_id, almacen_id, numero_inventario_uaeh)
+     values (900002, pg_temp.id_almacen('N4'), '5311308867') $$,
+  '23505',
+  null,
+  'Dos equipos no pueden compartir numero de inventario UAEH'
+);
+
+-- El ETL normaliza 'Sin serie' y '-' a NULL, y el unico parcial tiene que
+-- dejar pasar tantos NULL como haga falta.
+select lives_ok(
+  $$ insert into public.existencia (articulo_id, almacen_id, numero_serie)
+     values (900002, pg_temp.id_almacen('N4'), null),
+            (900002, pg_temp.id_almacen('N4'), null) $$,
+  'Varias existencias sin numero de serie conviven: el unico es parcial'
+);
+
+-- La cantidad nunca se escribe directo. La carga inicial pasa por movimiento
+-- para que exista bitacora desde el primer renglon.
+select lives_ok(
+  $$ insert into public.movimiento (existencia_id, tipo, cantidad, cantidad_antes,
+                                    cantidad_despues, almacen_id, usuario_id)
+     values (900101, 'carga_inicial', 1, 0, 0, pg_temp.id_almacen('N4'),
+             (select id from public.perfil limit 1)) $$,
+  'La carga inicial se registra como movimiento'
+);
+
+select is(
+  (select cantidad from public.existencia where id = 900101),
+  1::numeric(14,4),
+  'El trigger aplica la carga inicial al saldo'
+);
+
+select is(
+  (select estado::text from public.existencia where id = 900101),
+  'disponible',
+  'Con saldo y sin minimo, el estado queda disponible'
+);
+
+-- Un reactivo caducado hace anios sigue disponible: la caducidad es
+-- informativa y no bloquea. Decisiones D2 y D5 del spec.
+select is(
+  private.estado_calculado(50, 10, 'disponible'),
+  'disponible'::public.estado_existencia,
+  'estado_calculado no mira la caducidad: un caducado con saldo sigue disponible'
+);
+
+select is(
+  private.estado_calculado(5, 10, 'disponible'),
+  'stock_bajo'::public.estado_existencia,
+  'Por debajo del minimo, stock_bajo'
+);
+
+select is(
+  private.estado_calculado(0, 10, 'contaminado'),
+  'contaminado'::public.estado_existencia,
+  'Un estado puesto a mano manda sobre el calculado'
+);
+
+select hasnt_column('public', 'existencia', 'partida',
+  'partida se fue: es del catalogo de compras, no del inventario');
+
+select hasnt_column('public', 'existencia', 'revisado_por',
+  'revisado_por se fue: quien reviso lo dice movimiento.usuario_id');
 
 select * from finish();
 rollback;
