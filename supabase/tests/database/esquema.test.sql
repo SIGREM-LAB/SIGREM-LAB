@@ -7,7 +7,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 
-select plan(40);
+select plan(44);
 
 -- Las pruebas corren como postgres, que se salta la RLS. Es lo correcto aqui:
 -- este archivo prueba la forma del esquema, no quien puede ver que. Eso es
@@ -394,6 +394,53 @@ select is(
   (select funcionamiento::text from public.existencia where id = 900203),
   'presenta_fallas',
   'La devolucion actualiza el funcionamiento del equipo'
+);
+
+
+-- ---------------------------------------------------------------------------
+-- Perfiles de captura
+-- ---------------------------------------------------------------------------
+select pg_temp.como_postgres();
+
+-- Con el formato unificado todos capturan igual, asi que el seed trae 6
+-- perfiles default en vez de 24 por almacen.
+select is(
+  (select count(*)::int from public.perfil_captura where almacen_id is null),
+  6,
+  'Hay un perfil default por clasificacion: 6 filas, no 24'
+);
+
+-- Un almacen sin perfil propio recibe el default. Dar de alta un quinto
+-- almacen no requiere ni una fila nueva.
+select isnt_empty(
+  $$ select * from public.formulario(
+       (select id from public.almacen where clave = 'LE'), 'reactivo') $$,
+  'Un almacen sin perfil propio cae al default'
+);
+
+-- El especifico gana sobre el default.
+insert into public.perfil_captura (almacen_id, clasificacion, nombre)
+values ((select id from public.almacen where clave = 'LE'), 'componente',
+        'Componentes LE con coordenadas');
+
+insert into public.perfil_campo (perfil_id, campo, obligatorio, orden)
+select id, 'coord_h', true, 1 from public.perfil_captura
+ where almacen_id = (select id from public.almacen where clave = 'LE')
+   and clasificacion = 'componente';
+
+select results_eq(
+  $$ select campo from public.formulario(
+       (select id from public.almacen where clave = 'LE'), 'componente') $$,
+  array['coord_h'],
+  'El perfil del almacen gana sobre el default'
+);
+
+-- El formato unifico a Mueble: "Anaquel 2" es un valor, no una columna.
+select is(
+  (select count(*)::int from public.campo_capturable
+    where campo in ('anaquel','partida','revisado_por')),
+  0,
+  'anaquel, partida y revisado_por ya no son campos capturables'
 );
 
 select * from finish();
