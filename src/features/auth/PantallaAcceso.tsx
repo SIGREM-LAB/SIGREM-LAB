@@ -5,13 +5,14 @@ import {
   Box,
   Button,
   Divider,
+  IconButton,
   InputAdornment,
   Paper,
   Stack,
   TextField,
   Typography,
 } from '@mui/material'
-import { useState } from 'react'
+import { useState, ReactNode } from 'react'
 import { Controller, useForm } from 'react-hook-form'
 import { z } from 'zod'
 
@@ -47,7 +48,7 @@ function traducir(mensaje: string): string {
 }
 
 /** Icono a la izquierda del campo, como en el prototipo. */
-function adorno(icono: string) {
+function adorno(icono: string, fin?: ReactNode) {
   return {
     input: {
       startAdornment: (
@@ -55,12 +56,16 @@ function adorno(icono: string) {
           <Icon icon={icono} width={18} color="#6F6F6E" />
         </InputAdornment>
       ),
+      ...(fin && {
+        endAdornment: <InputAdornment position="end">{fin}</InputAdornment>,
+      }),
     },
   }
 }
 
 export function PantallaAcceso({ auth = supabase.auth }: { auth?: AuthAcceso }) {
   const [fallo, setFallo] = useState<string | null>(null)
+  const [verContrasena, setVerContrasena] = useState(false)
 
   const {
     control,
@@ -190,12 +195,23 @@ export function PantallaAcceso({ auth = supabase.auth }: { auth?: AuthAcceso }) 
                   <TextField
                     {...field}
                     label="Contraseña"
-                    type="password"
+                    type={verContrasena ? 'text' : 'password'}
                     size="medium"
                     autoComplete="current-password"
                     error={!!fieldState.error}
                     helperText={fieldState.error?.message}
-                    slotProps={adorno('mdi:lock-outline')}
+                    slotProps={adorno(
+                      'mdi:lock-outline',
+                      <IconButton
+                      type="button"
+                      aria-label={verContrasena ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+                      onClick={() => setVerContrasena((v) => !v)}
+                      onMouseDown={(e) => e.preventDefault()}
+                      edge="end"
+                      >
+                        <Icon icon={verContrasena ? 'mdi:eye-outline' : 'mdi:eye-off-outline'} width={20} />
+                      </IconButton>
+                    )}
                   />
                 )}
               />
