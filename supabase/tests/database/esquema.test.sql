@@ -7,7 +7,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 
-select plan(30);
+select plan(40);
 
 -- Las pruebas corren como postgres, que se salta la RLS. Es lo correcto aqui:
 -- este archivo prueba la forma del esquema, no quien puede ver que. Eso es
@@ -273,6 +273,128 @@ select hasnt_column('public', 'existencia', 'partida',
 
 select hasnt_column('public', 'existencia', 'revisado_por',
   'revisado_por se fue: quien reviso lo dice movimiento.usuario_id');
+
+
+-- ---------------------------------------------------------------------------
+-- Practicas
+-- ---------------------------------------------------------------------------
+select pg_temp.como_postgres();
+
+insert into public.existencia (id, articulo_id, almacen_id)
+overriding system value
+values (900201, 900001, pg_temp.id_almacen('N3')),   -- reactivo, se pesa
+       (900202, 900001, pg_temp.id_almacen('N3')),   -- material, por cantidad
+       (900203, 900002, pg_temp.id_almacen('N3'));   -- equipo, prestamo
+
+insert into public.movimiento (existencia_id, tipo, cantidad, cantidad_antes,
+                               cantidad_despues, almacen_id, usuario_id)
+values (900201, 'carga_inicial', 500, 0, 0, pg_temp.id_almacen('N3'),
+        (select id from public.perfil limit 1)),
+       (900202, 'carga_inicial',  20, 0, 0, pg_temp.id_almacen('N3'),
+        (select id from public.perfil limit 1)),
+       (900203, 'carga_inicial',   1, 0, 0, pg_temp.id_almacen('N3'),
+        (select id from public.perfil limit 1));
+
+insert into public.practica (id, programa_educativo_id, laboratorio_id, registrado_por)
+overriding system value
+values (900301,
+        (select id from public.programa_educativo limit 1),
+        (select id from public.laboratorio
+          where almacen_id = pg_temp.id_almacen('N3') limit 1),
+        (select id from public.perfil limit 1));
+
+select matches(
+  (select folio from public.practica where id = 900301),
+  '^PRA-[0-9]{4}$',
+  'El folio de la practica lo pone el trigger'
+);
+
+-- El almacen_id lo escribe el trigger desde el laboratorio, igual que en
+-- movimiento: si lo mandara el cliente podria falsearlo.
+select is(
+  (select a.clave from public.practica p join public.almacen a on a.id = p.almacen_id
+    where p.id = 900301),
+  'N3',
+  'El trigger deriva almacen_id del laboratorio de la practica'
+);
+
+-- Union discriminada: un reactivo con estado_devolucion es un renglon imposible.
+select throws_ok(
+  $$ insert into public.practica_elemento
+       (practica_id, existencia_id, metodo_control, peso_inicial, peso_final,
+        estado_devolucion)
+     values (900301, 900201, 'peso', 100, 90, 'correcto') $$,
+  '23514',
+  null,
+  'Un elemento por peso no puede traer estado_devolucion'
+);
+
+select throws_ok(
+  $$ insert into public.practica_elemento
+       (practica_id, existencia_id, metodo_control, peso_inicial, peso_final)
+     values (900301, 900201, 'peso', 90, 100) $$,
+  '23514',
+  null,
+  'El peso final no puede ser mayor que el inicial'
+);
+
+-- La aritmetica vive en la base. El bug de la semana del 11 de agosto fue una
+-- resta al reves que no daba error.
+insert into public.practica_elemento
+  (practica_id, existencia_id, metodo_control, peso_inicial, peso_final)
+values (900301, 900201, 'peso', 196.8, 139.8);
+
+select is(
+  (select consumo from public.practica_elemento
+    where existencia_id = 900201),
+  57.0::numeric(14,4),
+  'consumo es columna generada: 196.8 - 139.8'
+);
+
+select is(
+  (select cantidad from public.existencia where id = 900201),
+  443.0::numeric(14,4),
+  'El consumo por peso descuenta del saldo via movimiento'
+);
+
+-- Dos columnas para danada y perdidas, dos movimientos: juntarlas en uno solo
+-- desperdiciaria la distincion que el formulario si captura.
+insert into public.practica_elemento
+  (practica_id, existencia_id, metodo_control,
+   cantidad_entregada, cantidad_devuelta, cantidad_danada)
+values (900301, 900202, 'cantidad', 10, 7, 2);
+
+select is(
+  (select perdidas from public.practica_elemento where existencia_id = 900202),
+  1.0::numeric(14,4),
+  'perdidas es columna generada: 10 - 7 - 2'
+);
+
+select set_eq(
+  $$ select tipo::text || ':' || cantidad::text from public.movimiento
+      where existencia_id = 900202 and tipo <> 'carga_inicial' $$,
+  array['merma:-2.0000','consumo:-1.0000'],
+  'Un elemento por cantidad genera merma por lo daniado y consumo por lo perdido'
+);
+
+-- Un equipo prestado y devuelto no cambia de cantidad. Una fila -1/+1 que se
+-- cancela seria historia inventada.
+insert into public.practica_elemento
+  (practica_id, existencia_id, metodo_control, estado_salida, estado_devolucion)
+values (900301, 900203, 'prestamo', 'correcto', 'presenta_fallas');
+
+select is(
+  (select count(*)::int from public.movimiento
+    where existencia_id = 900203 and tipo <> 'carga_inicial'),
+  0,
+  'Un prestamo de equipo no genera movimiento: la cantidad no cambia'
+);
+
+select is(
+  (select funcionamiento::text from public.existencia where id = 900203),
+  'presenta_fallas',
+  'La devolucion actualiza el funcionamiento del equipo'
+);
 
 select * from finish();
 rollback;

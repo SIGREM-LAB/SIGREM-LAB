@@ -18,7 +18,8 @@ insert into public.almacen (clave, nombre, uso_principal, zona_riesgo, personas_
 -- ---------------------------------------------------------------------------
 -- Laboratorios
 -- ---------------------------------------------------------------------------
--- Salen de la columna Laboratorio de la hoja Equipos del formato unificado.
+-- Los cuatro primeros salen de la columna Laboratorio de la hoja Equipos del
+-- formato unificado. Son los unicos nombres reales que tenemos.
 insert into public.laboratorio (almacen_id, nombre)
 select id, 'Analisis Sensorial' from public.almacen where clave = 'N4'
 union all
@@ -27,6 +28,14 @@ union all
 select id, 'Caracterizacion y procesamiento' from public.almacen where clave = 'LUM'
 union all
 select id, 'Laboratorio de Electronica' from public.almacen where clave = 'LE';
+
+-- PENDIENTE DE CONFIRMAR con el responsable de N3: los ejemplos del formato no
+-- traen ningun laboratorio de N3, y una practica necesita laboratorio porque de
+-- ahi sale su almacen. Sin al menos uno, N3 no puede registrar practicas.
+-- Este nombre es un marcador para que el entorno local funcione, no un dato real.
+insert into public.laboratorio (almacen_id, nombre)
+select id, 'Laboratorio de docencia N3 (por confirmar)'
+  from public.almacen where clave = 'N3';
 
 
 -- ---------------------------------------------------------------------------
@@ -95,3 +104,31 @@ begin
     values (uid, u.nombre, alm, u.rol);
   end loop;
 end $$;
+
+
+-- ---------------------------------------------------------------------------
+-- Catalogos de practicas
+-- ---------------------------------------------------------------------------
+insert into public.programa_educativo (nombre) values
+  ('Ingenieria en Alimentos'),
+  ('Ingenieria en Biotecnologia'),
+  ('Ingenieria Industrial'),
+  ('Ingenieria en Electronica y Telecomunicaciones'),
+  ('Ingenieria Mecanica'),
+  ('Quimica en Alimentos'),
+  ('Quimico Farmaceutico Biologo'),
+  ('Ingenieria en Tecnologias del Software');
+
+-- Los nueve motivos son las casillas del prototipo. Como catalogo y no como
+-- nueve columnas booleanas: agregar el decimo es un insert, no una migracion
+-- mas un redespliegue del frontend.
+insert into public.motivo_observacion (clave, etiqueta, orden) values
+  ('no_tenemos',      'No tenemos',        1),
+  ('prestamo_n4',     'Prestamo N4',       2),
+  ('prestamo_n3',     'Prestamo N3',       3),
+  ('prestamo_lum',    'Prestamo LUM',      4),
+  ('contaminado',     'Contaminado',       5),
+  ('se_termino',      'Se termino',        6),
+  ('material_daniado','Material daniado',  7),
+  ('equipo_daniado',  'Equipo daniado',    8),
+  ('otro',            'Otro',              9);
