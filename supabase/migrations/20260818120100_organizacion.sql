@@ -10,6 +10,14 @@ create table public.almacen (
   clave     text        not null unique,
   nombre    text        not null,
   activo    boolean     not null default true,
+
+  -- Constantes por almacen: en los Excel venian identicas en cada renglon.
+  -- Repetirlas ~2,500 veces no aporta nada; el exportador de la NOM las
+  -- reinyecta por renglon al generar el formato oficial.
+  uso_principal      text,
+  zona_riesgo        text,
+  personas_expuestas integer,
+
   creado_en timestamptz not null default now()
 );
 
@@ -26,7 +34,12 @@ create table public.laboratorio (
   almacen_id bigint  not null references public.almacen (id),
   nombre     text    not null,
   activo     boolean not null default true,
-  unique (almacen_id, nombre)
+  unique (almacen_id, nombre),
+
+  -- Redundante con la PK a primera vista, pero es lo que permite la FK
+  -- compuesta de existencia: sin esta llave candidata no hay forma declarativa
+  -- de exigir que el laboratorio de una existencia sea de su mismo almacen.
+  unique (id, almacen_id)
 );
 
 create index laboratorio_almacen_id_idx on public.laboratorio (almacen_id);
@@ -116,3 +129,17 @@ grant execute on function private.es_admin()        to authenticated;
 grant execute on function private.puede_escribir()  to authenticated;
 
 revoke all on schema private from anon, public;
+
+
+-- ---------------------------------------------------------------------------
+-- RLS
+-- ---------------------------------------------------------------------------
+-- Se activa aqui, junto a la tabla, y no en rls.sql: la prueba de cobertura
+-- ("ninguna tabla de public se queda sin RLS") es un invariante que debe ser
+-- cierto en todos los commits, no solo en el ultimo. Sin politicas la tabla
+-- niega todo, que es el modo de falla correcto. Las politicas van en rls.sql.
+alter table public.almacen     enable row level security;
+alter table public.laboratorio enable row level security;
+alter table public.perfil      enable row level security;
+
+revoke all on public.almacen, public.laboratorio, public.perfil from anon;

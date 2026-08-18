@@ -41,7 +41,6 @@ export type Database = {
           creado_en: string
           id: number
           nombre: string
-          padre_id: number | null
           personas_expuestas: number | null
           uso_principal: string | null
           zona_riesgo: string | null
@@ -52,7 +51,6 @@ export type Database = {
           creado_en?: string
           id?: never
           nombre: string
-          padre_id?: number | null
           personas_expuestas?: number | null
           uso_principal?: string | null
           zona_riesgo?: string | null
@@ -63,43 +61,11 @@ export type Database = {
           creado_en?: string
           id?: never
           nombre?: string
-          padre_id?: number | null
           personas_expuestas?: number | null
           uso_principal?: string | null
           zona_riesgo?: string | null
         }
-        Relationships: [
-          {
-            foreignKeyName: "almacen_padre_id_fkey"
-            columns: ["padre_id"]
-            isOneToOne: false
-            referencedRelation: "almacen"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      almacen_alias: {
-        Row: {
-          almacen_id: number
-          texto: string
-        }
-        Insert: {
-          almacen_id: number
-          texto: string
-        }
-        Update: {
-          almacen_id?: number
-          texto?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "almacen_alias_almacen_id_fkey"
-            columns: ["almacen_id"]
-            isOneToOne: false
-            referencedRelation: "almacen"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
       }
       articulo: {
         Row: {
@@ -177,51 +143,77 @@ export type Database = {
           },
         ]
       }
+      articulo_biologico: {
+        Row: {
+          articulo_id: number
+          origen_especie: string | null
+        }
+        Insert: {
+          articulo_id: number
+          origen_especie?: string | null
+        }
+        Update: {
+          articulo_id?: number
+          origen_especie?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "articulo_biologico_articulo_id_fkey"
+            columns: ["articulo_id"]
+            isOneToOne: true
+            referencedRelation: "articulo"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       articulo_reactivo: {
         Row: {
           articulo_id: number
           caracteristica_quimica: string | null
           caracteristica_toxica: string | null
-          clasificacion_ghs: string | null
-          color_almacenamiento: string | null
+          cas: string | null
+          color_almacenaje:
+            | Database["public"]["Enums"]["color_almacenaje"]
+            | null
           estado_fisico: Database["public"]["Enums"]["estado_fisico"] | null
           implica_actividad_peligro: boolean | null
           peligro_especial: string | null
-          requiere_hoja_seguridad: boolean | null
           riesgo_inflamabilidad: number | null
           riesgo_reactividad: number | null
           riesgo_salud: number | null
-          uso_principal: string | null
+          tiene_hoja_seguridad: boolean | null
         }
         Insert: {
           articulo_id: number
           caracteristica_quimica?: string | null
           caracteristica_toxica?: string | null
-          clasificacion_ghs?: string | null
-          color_almacenamiento?: string | null
+          cas?: string | null
+          color_almacenaje?:
+            | Database["public"]["Enums"]["color_almacenaje"]
+            | null
           estado_fisico?: Database["public"]["Enums"]["estado_fisico"] | null
           implica_actividad_peligro?: boolean | null
           peligro_especial?: string | null
-          requiere_hoja_seguridad?: boolean | null
           riesgo_inflamabilidad?: number | null
           riesgo_reactividad?: number | null
           riesgo_salud?: number | null
-          uso_principal?: string | null
+          tiene_hoja_seguridad?: boolean | null
         }
         Update: {
           articulo_id?: number
           caracteristica_quimica?: string | null
           caracteristica_toxica?: string | null
-          clasificacion_ghs?: string | null
-          color_almacenamiento?: string | null
+          cas?: string | null
+          color_almacenaje?:
+            | Database["public"]["Enums"]["color_almacenaje"]
+            | null
           estado_fisico?: Database["public"]["Enums"]["estado_fisico"] | null
           implica_actividad_peligro?: boolean | null
           peligro_especial?: string | null
-          requiere_hoja_seguridad?: boolean | null
           riesgo_inflamabilidad?: number | null
           riesgo_reactividad?: number | null
           riesgo_salud?: number | null
-          uso_principal?: string | null
+          tiene_hoja_seguridad?: boolean | null
         }
         Relationships: [
           {
@@ -229,6 +221,35 @@ export type Database = {
             columns: ["articulo_id"]
             isOneToOne: true
             referencedRelation: "articulo"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      asignatura: {
+        Row: {
+          activo: boolean
+          id: number
+          nombre: string
+          programa_educativo_id: number | null
+        }
+        Insert: {
+          activo?: boolean
+          id?: never
+          nombre: string
+          programa_educativo_id?: number | null
+        }
+        Update: {
+          activo?: boolean
+          id?: never
+          nombre?: string
+          programa_educativo_id?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "asignatura_programa_educativo_id_fkey"
+            columns: ["programa_educativo_id"]
+            isOneToOne: false
+            referencedRelation: "programa_educativo"
             referencedColumns: ["id"]
           },
         ]
@@ -260,30 +281,92 @@ export type Database = {
         }
         Relationships: []
       }
+      carga: {
+        Row: {
+          actualizado_el: string | null
+          almacen_id: number
+          archivo: string
+          cargado_en: string
+          cargado_por: string | null
+          filas: number | null
+          hoja: string
+          id: number
+          periodo: string | null
+          responsable: string | null
+        }
+        Insert: {
+          actualizado_el?: string | null
+          almacen_id: number
+          archivo: string
+          cargado_en?: string
+          cargado_por?: string | null
+          filas?: number | null
+          hoja: string
+          id?: never
+          periodo?: string | null
+          responsable?: string | null
+        }
+        Update: {
+          actualizado_el?: string | null
+          almacen_id?: number
+          archivo?: string
+          cargado_en?: string
+          cargado_por?: string | null
+          filas?: number | null
+          hoja?: string
+          id?: never
+          periodo?: string | null
+          responsable?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "carga_almacen_id_fkey"
+            columns: ["almacen_id"]
+            isOneToOne: false
+            referencedRelation: "almacen"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "carga_cargado_por_fkey"
+            columns: ["cargado_por"]
+            isOneToOne: false
+            referencedRelation: "perfil"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       existencia: {
         Row: {
           almacen_id: number
           articulo_id: number
           cantidad: number
           cantidad_minima: number | null
+          carga_id: number | null
           codigo: string | null
           creado_en: string
           estado: Database["public"]["Enums"]["estado_existencia"]
           fecha_adquisicion: string | null
           fecha_caducidad: string | null
           fecha_chequeo: string | null
+          fecha_preparacion: string | null
+          fecha_recoleccion: string | null
+          funcionamiento:
+            | Database["public"]["Enums"]["funcionamiento_equipo"]
+            | null
           id: number
+          laboratorio_id: number | null
           mantenimiento: string | null
           marca: string | null
+          metodo_conservacion: string | null
           modelo: string | null
           numero_inventario_uaeh: string | null
           numero_serie: string | null
           observaciones: string | null
-          partida: string | null
           peso_frasco_vacio: number | null
           peso_total: number | null
           presentacion: string | null
-          revisado_por: string | null
+          responsable_muestra: string | null
+          temperatura: string | null
           ubicacion_id: number | null
         }
         Insert: {
@@ -291,24 +374,32 @@ export type Database = {
           articulo_id: number
           cantidad?: number
           cantidad_minima?: number | null
+          carga_id?: number | null
           codigo?: string | null
           creado_en?: string
           estado?: Database["public"]["Enums"]["estado_existencia"]
           fecha_adquisicion?: string | null
           fecha_caducidad?: string | null
           fecha_chequeo?: string | null
+          fecha_preparacion?: string | null
+          fecha_recoleccion?: string | null
+          funcionamiento?:
+            | Database["public"]["Enums"]["funcionamiento_equipo"]
+            | null
           id?: never
+          laboratorio_id?: number | null
           mantenimiento?: string | null
           marca?: string | null
+          metodo_conservacion?: string | null
           modelo?: string | null
           numero_inventario_uaeh?: string | null
           numero_serie?: string | null
           observaciones?: string | null
-          partida?: string | null
           peso_frasco_vacio?: number | null
           peso_total?: number | null
           presentacion?: string | null
-          revisado_por?: string | null
+          responsable_muestra?: string | null
+          temperatura?: string | null
           ubicacion_id?: number | null
         }
         Update: {
@@ -316,24 +407,32 @@ export type Database = {
           articulo_id?: number
           cantidad?: number
           cantidad_minima?: number | null
+          carga_id?: number | null
           codigo?: string | null
           creado_en?: string
           estado?: Database["public"]["Enums"]["estado_existencia"]
           fecha_adquisicion?: string | null
           fecha_caducidad?: string | null
           fecha_chequeo?: string | null
+          fecha_preparacion?: string | null
+          fecha_recoleccion?: string | null
+          funcionamiento?:
+            | Database["public"]["Enums"]["funcionamiento_equipo"]
+            | null
           id?: never
+          laboratorio_id?: number | null
           mantenimiento?: string | null
           marca?: string | null
+          metodo_conservacion?: string | null
           modelo?: string | null
           numero_inventario_uaeh?: string | null
           numero_serie?: string | null
           observaciones?: string | null
-          partida?: string | null
           peso_frasco_vacio?: number | null
           peso_total?: number | null
           presentacion?: string | null
-          revisado_por?: string | null
+          responsable_muestra?: string | null
+          temperatura?: string | null
           ubicacion_id?: number | null
         }
         Relationships: [
@@ -352,11 +451,25 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "existencia_ubicacion_id_fkey"
-            columns: ["ubicacion_id"]
+            foreignKeyName: "existencia_carga_id_fkey"
+            columns: ["carga_id"]
+            isOneToOne: false
+            referencedRelation: "carga"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "existencia_laboratorio_id_almacen_id_fkey"
+            columns: ["laboratorio_id", "almacen_id"]
+            isOneToOne: false
+            referencedRelation: "laboratorio"
+            referencedColumns: ["id", "almacen_id"]
+          },
+          {
+            foreignKeyName: "existencia_ubicacion_id_almacen_id_fkey"
+            columns: ["ubicacion_id", "almacen_id"]
             isOneToOne: false
             referencedRelation: "ubicacion"
-            referencedColumns: ["id"]
+            referencedColumns: ["id", "almacen_id"]
           },
         ]
       }
@@ -388,6 +501,27 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      motivo_observacion: {
+        Row: {
+          activo: boolean
+          clave: string
+          etiqueta: string
+          orden: number
+        }
+        Insert: {
+          activo?: boolean
+          clave: string
+          etiqueta: string
+          orden: number
+        }
+        Update: {
+          activo?: boolean
+          clave?: string
+          etiqueta?: string
+          orden?: number
+        }
+        Relationships: []
       }
       movimiento: {
         Row: {
@@ -442,6 +576,13 @@ export type Database = {
             columns: ["existencia_id"]
             isOneToOne: false
             referencedRelation: "existencia"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "movimiento_practica_id_fkey"
+            columns: ["practica_id"]
+            isOneToOne: false
+            referencedRelation: "practica"
             referencedColumns: ["id"]
           },
           {
@@ -526,21 +667,21 @@ export type Database = {
       }
       perfil_captura: {
         Row: {
-          almacen_id: number
+          almacen_id: number | null
           clasificacion: Database["public"]["Enums"]["clasificacion_articulo"]
           id: number
           nombre: string
           notas: string | null
         }
         Insert: {
-          almacen_id: number
+          almacen_id?: number | null
           clasificacion: Database["public"]["Enums"]["clasificacion_articulo"]
           id?: never
           nombre: string
           notas?: string | null
         }
         Update: {
-          almacen_id?: number
+          almacen_id?: number | null
           clasificacion?: Database["public"]["Enums"]["clasificacion_articulo"]
           id?: never
           nombre?: string
@@ -555,6 +696,220 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      practica: {
+        Row: {
+          almacen_id: number
+          asignatura_id: number | null
+          creado_en: string
+          fecha: string
+          folio: string | null
+          id: number
+          laboratorio_id: number
+          observaciones: string | null
+          programa_educativo_id: number
+          registrado_por: string
+        }
+        Insert: {
+          almacen_id: number
+          asignatura_id?: number | null
+          creado_en?: string
+          fecha?: string
+          folio?: string | null
+          id?: never
+          laboratorio_id: number
+          observaciones?: string | null
+          programa_educativo_id: number
+          registrado_por: string
+        }
+        Update: {
+          almacen_id?: number
+          asignatura_id?: number | null
+          creado_en?: string
+          fecha?: string
+          folio?: string | null
+          id?: never
+          laboratorio_id?: number
+          observaciones?: string | null
+          programa_educativo_id?: number
+          registrado_por?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "practica_almacen_id_fkey"
+            columns: ["almacen_id"]
+            isOneToOne: false
+            referencedRelation: "almacen"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "practica_asignatura_id_fkey"
+            columns: ["asignatura_id"]
+            isOneToOne: false
+            referencedRelation: "asignatura"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "practica_laboratorio_id_fkey"
+            columns: ["laboratorio_id"]
+            isOneToOne: false
+            referencedRelation: "laboratorio"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "practica_programa_educativo_id_fkey"
+            columns: ["programa_educativo_id"]
+            isOneToOne: false
+            referencedRelation: "programa_educativo"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "practica_registrado_por_fkey"
+            columns: ["registrado_por"]
+            isOneToOne: false
+            referencedRelation: "perfil"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      practica_elemento: {
+        Row: {
+          almacen_id: number
+          cantidad_danada: number | null
+          cantidad_devuelta: number | null
+          cantidad_entregada: number | null
+          consumo: number | null
+          creado_en: string
+          estado_devolucion:
+            | Database["public"]["Enums"]["funcionamiento_equipo"]
+            | null
+          estado_salida:
+            | Database["public"]["Enums"]["funcionamiento_equipo"]
+            | null
+          existencia_id: number
+          id: number
+          metodo_control: Database["public"]["Enums"]["metodo_control"]
+          observaciones: string | null
+          perdidas: number | null
+          peso_final: number | null
+          peso_inicial: number | null
+          practica_id: number
+        }
+        Insert: {
+          almacen_id: number
+          cantidad_danada?: number | null
+          cantidad_devuelta?: number | null
+          cantidad_entregada?: number | null
+          consumo?: number | null
+          creado_en?: string
+          estado_devolucion?:
+            | Database["public"]["Enums"]["funcionamiento_equipo"]
+            | null
+          estado_salida?:
+            | Database["public"]["Enums"]["funcionamiento_equipo"]
+            | null
+          existencia_id: number
+          id?: never
+          metodo_control: Database["public"]["Enums"]["metodo_control"]
+          observaciones?: string | null
+          perdidas?: number | null
+          peso_final?: number | null
+          peso_inicial?: number | null
+          practica_id: number
+        }
+        Update: {
+          almacen_id?: number
+          cantidad_danada?: number | null
+          cantidad_devuelta?: number | null
+          cantidad_entregada?: number | null
+          consumo?: number | null
+          creado_en?: string
+          estado_devolucion?:
+            | Database["public"]["Enums"]["funcionamiento_equipo"]
+            | null
+          estado_salida?:
+            | Database["public"]["Enums"]["funcionamiento_equipo"]
+            | null
+          existencia_id?: number
+          id?: never
+          metodo_control?: Database["public"]["Enums"]["metodo_control"]
+          observaciones?: string | null
+          perdidas?: number | null
+          peso_final?: number | null
+          peso_inicial?: number | null
+          practica_id?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "practica_elemento_almacen_id_fkey"
+            columns: ["almacen_id"]
+            isOneToOne: false
+            referencedRelation: "almacen"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "practica_elemento_existencia_id_fkey"
+            columns: ["existencia_id"]
+            isOneToOne: false
+            referencedRelation: "existencia"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "practica_elemento_practica_id_fkey"
+            columns: ["practica_id"]
+            isOneToOne: false
+            referencedRelation: "practica"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      practica_observacion: {
+        Row: {
+          motivo: string
+          practica_id: number
+        }
+        Insert: {
+          motivo: string
+          practica_id: number
+        }
+        Update: {
+          motivo?: string
+          practica_id?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "practica_observacion_motivo_fkey"
+            columns: ["motivo"]
+            isOneToOne: false
+            referencedRelation: "motivo_observacion"
+            referencedColumns: ["clave"]
+          },
+          {
+            foreignKeyName: "practica_observacion_practica_id_fkey"
+            columns: ["practica_id"]
+            isOneToOne: false
+            referencedRelation: "practica"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      programa_educativo: {
+        Row: {
+          activo: boolean
+          id: number
+          nombre: string
+        }
+        Insert: {
+          activo?: boolean
+          id?: never
+          nombre: string
+        }
+        Update: {
+          activo?: boolean
+          id?: never
+          nombre?: string
+        }
+        Relationships: []
       }
       ubicacion: {
         Row: {
@@ -631,8 +986,15 @@ export type Database = {
         | "insumo"
         | "equipo"
         | "componente"
+        | "materia_biologica"
+      color_almacenaje:
+        | "verde"
+        | "rojo"
+        | "azul"
+        | "blanco"
+        | "amarillo"
+        | "naranja"
       estado_existencia:
-        | "por_confirmar"
         | "disponible"
         | "stock_bajo"
         | "agotado"
@@ -640,9 +1002,12 @@ export type Database = {
         | "mantenimiento"
         | "baja"
       estado_fisico: "solido" | "liquido" | "gas"
+      funcionamiento_equipo: "correcto" | "presenta_fallas"
+      metodo_control: "peso" | "cantidad" | "prestamo"
       origen_alias: "migracion" | "busqueda" | "fusion"
       rol_usuario: "admin" | "responsable" | "consulta"
       tipo_movimiento:
+        | "carga_inicial"
         | "entrada"
         | "consumo"
         | "merma"
@@ -786,9 +1151,17 @@ export const Constants = {
         "insumo",
         "equipo",
         "componente",
+        "materia_biologica",
+      ],
+      color_almacenaje: [
+        "verde",
+        "rojo",
+        "azul",
+        "blanco",
+        "amarillo",
+        "naranja",
       ],
       estado_existencia: [
-        "por_confirmar",
         "disponible",
         "stock_bajo",
         "agotado",
@@ -797,9 +1170,12 @@ export const Constants = {
         "baja",
       ],
       estado_fisico: ["solido", "liquido", "gas"],
+      funcionamiento_equipo: ["correcto", "presenta_fallas"],
+      metodo_control: ["peso", "cantidad", "prestamo"],
       origen_alias: ["migracion", "busqueda", "fusion"],
       rol_usuario: ["admin", "responsable", "consulta"],
       tipo_movimiento: [
+        "carga_inicial",
         "entrada",
         "consumo",
         "merma",

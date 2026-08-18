@@ -14,7 +14,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 
-select plan(23);
+select plan(30);
 
 
 -- ---------------------------------------------------------------------------
@@ -254,12 +254,14 @@ select is(
   'El formulario de reactivos de N3 pide los dos pesos del frasco'
 );
 
+-- Con el formato unificado los cuatro almacenes capturan igual, asi que N4 pide
+-- exactamente lo mismo que N3: los dos salen del mismo perfil default.
 select is(
   (select count(*)::int from public.formulario(
      (select id from public.almacen where clave = 'N4'), 'reactivo')
     where campo in ('peso_total', 'peso_frasco_vacio')),
-  0,
-  'El de N4 no los pide: ahi la cantidad se captura directa'
+  2,
+  'N4 cae al mismo perfil default: el formato ya no distingue por almacen'
 );
 
 select pg_temp.como('n3@uaeh.local');
@@ -273,9 +275,8 @@ select pg_temp.como('n3@uaeh.local');
 select lives_ok(
   $$ delete from public.perfil_campo
       where campo = 'peso_total'
-        and perfil_id = (select p.id from public.perfil_captura p
-                           join public.almacen a on a.id = p.almacen_id
-                          where a.clave = 'N3' and p.clasificacion = 'reactivo') $$,
+        and perfil_id = (select id from public.perfil_captura
+                          where almacen_id is null and clasificacion = 'reactivo') $$,
   'El borrado de un campo de perfil no lanza error: afecta cero filas'
 );
 
@@ -287,6 +288,89 @@ select is(
   'El campo sigue en el perfil: un responsable no cambia la forma del formulario'
 );
 
+
+
+-- ---------------------------------------------------------------------------
+-- 24-30. Practicas, cargas y catalogos nuevos
+-- ---------------------------------------------------------------------------
+select pg_temp.como_postgres();
+
+insert into public.existencia (id, articulo_id, almacen_id)
+overriding system value
+values (900401, 900001, pg_temp.id_almacen('N4'));
+
+insert into public.movimiento (existencia_id, tipo, cantidad, cantidad_antes,
+                               cantidad_despues, almacen_id, usuario_id)
+values (900401, 'carga_inicial', 100, 0, 0, pg_temp.id_almacen('N4'),
+        (select id from public.perfil where nombre = 'Responsable N4'));
+
+select pg_temp.como('n3@uaeh.local');
+
+select throws_ok(
+  $$ insert into public.practica (programa_educativo_id, laboratorio_id)
+     values ((select id from public.programa_educativo limit 1),
+             (select id from public.laboratorio
+               where almacen_id = pg_temp.id_almacen('N4') limit 1)) $$,
+  '42501',
+  null,
+  'El responsable de N3 no puede registrar una practica en un laboratorio de N4'
+);
+
+select lives_ok(
+  $$ insert into public.practica (programa_educativo_id, laboratorio_id)
+     values ((select id from public.programa_educativo limit 1),
+             (select id from public.laboratorio
+               where almacen_id = pg_temp.id_almacen('N3') limit 1)) $$,
+  'El responsable de N3 si puede registrar una practica en su almacen'
+);
+
+-- La prueba que mas importa del modulo: se manda un elemento sobre una
+-- existencia de N4 desde una practica de N3. El trigger reescribe el
+-- almacen_id desde la existencia y el WITH CHECK lo rechaza.
+select throws_ok(
+  $$ insert into public.practica_elemento
+       (practica_id, existencia_id, metodo_control, cantidad_entregada)
+     values ((select id from public.practica
+               where almacen_id = pg_temp.id_almacen('N3')
+               order by id desc limit 1),
+             900401, 'cantidad', 5) $$,
+  '42501',
+  null,
+  'No se puede consumir una existencia de N4 desde una practica de N3'
+);
+
+select pg_temp.como('lectura@uaeh.local');
+
+select is(
+  (select count(*)::int from public.practica),
+  1,
+  'El usuario de consulta lee la practica que registro el responsable de N3'
+);
+
+select throws_ok(
+  $$ insert into public.practica (programa_educativo_id, laboratorio_id)
+     values ((select id from public.programa_educativo limit 1),
+             (select id from public.laboratorio limit 1)) $$,
+  '42501',
+  null,
+  'El usuario de consulta no puede registrar practicas'
+);
+
+select throws_ok(
+  $$ insert into public.carga (almacen_id, archivo, hoja)
+     values (pg_temp.id_almacen('N3'), 'x.xlsx', 'Reactivos') $$,
+  '42501',
+  null,
+  'El usuario de consulta no puede registrar cargas'
+);
+
+select throws_ok(
+  $$ insert into public.motivo_observacion (clave, etiqueta, orden)
+     values ('inventado', 'Inventado', 99) $$,
+  '42501',
+  null,
+  'Solo el admin cambia los catalogos cerrados'
+);
 
 select * from finish();
 rollback;
