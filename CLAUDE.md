@@ -1,7 +1,12 @@
 # SIGREM-LAB
 
 Inventarios de los 4 almacenes de la Unidad Central de Laboratorios, UAEH.
-Diseño completo: `docs/specs/2026-08-12-inventarios-ucl-datos-y-esquema-design.md`.
+
+Diseño vigente: `docs/specs/2026-08-18-depuracion-esquema-formato-unificado-design.md`,
+con su plan en `docs/plans/2026-08-18-depuracion-esquema.md`. El anterior
+(`docs/specs/2026-08-12-inventarios-ucl-datos-y-esquema-design.md`) queda como
+antecedente: sigue siendo útil para entender por qué se tomó cada decisión
+original, pero donde se contradiga con el del 18 de agosto, manda el nuevo.
 
 ## Regla principal: usa lo que ya está instalado
 
@@ -30,6 +35,14 @@ la forma de una fila.
 **El esquema solo cambia por migración.** Un archivo nuevo en
 `supabase/migrations/`, nunca desde el dashboard. Una migración ya aplicada no
 se edita: se agrega otra.
+
+> **Excepción de una sola vez, 18 de agosto de 2026.** El baseline se reescribió
+> completo: las 7 migraciones del 12 de agosto se borraron y se reemplazaron por
+> 7 nuevas. Se pudo hacer porque no había ni un registro cargado, el proyecto
+> remoto estaba vacío y el CLI no estaba vinculado, así que no existía historial
+> de migraciones fuera de esta máquina. **Esa ventana se cierra con el primer
+> `supabase db push`.** Después de ese push la regla vuelve a ser literal.
+> Razonamiento completo en la §3 del spec vigente.
 
 **Cada política de RLS lleva su prueba.** En producción la app llevará la
 `anon key` dentro del binario; esa llave es pública y cualquiera puede
