@@ -1,5 +1,10 @@
 -- Row Level Security.
 --
+-- Diseno: docs/specs/2026-08-18-depuracion-esquema-formato-unificado-design.md
+--
+-- El `enable row level security` y el `revoke ... from anon` de cada tabla viven
+-- en el archivo que la crea; aqui van solo las politicas.
+--
 -- Esta es la UNICA seguridad real del sistema. Cuando la app se empaquete para
 -- produccion llevara la anon key dentro del binario; esa llave es publica por
 -- diseno y cualquiera puede extraerla y hablarle directo a la base. Lo que
@@ -17,15 +22,6 @@ revoke all on all tables    in schema public from anon;
 revoke all on all functions in schema public from anon;
 revoke all on all sequences in schema public from anon;
 
-alter table public.almacen           enable row level security;
-alter table public.laboratorio       enable row level security;
-alter table public.perfil            enable row level security;
-alter table public.ubicacion         enable row level security;
-alter table public.articulo          enable row level security;
-alter table public.articulo_alias    enable row level security;
-alter table public.articulo_reactivo enable row level security;
-alter table public.existencia        enable row level security;
-alter table public.movimiento        enable row level security;
 
 
 -- ---------------------------------------------------------------------------
@@ -175,3 +171,142 @@ create policy movimiento_lectura on public.movimiento
 create policy movimiento_alta on public.movimiento
   for insert to authenticated
   with check ((select private.es_admin()) or almacen_id = (select private.almacen_actual()));
+
+
+-- ---------------------------------------------------------------------------
+-- Articulo biologico: mismo trato que articulo_reactivo
+-- ---------------------------------------------------------------------------
+create policy articulo_biologico_lectura on public.articulo_biologico
+  for select to authenticated using (true);
+
+create policy articulo_biologico_alta on public.articulo_biologico
+  for insert to authenticated with check ((select private.puede_escribir()));
+
+create policy articulo_biologico_admin on public.articulo_biologico
+  for all to authenticated
+  using ((select private.es_admin())) with check ((select private.es_admin()));
+
+
+-- ---------------------------------------------------------------------------
+-- Carga: de donde salieron los datos
+-- ---------------------------------------------------------------------------
+-- Todos ven la procedencia de cualquier renglon; registrar una carga es
+-- escribir en un almacen, asi que se rige por la misma regla que existencia.
+create policy carga_lectura on public.carga
+  for select to authenticated using (true);
+
+create policy carga_escritura on public.carga
+  for insert to authenticated
+  with check ((select private.puede_escribir())
+              and ((select private.es_admin())
+                   or almacen_id = (select private.almacen_actual())));
+
+
+-- ---------------------------------------------------------------------------
+-- Catalogos cerrados: todos leen, solo admin escribe
+-- ---------------------------------------------------------------------------
+-- Cambiar uno afecta a los cuatro almacenes a la vez.
+create policy programa_educativo_lectura on public.programa_educativo
+  for select to authenticated using (true);
+create policy programa_educativo_admin on public.programa_educativo
+  for all to authenticated
+  using ((select private.es_admin())) with check ((select private.es_admin()));
+
+create policy asignatura_lectura on public.asignatura
+  for select to authenticated using (true);
+create policy asignatura_admin on public.asignatura
+  for all to authenticated
+  using ((select private.es_admin())) with check ((select private.es_admin()));
+
+create policy motivo_observacion_lectura on public.motivo_observacion
+  for select to authenticated using (true);
+create policy motivo_observacion_admin on public.motivo_observacion
+  for all to authenticated
+  using ((select private.es_admin())) with check ((select private.es_admin()));
+
+
+-- ---------------------------------------------------------------------------
+-- Practica: el almacen_id desnormalizado es el ancla
+-- ---------------------------------------------------------------------------
+-- Lo escribe el trigger BEFORE INSERT leyendolo del laboratorio. El WITH CHECK
+-- se evalua DESPUES del trigger, sobre la fila final, asi que verifica el valor
+-- real y no lo que haya mandado el cliente.
+create policy practica_lectura on public.practica
+  for select to authenticated using (true);
+
+create policy practica_escritura on public.practica
+  for insert to authenticated
+  with check ((select private.puede_escribir())
+              and ((select private.es_admin())
+                   or almacen_id = (select private.almacen_actual())));
+
+-- Corregir una practica ya registrada es cosa del admin: es el documento que
+-- respalda un consumo.
+create policy practica_admin on public.practica
+  for all to authenticated
+  using ((select private.es_admin())) with check ((select private.es_admin()));
+
+
+-- ---------------------------------------------------------------------------
+-- Practica elemento: mismo patron, anclado a la existencia
+-- ---------------------------------------------------------------------------
+-- almacen_id lo escribe el trigger desde la existencia, no desde la practica.
+-- Eso es lo que impide consumir stock de N4 desde una practica de N3.
+create policy practica_elemento_lectura on public.practica_elemento
+  for select to authenticated using (true);
+
+create policy practica_elemento_escritura on public.practica_elemento
+  for insert to authenticated
+  with check ((select private.puede_escribir())
+              and ((select private.es_admin())
+                   or almacen_id = (select private.almacen_actual())));
+
+create policy practica_elemento_admin on public.practica_elemento
+  for all to authenticated
+  using ((select private.es_admin())) with check ((select private.es_admin()));
+
+
+-- ---------------------------------------------------------------------------
+-- Practica observacion: la unica sin almacen_id propio
+-- ---------------------------------------------------------------------------
+-- Son dos columnas; desnormalizar una tercera solo para la RLS seria peor que
+-- el exists. practica_id es la primera columna de la llave primaria, asi que
+-- la subconsulta resuelve por indice sin necesidad de uno nuevo.
+create policy practica_observacion_lectura on public.practica_observacion
+  for select to authenticated using (true);
+
+create policy practica_observacion_escritura on public.practica_observacion
+  for all to authenticated
+  using (exists (select 1 from public.practica p
+                  where p.id = practica_id
+                    and ((select private.es_admin())
+                         or p.almacen_id = (select private.almacen_actual()))))
+  with check (exists (select 1 from public.practica p
+                       where p.id = practica_id
+                         and ((select private.es_admin())
+                              or p.almacen_id = (select private.almacen_actual()))));
+
+
+-- ---------------------------------------------------------------------------
+-- Perfiles de captura
+-- ---------------------------------------------------------------------------
+-- Todos leen: el formulario necesita el perfil para armarse, y si esto no se
+-- puede leer, formulario() devuelve vacio y el alta se queda sin campos.
+create policy campo_capturable_lectura on public.campo_capturable
+  for select to authenticated using (true);
+create policy perfil_captura_lectura on public.perfil_captura
+  for select to authenticated using (true);
+create policy perfil_campo_lectura on public.perfil_campo
+  for select to authenticated using (true);
+
+-- Cambiar la forma de un formulario afecta a todo un almacen, o a todos si es
+-- el perfil default: solo admin.
+create policy campo_capturable_admin on public.campo_capturable
+  for all to authenticated
+  using ((select private.es_admin())) with check ((select private.es_admin()));
+create policy perfil_captura_admin on public.perfil_captura
+  for all to authenticated
+  using ((select private.es_admin())) with check ((select private.es_admin()));
+create policy perfil_campo_admin on public.perfil_campo
+  for all to authenticated
+  using ((select private.es_admin())) with check ((select private.es_admin()));

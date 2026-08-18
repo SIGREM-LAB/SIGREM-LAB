@@ -37,16 +37,22 @@ comment on table public.campo_capturable is
 -- ---------------------------------------------------------------------------
 -- El perfil
 -- ---------------------------------------------------------------------------
--- Un perfil vigente por (almacen x clasificacion). Los layouts historicos
--- (N3 tiene dos hojas de reactivos con columnas distintas) son un asunto del
--- ETL que lee archivos viejos, no del formulario del dia a dia.
+-- Un perfil vigente por clasificacion, con la opcion de sobreescribirlo en un
+-- almacen concreto. Los layouts historicos son un asunto del ETL que lee
+-- archivos viejos, no del formulario del dia a dia.
 create table public.perfil_captura (
   id            bigint generated always as identity primary key,
-  almacen_id    bigint not null references public.almacen (id),
+
+  -- NULL = perfil default, aplica a todos los almacenes. Una fila con almacen
+  -- lo sobreescribe. Como el formato ya esta unificado, esto son 6 perfiles en
+  -- el seed en vez de 24, y dar de alta un quinto almacen no requiere ni una
+  -- fila. El mecanismo por almacen se conserva para el dia que uno diverja.
+  almacen_id    bigint references public.almacen (id),
+
   clasificacion public.clasificacion_articulo not null,
   nombre        text   not null,
   notas         text,
-  unique (almacen_id, clasificacion)
+  unique nulls not distinct (almacen_id, clasificacion)
 );
 
 create index perfil_captura_almacen_id_idx on public.perfil_captura (almacen_id);
@@ -85,6 +91,16 @@ language sql
 stable
 set search_path = ''
 as $$
+  -- Un perfil del almacen gana sobre el default (almacen_id nulo). `nulls last`
+  -- es lo que impone esa precedencia: el especifico ordena primero.
+  with elegido as (
+    select id
+      from public.perfil_captura
+     where clasificacion = p_clasificacion
+       and (almacen_id = p_almacen or almacen_id is null)
+     order by almacen_id nulls last
+     limit 1
+  )
   select pc.campo,
          coalesce(pc.etiqueta, cc.etiqueta_default),
          cc.tipo_dato,
@@ -93,12 +109,10 @@ as $$
          cc.ayuda,
          pc.obligatorio,
          pc.orden
-  from public.perfil_captura p
-  join public.perfil_campo   pc on pc.perfil_id = p.id
-  join public.campo_capturable cc on cc.campo = pc.campo
-  where p.almacen_id = p_almacen
-    and p.clasificacion = p_clasificacion
-  order by pc.orden
+    from elegido e
+    join public.perfil_campo     pc on pc.perfil_id = e.id
+    join public.campo_capturable cc on cc.campo = pc.campo
+   order by pc.orden
 $$;
 
 comment on function public.formulario(bigint, public.clasificacion_articulo) is
@@ -112,23 +126,5 @@ alter table public.campo_capturable enable row level security;
 alter table public.perfil_captura   enable row level security;
 alter table public.perfil_campo     enable row level security;
 
-revoke all on public.campo_capturable, public.perfil_captura, public.perfil_campo from anon;
-
--- Todos leen: el formulario necesita el perfil para armarse.
-create policy campo_capturable_lectura on public.campo_capturable
-  for select to authenticated using (true);
-create policy perfil_captura_lectura on public.perfil_captura
-  for select to authenticated using (true);
-create policy perfil_campo_lectura on public.perfil_campo
-  for select to authenticated using (true);
-
--- Cambiar la forma de un formulario afecta a todo un almacen: solo admin.
-create policy campo_capturable_admin on public.campo_capturable
-  for all to authenticated
-  using ((select private.es_admin())) with check ((select private.es_admin()));
-create policy perfil_captura_admin on public.perfil_captura
-  for all to authenticated
-  using ((select private.es_admin())) with check ((select private.es_admin()));
-create policy perfil_campo_admin on public.perfil_campo
-  for all to authenticated
-  using ((select private.es_admin())) with check ((select private.es_admin()));
+revoke all on public.campo_capturable, public.perfil_captura,
+              public.perfil_campo from anon;
