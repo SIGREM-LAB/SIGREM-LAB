@@ -35,4 +35,13 @@ describe('PantallaAcceso', () => {
 
     expect(await screen.findByText(/correo o la contrase/i)).toBeInTheDocument()
   })
+
+  // El logo ya trae impreso "Universidad Autonoma del Estado de Hidalgo".
+  // Repetirlo como texto al lado obliga a leerlo dos veces y no agrega nada.
+  test('no repite como texto el nombre que el logo ya dice', () => {
+    render(<PantallaAcceso auth={authQue({ error: null })} />)
+
+    expect(screen.queryByText(/Universidad Autónoma del Estado de Hidalgo ·/)).toBeNull()
+    expect(screen.getByText(/Sistema Integral de Gestión de Reactivos/)).toBeInTheDocument()
+  })
 })
