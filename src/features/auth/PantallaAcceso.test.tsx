@@ -25,7 +25,12 @@ describe('PantallaAcceso', () => {
     render(<PantallaAcceso auth={authQue({ error: { message: 'Invalid login credentials' } })} />)
 
     await user.type(screen.getByLabelText(/correo/i), 'n3@uaeh.local')
-    await user.type(screen.getByLabelText(/contrase/i), 'equivocada')
+
+    // Anclado con ^...$ a proposito. El boton de mostrar/ocultar tambien se
+    // llama "Mostrar contraseña", asi que /contrase/i encuentra dos elementos y
+    // Testing Library se niega a adivinar cual. La etiqueta del boton esta
+    // bien: es lo que lee un lector de pantalla. El que estaba flojo era esto.
+    await user.type(screen.getByLabelText(/^contraseña$/i), 'equivocada')
     await user.click(screen.getByRole('button', { name: /entrar/i }))
 
     expect(await screen.findByText(/correo o la contrase/i)).toBeInTheDocument()
