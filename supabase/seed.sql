@@ -100,8 +100,15 @@ begin
       select id into alm from public.almacen where clave = u.clave;
     end if;
 
+    -- Upsert y no insert: el trigger usuario_nuevo_crea_perfil ya creo el
+    -- perfil con rol 'consulta' al insertar en auth.users. Aqui se le pone el
+    -- rol y el almacen que le tocan para las pruebas.
     insert into public.perfil (id, nombre, almacen_id, rol)
-    values (uid, u.nombre, alm, u.rol);
+    values (uid, u.nombre, alm, u.rol)
+    on conflict (id) do update
+      set nombre = excluded.nombre,
+          almacen_id = excluded.almacen_id,
+          rol = excluded.rol;
   end loop;
 end $$;
 

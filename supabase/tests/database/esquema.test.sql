@@ -7,7 +7,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 
-select plan(44);
+select plan(47);
 
 -- Las pruebas corren como postgres, que se salta la RLS. Es lo correcto aqui:
 -- este archivo prueba la forma del esquema, no quien puede ver que. Eso es
@@ -441,6 +441,55 @@ select is(
     where campo in ('anaquel','partida','revisado_por')),
   0,
   'anaquel, partida y revisado_por ya no son campos capturables'
+);
+
+
+-- ---------------------------------------------------------------------------
+-- Perfil automatico al dar de alta un usuario
+-- ---------------------------------------------------------------------------
+-- Sin esto, cada cuenta nueva necesita un insert a mano en public.perfil, y el
+-- sintoma cuando se olvida es confuso: la persona entra bien y la app se ve
+-- incompleta, porque usePerfil usa .single() y ese error se traga en silencio.
+select pg_temp.como_postgres();
+
+insert into auth.users (
+  instance_id, id, aud, role, email, encrypted_password,
+  email_confirmed_at, created_at, updated_at,
+  raw_app_meta_data, raw_user_meta_data,
+  confirmation_token, recovery_token,
+  email_change, email_change_token_new, email_change_token_current,
+  phone_change, phone_change_token, reauthentication_token
+) values (
+  '00000000-0000-0000-0000-000000000000',
+  '00000000-0000-0000-0000-0000000009f1', 'authenticated', 'authenticated',
+  'recien.creado@uaeh.edu.mx', extensions.crypt('x', extensions.gen_salt('bf')),
+  now(), now(), now(),
+  '{"provider":"email","providers":["email"]}'::jsonb,
+  '{"nombre":"Persona Recien Creada"}'::jsonb,
+  '', '', '', '', '', '', '', ''
+);
+
+select is(
+  (select count(*)::int from public.perfil
+    where id = '00000000-0000-0000-0000-0000000009f1'),
+  1,
+  'Dar de alta un usuario en Auth le crea su perfil'
+);
+
+-- El mas restrictivo a proposito: que un admin tenga que subirle el rol a mano
+-- es molesto una vez; que alguien nazca pudiendo escribir es un problema.
+select is(
+  (select rol::text from public.perfil
+    where id = '00000000-0000-0000-0000-0000000009f1'),
+  'consulta',
+  'El perfil nace con el rol mas restrictivo'
+);
+
+select is(
+  (select nombre from public.perfil
+    where id = '00000000-0000-0000-0000-0000000009f1'),
+  'Persona Recien Creada',
+  'El nombre sale de los metadatos del alta'
 );
 
 select * from finish();
