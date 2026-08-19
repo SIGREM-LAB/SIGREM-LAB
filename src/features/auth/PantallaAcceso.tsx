@@ -236,7 +236,7 @@ export function PantallaAcceso({ auth = supabase.auth }: { auth?: AuthAcceso }) 
             variant="caption"
             sx={{ display: 'block', textAlign: 'center', color: 'text.secondary' }}
           >
-            Sistema Integral de Gestión de Reactivos, Materiales y Equipos
+            Sistema Integral de Gestión de Reactivos, Materiales, Insumos, Equipos y Materia Biológica
           </Typography>
         </Stack>
       </Box>
