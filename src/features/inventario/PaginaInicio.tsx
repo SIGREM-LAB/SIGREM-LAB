@@ -40,7 +40,7 @@ export function PaginaInicio() {
     <Stack spacing={0.5}>
       <Typography variant="h1">Hola, {perfil?.nombre ?? ''}</Typography>
       <Typography sx={{ color: 'text.secondary' }}>
-        Sistema Integral de Gestión de Reactivos, Materiales y Equipos de Laboratorio
+        Sistema Integral de Gestión de Reactivos, Materiales, Insumos, Equipos y Materia Biológica
       </Typography>
     </Stack>
   )

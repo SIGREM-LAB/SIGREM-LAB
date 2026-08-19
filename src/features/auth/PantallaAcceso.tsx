@@ -243,7 +243,7 @@ export function PantallaAcceso({ auth = supabase.auth }: { auth?: AuthAcceso }) 
           sx={{ display: 'block', textAlign: 'center', color: 'text.secondary', mt: 2 }}
         >
           Universidad Autónoma del Estado de Hidalgo · Sistema Integral de Gestión de Reactivos,
-          Materiales y Equipos
+          Materiales, Insumos, Equipos y Materia Biológica
         </Typography>
       </Box>
     </Box>
