@@ -27,4 +27,14 @@ describe('mensajeDeArranque', () => {
     expect(html).not.toContain('<img')
     expect(html).toContain('&lt;img')
   })
+
+  // Corre fuera de React y sin tema: si solo fijara el color del texto, con el
+  // sistema en oscuro el navegador pintaria el fondo oscuro y quedaria texto
+  // casi negro sobre negro. Justo la pantalla que no puede fallar.
+  test('fija su propio fondo, no solo el color del texto', () => {
+    const html = mensajeDeArranque(new Error('Algo raro exploto'))
+
+    expect(html).toContain('background:#F5F6F8')
+    expect(html).toContain('color:#202226')
+  })
 })
