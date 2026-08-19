@@ -16,6 +16,7 @@ import { useState, ReactNode } from 'react'
 import { Controller, useForm } from 'react-hook-form'
 import { z } from 'zod'
 
+import { LogoUAEH } from '@/app/LogoUAEH'
 import { supabase } from '@/lib/supabase'
 
 export type AuthAcceso = {
@@ -134,22 +135,9 @@ export function PantallaAcceso({ auth = supabase.auth }: { auth?: AuthAcceso }) 
           sx={{ overflow: 'hidden', borderRadius: 3, boxShadow: '0 18px 44px rgba(20,22,26,0.12)' }}
         >
           <Stack spacing={1.75} sx={{ bgcolor: 'primary.main', color: 'common.white', px: 4, py: 3.5 }}>
-            <Box
-              sx={{
-                bgcolor: 'common.white',
-                borderRadius: 2,
-                px: 1.5,
-                py: 1,
-                alignSelf: 'flex-start',
-              }}
-            >
-              <Box
-                component="img"
-                src="/logo-uaeh.webp"
-                alt="Universidad Autónoma del Estado de Hidalgo"
-                sx={{ height: 40, width: 'auto', display: 'block' }}
-              />
-            </Box>
+            {/* El monograma solo, en blanco: sobre el guinda no hace falta la
+                placa, y a este tamano la firma no se leeria. */}
+            <LogoUAEH variante="marca" blanco alto={30} />
 
             <Box>
               <Typography variant="h1" component="h1" sx={{ fontSize: '1.5rem' }}>
@@ -238,13 +226,19 @@ export function PantallaAcceso({ auth = supabase.auth }: { auth?: AuthAcceso }) 
           </Box>
         </Paper>
 
-        <Typography
-          variant="caption"
-          sx={{ display: 'block', textAlign: 'center', color: 'text.secondary', mt: 2 }}
-        >
-          Universidad Autónoma del Estado de Hidalgo · Sistema Integral de Gestión de Reactivos,
-          Materiales, Insumos, Equipos y Materia Biológica
-        </Typography>
+        {/* Aqui si va el logo completo: sobre el fondo claro su version a
+            color se ve como debe, y a 105 px de alto la firma por fin se lee.
+            Decorativo porque el monograma de la cabecera ya anuncio a la
+            universidad; anunciarla dos veces no agrega nada. */}
+        <Stack spacing={1.25} sx={{ alignItems: 'center', mt: 3 }}>
+          <LogoUAEH alto={105} decorativo sx={{ alignSelf: 'center' }} />
+          <Typography
+            variant="caption"
+            sx={{ display: 'block', textAlign: 'center', color: 'text.secondary' }}
+          >
+            Sistema Integral de Gestión de Reactivos, Materiales y Equipos
+          </Typography>
+        </Stack>
       </Box>
     </Box>
   )

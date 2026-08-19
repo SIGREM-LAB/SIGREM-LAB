@@ -1,5 +1,21 @@
--- Datos semilla. Se corre despues de las migraciones en cada `supabase db reset`.
--- Cada tarea del plan de depuracion le agrega su seccion.
+-- Datos iniciales para el proyecto REMOTO.
+--
+-- `supabase db push` solo aplica migraciones; el seed.sql es exclusivo de
+-- `supabase db reset` en local. Sin este script, la app desplegada arranca con
+-- las tablas vacias y ni siquiera hay almacenes que mostrar.
+--
+-- Se corre una vez, contra el remoto:
+--   psql "$DATABASE_URL" -f supabase/datos-iniciales.sql
+-- o pegandolo en el SQL Editor del dashboard.
+--
+-- Es idempotente: volver a correrlo no duplica nada.
+--
+-- DIFERENCIA IMPORTANTE CON seed.sql: aqui NO van los usuarios de prueba
+-- (admin@uaeh.local, n3@, n4@, lum@, le@, lectura@, todos con la misma
+-- contrasenia). Esas cuentas existen para `supabase db reset` en local y meterlas
+-- en produccion seria abrir seis puertas con llave conocida. Los usuarios reales
+-- se dan de alta desde el dashboard de Auth, y su fila en public.perfil se crea
+-- despues con el rol y el almacen que les toque.
 
 
 -- ---------------------------------------------------------------------------
@@ -12,7 +28,8 @@ insert into public.almacen (clave, nombre, uso_principal, zona_riesgo, personas_
   ('N3',  'Almacen Nivel 3',                        'Practicas de laboratorio en UCL', 'Laboratorio', 80),
   ('N4',  'Almacen Nivel 4',                        'Practicas de laboratorio en UCL', 'Laboratorio', 80),
   ('LUM', 'Almacen LUM',                            'Practicas de laboratorio en UCL', 'Laboratorio', 80),
-  ('LE',  'Almacen del Laboratorio de Electronica', 'Practicas de laboratorio en UCL', 'Laboratorio', 40);
+  ('LE',  'Almacen del Laboratorio de Electronica', 'Practicas de laboratorio en UCL', 'Laboratorio', 40)
+on conflict (clave) do nothing;
 
 
 -- ---------------------------------------------------------------------------
@@ -27,7 +44,8 @@ select id, 'Laboratorio de ensenianza 5' from public.almacen where clave = 'N4'
 union all
 select id, 'Caracterizacion y procesamiento' from public.almacen where clave = 'LUM'
 union all
-select id, 'Laboratorio de Electronica' from public.almacen where clave = 'LE';
+select id, 'Laboratorio de Electronica' from public.almacen where clave = 'LE'
+on conflict do nothing;
 
 -- PENDIENTE DE CONFIRMAR con el responsable de N3: los ejemplos del formato no
 -- traen ningun laboratorio de N3, y una practica necesita laboratorio porque de
@@ -35,82 +53,8 @@ select id, 'Laboratorio de Electronica' from public.almacen where clave = 'LE';
 -- Este nombre es un marcador para que el entorno local funcione, no un dato real.
 insert into public.laboratorio (almacen_id, nombre)
 select id, 'Laboratorio de docencia N3 (por confirmar)'
-  from public.almacen where clave = 'N3';
-
-
--- ---------------------------------------------------------------------------
--- Usuarios de prueba
--- ---------------------------------------------------------------------------
--- Van aqui y no en la migracion de RLS aunque solo las pruebas de politicas los
--- usen por rol: movimiento.usuario_id y carga.cargado_por son not null con FK a
--- perfil, asi que sin al menos un perfil las pruebas de inventario no pueden
--- insertar un movimiento.
---
--- Todos con la contrasenia `sigrem2026`.
-do $$
-declare
-  u   record;
-  uid uuid;
-  alm bigint;
-begin
-  for u in
-    select * from (values
-      ('admin@uaeh.local',   'Administrador UCL', 'admin'::public.rol_usuario,       null::text),
-      ('n3@uaeh.local',      'Responsable N3',    'responsable'::public.rol_usuario, 'N3'),
-      ('n4@uaeh.local',      'Responsable N4',    'responsable'::public.rol_usuario, 'N4'),
-      ('lum@uaeh.local',     'Responsable LUM',   'responsable'::public.rol_usuario, 'LUM'),
-      ('le@uaeh.local',      'Responsable LE',    'responsable'::public.rol_usuario, 'LE'),
-      ('lectura@uaeh.local', 'Solo consulta',     'consulta'::public.rol_usuario,    null)
-    ) as t(correo, nombre, rol, clave)
-  loop
-    continue when exists (select 1 from auth.users where email = u.correo);
-
-    uid := gen_random_uuid();
-
-    -- Las columnas de token van en cadena vacia, NUNCA en null. GoTrue las lee
-    -- en un `string` de Go, no en un puntero, y un null hace que /token
-    -- conteste 500 con "converting NULL to string is unsupported". El usuario
-    -- se crea bien y aun asi no puede entrar.
-    insert into auth.users (
-      instance_id, id, aud, role, email, encrypted_password,
-      email_confirmed_at, created_at, updated_at,
-      raw_app_meta_data, raw_user_meta_data,
-      confirmation_token, recovery_token,
-      email_change, email_change_token_new, email_change_token_current,
-      phone_change, phone_change_token, reauthentication_token
-    ) values (
-      '00000000-0000-0000-0000-000000000000', uid, 'authenticated', 'authenticated',
-      u.correo, extensions.crypt('sigrem2026', extensions.gen_salt('bf')),
-      now(), now(), now(),
-      '{"provider":"email","providers":["email"]}'::jsonb, '{}'::jsonb,
-      '', '', '', '', '', '', '', ''
-    );
-
-    insert into auth.identities (
-      id, user_id, identity_data, provider, provider_id,
-      last_sign_in_at, created_at, updated_at
-    ) values (
-      gen_random_uuid(), uid,
-      jsonb_build_object('sub', uid::text, 'email', u.correo),
-      'email', uid::text, now(), now(), now()
-    );
-
-    alm := null;
-    if u.clave is not null then
-      select id into alm from public.almacen where clave = u.clave;
-    end if;
-
-    -- Upsert y no insert: el trigger usuario_nuevo_crea_perfil ya creo el
-    -- perfil con rol 'consulta' al insertar en auth.users. Aqui se le pone el
-    -- rol y el almacen que le tocan para las pruebas.
-    insert into public.perfil (id, nombre, almacen_id, rol)
-    values (uid, u.nombre, alm, u.rol)
-    on conflict (id) do update
-      set nombre = excluded.nombre,
-          almacen_id = excluded.almacen_id,
-          rol = excluded.rol;
-  end loop;
-end $$;
+  from public.almacen where clave = 'N3'
+on conflict do nothing;
 
 
 -- ---------------------------------------------------------------------------
@@ -124,7 +68,8 @@ insert into public.programa_educativo (nombre) values
   ('Ingenieria Mecanica'),
   ('Quimica en Alimentos'),
   ('Quimico Farmaceutico Biologo'),
-  ('Ingenieria en Tecnologias del Software');
+  ('Ingenieria en Tecnologias del Software')
+on conflict (nombre) do nothing;
 
 -- Los nueve motivos son las casillas del prototipo. Como catalogo y no como
 -- nueve columnas booleanas: agregar el decimo es un insert, no una migracion
@@ -138,7 +83,8 @@ insert into public.motivo_observacion (clave, etiqueta, orden) values
   ('se_termino',      'Se termino',        6),
   ('material_daniado','Material daniado',  7),
   ('equipo_daniado',  'Equipo daniado',    8),
-  ('otro',            'Otro',              9);
+  ('otro',            'Otro',              9)
+on conflict (clave) do nothing;
 
 
 -- ---------------------------------------------------------------------------
@@ -208,7 +154,8 @@ insert into public.perfil_captura (almacen_id, clasificacion, nombre, notas) val
   (null, 'material',          'Material',          'Hoja Material, 13 columnas'),
   (null, 'equipo',            'Equipos',           'Hoja Equipos, 13 columnas. Un renglon por equipo fisico'),
   (null, 'materia_biologica', 'Materia biologica', 'Hoja Materia biologica, 15 columnas'),
-  (null, 'componente',        'Electronica',       'Hoja Electronica, 14 columnas');
+  (null, 'componente',        'Electronica',       'Hoja Electronica, 14 columnas')
+on conflict do nothing;
 
 
 -- ---------------------------------------------------------------------------
@@ -244,7 +191,8 @@ select p.id, c.campo, c.obligatorio, c.orden
                ('implica_peligro',        false, 22),
                ('observaciones',          false, 23)
        ) as c(campo, obligatorio, orden)
- where p.almacen_id is null and p.clasificacion = 'reactivo';
+ where p.almacen_id is null and p.clasificacion = 'reactivo'
+on conflict do nothing;
 
 -- Insumos y Material: las dos hojas son identicas entre si.
 insert into public.perfil_campo (perfil_id, campo, obligatorio, orden)
@@ -263,7 +211,8 @@ select p.id, c.campo, c.obligatorio, c.orden
                ('fila_cajon',      false, 11),
                ('observaciones',   false, 12)
        ) as c(campo, obligatorio, orden)
- where p.almacen_id is null and p.clasificacion in ('insumo', 'material');
+ where p.almacen_id is null and p.clasificacion in ('insumo', 'material')
+on conflict do nothing;
 
 -- Equipos. Sin `cantidad`: la regla 9 pide un renglon por equipo fisico, asi
 -- que siempre es 1. Pedirla invita a capturar 3 y perder la trazabilidad de a
@@ -284,7 +233,8 @@ select p.id, c.campo, c.obligatorio, c.orden
                ('mantenimiento',     false, 11),
                ('observaciones',     false, 12)
        ) as c(campo, obligatorio, orden)
- where p.almacen_id is null and p.clasificacion = 'equipo';
+ where p.almacen_id is null and p.clasificacion = 'equipo'
+on conflict do nothing;
 
 -- Materia biologica.
 insert into public.perfil_campo (perfil_id, campo, obligatorio, orden)
@@ -305,7 +255,8 @@ select p.id, c.campo, c.obligatorio, c.orden
                ('repisa',              false, 13),
                ('observaciones',       false, 14)
        ) as c(campo, obligatorio, orden)
- where p.almacen_id is null and p.clasificacion = 'materia_biologica';
+ where p.almacen_id is null and p.clasificacion = 'materia_biologica'
+on conflict do nothing;
 
 -- Electronica: la unica hoja con familia y con las tres coordenadas.
 insert into public.perfil_campo (perfil_id, campo, obligatorio, orden)
@@ -325,4 +276,5 @@ select p.id, c.campo, c.obligatorio, c.orden
                ('coord_i',         false, 12),
                ('observaciones',   false, 13)
        ) as c(campo, obligatorio, orden)
- where p.almacen_id is null and p.clasificacion = 'componente';
+ where p.almacen_id is null and p.clasificacion = 'componente'
+on conflict do nothing;

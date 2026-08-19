@@ -1,0 +1,1113 @@
+<title>Limpieza de inventarios UCL</title>
+<style>
+  :root {
+    --ground: #FBFAF9;
+    --panel: #FFFFFF;
+    --ink: #1E1B1C;
+    --ink-soft: #5F5856;
+    --ink-faint: #8B8482;
+    --rule: #E6E1DE;
+    --rule-soft: #F0ECEA;
+    --guinda: #C10230;
+    --guinda-deep: #8A0722;
+    --guinda-wash: #FBEEF1;
+    --ambar: #A85A08;
+    --ambar-wash: #FDF3E7;
+    --azul: #1D4E89;
+    --azul-wash: #EDF2F9;
+    --verde: #256B3F;
+    --serif: Georgia, "Iowan Old Style", "Times New Roman", serif;
+    --sans: "Segoe UI", system-ui, -apple-system, Roboto, sans-serif;
+    --mono: "Cascadia Mono", Consolas, "SF Mono", monospace;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --ground: #171516;
+      --panel: #201D1F;
+      --ink: #F0EBE9;
+      --ink-soft: #B5ADAA;
+      --ink-faint: #857D7A;
+      --rule: #35302F;
+      --rule-soft: #2A2627;
+      --guinda: #F2607F;
+      --guinda-deep: #F2607F;
+      --guinda-wash: #2E1A20;
+      --ambar: #E0A356;
+      --ambar-wash: #2C2318;
+      --azul: #8AB4E8;
+      --azul-wash: #1A222E;
+      --verde: #6FBE8C;
+    }
+  }
+
+  :root[data-theme="dark"] {
+    --ground: #171516;
+    --panel: #201D1F;
+    --ink: #F0EBE9;
+    --ink-soft: #B5ADAA;
+    --ink-faint: #857D7A;
+    --rule: #35302F;
+    --rule-soft: #2A2627;
+    --guinda: #F2607F;
+    --guinda-deep: #F2607F;
+    --guinda-wash: #2E1A20;
+    --ambar: #E0A356;
+    --ambar-wash: #2C2318;
+    --azul: #8AB4E8;
+    --azul-wash: #1A222E;
+    --verde: #6FBE8C;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    background: var(--ground);
+    color: var(--ink);
+    font-family: var(--sans);
+    font-size: 16px;
+    line-height: 1.6;
+    margin: 0;
+    padding: 0 1.25rem 6rem;
+  }
+
+  .hoja { max-width: 62rem; margin: 0 auto; }
+
+  /* ---------- Portada ---------- */
+  .portada {
+    border-top: 5px solid var(--guinda);
+    padding: 2.5rem 0 2rem;
+    margin-bottom: 2.5rem;
+    border-bottom: 1px solid var(--rule);
+  }
+  .sello {
+    font: 700 0.72rem/1 var(--sans);
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--guinda);
+    margin: 0 0 1rem;
+  }
+  h1 {
+    font-family: var(--serif);
+    font-size: clamp(1.9rem, 4.5vw, 2.7rem);
+    line-height: 1.1;
+    letter-spacing: -0.015em;
+    font-weight: 400;
+    margin: 0 0 0.75rem;
+    text-wrap: balance;
+  }
+  .bajada {
+    font-size: 1.08rem;
+    color: var(--ink-soft);
+    max-width: 42rem;
+    margin: 0 0 1.75rem;
+  }
+  .meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem 2rem;
+    font-size: 0.85rem;
+    color: var(--ink-faint);
+  }
+  .meta b { color: var(--ink-soft); font-weight: 600; }
+
+  /* ---------- Estructura ---------- */
+  h2 {
+    font-family: var(--serif);
+    font-size: 1.6rem;
+    font-weight: 400;
+    letter-spacing: -0.01em;
+    margin: 3.5rem 0 0.35rem;
+    padding-top: 1.5rem;
+    border-top: 1px solid var(--rule);
+  }
+  h2:first-of-type { margin-top: 2rem; }
+  .h2-nota { color: var(--ink-soft); margin: 0 0 1.75rem; max-width: 44rem; }
+
+  h3 { font-size: 1.05rem; font-weight: 700; margin: 2rem 0 0.5rem; }
+
+  p { margin: 0 0 1rem; }
+  a { color: var(--guinda); }
+
+  /* ---------- Reglas generales ---------- */
+  .reglas { display: grid; gap: 1px; background: var(--rule); border: 1px solid var(--rule); border-radius: 3px; overflow: hidden; }
+  .regla { background: var(--panel); padding: 1.15rem 1.25rem; display: grid; grid-template-columns: 2.1rem 1fr; gap: 0.25rem 1rem; }
+  .regla .clave {
+    grid-row: span 2;
+    font: 700 0.95rem/2rem var(--sans);
+    text-align: center;
+    color: var(--guinda);
+    background: var(--guinda-wash);
+    border-radius: 3px;
+    height: 2rem;
+  }
+  .regla b { font-size: 0.98rem; }
+  .regla span { color: var(--ink-soft); font-size: 0.92rem; }
+
+  /* ---------- Fichas por archivo ---------- */
+  .ficha {
+    background: var(--panel);
+    border: 1px solid var(--rule);
+    border-radius: 3px;
+    margin: 0 0 1.5rem;
+    overflow: hidden;
+  }
+  .ficha > header {
+    padding: 1.1rem 1.25rem;
+    border-bottom: 1px solid var(--rule);
+    border-left: 4px solid var(--guinda);
+  }
+  .ficha h3 { margin: 0 0 0.2rem; font-size: 1.15rem; }
+  .ruta {
+    font-family: var(--mono);
+    font-size: 0.78rem;
+    color: var(--ink-faint);
+    word-break: break-word;
+  }
+  .cifras {
+    margin: 0.6rem 0 0;
+    font-size: 0.85rem;
+    color: var(--ink-soft);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .tabla-envoltura { overflow-x: auto; }
+  table { border-collapse: collapse; width: 100%; min-width: 44rem; font-size: 0.9rem; }
+  th, td { text-align: left; vertical-align: top; padding: 0.7rem 0.85rem; border-bottom: 1px solid var(--rule-soft); }
+  th {
+    font: 700 0.72rem/1.4 var(--sans);
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    border-bottom: 1px solid var(--rule);
+    white-space: nowrap;
+  }
+  tr:last-child td { border-bottom: none; }
+  td:first-child { width: 6.5rem; }
+  td.donde { font-variant-numeric: tabular-nums; color: var(--ink-soft); width: 12rem; font-size: 0.86rem; }
+  code {
+    font-family: var(--mono);
+    font-size: 0.85em;
+    background: var(--rule-soft);
+    padding: 0.08em 0.35em;
+    border-radius: 2px;
+  }
+
+  .etq {
+    display: inline-block;
+    font: 700 0.68rem/1.5 var(--sans);
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    padding: 0.15rem 0.5rem;
+    border-radius: 2px;
+    white-space: nowrap;
+  }
+  .etq-alto { color: var(--guinda); background: var(--guinda-wash); }
+  .etq-medio { color: var(--ambar); background: var(--ambar-wash); }
+  .etq-duda { color: var(--azul); background: var(--azul-wash); }
+
+  /* ---------- Cajas ---------- */
+  .caja {
+    border: 1px solid var(--rule);
+    border-left: 4px solid var(--azul);
+    background: var(--panel);
+    padding: 1.25rem 1.35rem;
+    border-radius: 3px;
+    margin: 1.5rem 0;
+  }
+  .caja h3 { margin-top: 0; }
+  .caja.alerta { border-left-color: var(--guinda); }
+
+  ul, ol { margin: 0 0 1rem; padding-left: 1.35rem; }
+  li { margin-bottom: 0.4rem; }
+  li::marker { color: var(--ink-faint); }
+
+  .comparativa { display: grid; gap: 1rem; grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr)); margin: 1.25rem 0; }
+  .comparativa div { border: 1px solid var(--rule); border-radius: 3px; padding: 0.9rem 1rem; background: var(--panel); }
+  .comparativa b { display: block; font-size: 0.78rem; letter-spacing: 0.06em; text-transform: uppercase; margin-bottom: 0.4rem; }
+  .mal b { color: var(--guinda); }
+  .bien b { color: var(--verde); }
+  .comparativa p { margin: 0; font-size: 0.9rem; color: var(--ink-soft); }
+  .comparativa code { background: transparent; padding: 0; }
+
+  footer {
+    margin-top: 4rem;
+    padding-top: 1.5rem;
+    border-top: 1px solid var(--rule);
+    font-size: 0.82rem;
+    color: var(--ink-faint);
+  }
+</style>
+
+<div class="hoja">
+
+  <div class="portada">
+    <p class="sello">Universidad Autónoma del Estado de Hidalgo · Unidad Central de Laboratorios</p>
+    <h1>Qué hay que corregir en cada inventario antes de migrarlo</h1>
+    <p class="bajada">
+      Diez archivos de Excel, 5 552 renglones. Esta hoja lista, almacén por almacén, lo que hay
+      que arreglar en el archivo propio para que los datos entren limpios al sistema nuevo.
+      Los números de fila son los del Excel y se pueden buscar directamente.
+    </p>
+    <div class="meta">
+      <span><b>Fecha</b> 13 de agosto de 2026</span>
+      <span><b>Alcance</b> los 10 archivos entregados</span>
+      <span><b>Para</b> responsables de N3, N4, LUM, Electrónica y Análisis Sensorial</span>
+    </div>
+  </div>
+
+  <p>
+    Las correcciones están marcadas con tres etiquetas:
+    <span class="etq etq-alto">Bloquea</span> impide migrar el renglón o mete un dato falso al
+    sistema; <span class="etq etq-medio">Corregir</span> se puede migrar, pero ensucia búsquedas
+    y reportes; <span class="etq etq-duda">Decidir</span> no lo resuelve el almacén, hace falta
+    un acuerdo entre todos.
+  </p>
+
+  <h2>Ocho reglas que aplican a todos los archivos</h2>
+  <p class="h2-nota">
+    Antes de entrar al detalle de cada archivo: la mayoría de los problemas son las mismas ocho
+    cosas repetidas. Si se respetan, el archivo entra casi solo.
+  </p>
+
+  <div class="reglas">
+    <div class="regla">
+      <div class="clave">1</div>
+      <b>En una columna de números, solo números</b>
+      <span>
+        Nada de <code>Un frasco</code>, <code>5 juegos</code>, <code>2 (1 con 5 menos)</code>,
+        <code>*</code> ni <code>kit</code>. Si hace falta una aclaración, va en Observaciones.
+        Una celda con texto donde va un número no se puede sumar ni restar: el sistema la rechaza.
+      </span>
+    </div>
+    <div class="regla">
+      <div class="clave">2</div>
+      <b>Sin espacios de sobra al principio ni al final</b>
+      <span>
+        <code>"Husky "</code> y <code>"Husky"</code> son dos lugares distintos para la computadora,
+        y el espacio no se ve en pantalla. Tampoco espacios dobles a media frase. Es el problema
+        más extendido de todos: hay archivos con más de 200 renglones afectados. Cómo quitarlos de
+        golpe, en video:
+        <a href="https://www.youtube.com/watch?v=DGBY8kXAnT0">youtube.com/watch?v=DGBY8kXAnT0</a>
+      </span>
+    </div>
+    <div class="regla">
+      <div class="clave">3</div>
+      <b>Cada nombre se escribe siempre igual</b>
+      <span>
+        Aplica a marcas, unidades, muebles y clasificaciones. <code>MEYER</code> y
+        <code>Meyer</code> son dos marcas distintas; <code>pieza</code> y <code>piezas</code>, dos
+        unidades; <code>Separador 4</code> y <code>separador 4</code>, dos lugares.
+      </span>
+    </div>
+    <div class="regla">
+      <div class="clave">4</div>
+      <b>La cantidad va en la unidad más pequeña que se consume</b>
+      <span>
+        Si queda media caja de 20, se escribe <code>10</code> <code>pieza</code>, no
+        <code>0.5</code> <code>caja</code>. Media caja no dice nada si no se sabe de cuántas era.
+        Ver el anexo del final.
+      </span>
+    </div>
+    <div class="regla">
+      <div class="clave">5</div>
+      <b>La ubicación va separada en columnas, no junta en una celda</b>
+      <span>
+        Una columna para el mueble, otra para la repisa, otra para el cajón o la fila. Así se puede
+        buscar «todo lo del gabinete 309» sin depender de cómo se escribió. Un guion significa
+        «este mueble no se divide así», y está bien dejarlo.
+      </span>
+    </div>
+    <div class="regla">
+      <div class="clave">6</div>
+      <b>Celda vacía significa cero, y casi nunca es lo que se quiere decir</b>
+      <span>
+        Si no hay existencia, se escribe <code>0</code>. Si no se sabe, se escribe
+        <code>por revisar</code> en Observaciones y se deja la cantidad en blanco a propósito.
+        Un blanco sin explicación se migra como cero real.
+      </span>
+    </div>
+    <div class="regla">
+      <div class="clave">7</div>
+      <b>El color de una celda no viaja</b>
+      <span>
+        Pintar la celda de rojo, resaltar en amarillo o tachar no significa nada para el sistema:
+        se pierde en la migración. Lo que quiera decirse con color hay que escribirlo con letras
+        en su columna.
+      </span>
+    </div>
+    <div class="regla">
+      <div class="clave">8</div>
+      <b>Ningún renglón sin nombre y sin almacén</b>
+      <span>
+        Un renglón sin nombre de artículo no se puede migrar a ningún lado. Uno sin almacén
+        tampoco: el sistema decide con eso quién lo puede ver y quién lo puede editar.
+      </span>
+    </div>
+  </div>
+
+  <h2>Reactivos</h2>
+  <p class="h2-nota">
+    Los tres archivos usan el formato <code>UAEH/UCL/NOM/01</code>, con sustento en la
+    NOM-005-STPS-1998, pero <b>ninguno de los tres está en la misma versión</b>. Esa es la
+    diferencia más cara de todas y conviene resolverla antes que los detalles.
+  </p>
+
+  <article class="ficha">
+    <header>
+      <h3>Reactivos · Nivel 3</h3>
+      <p class="ruta">43-inventario de reactivos-N3 (2).xlsx → hoja «E-J 2026»</p>
+      <p class="cifras">1 124 reactivos · filas 21 a 1144 · también trae una hoja «2025 actualización» que ya no es la vigente</p>
+    </header>
+    <div class="tabla-envoltura">
+      <table>
+        <thead>
+          <tr><th>Prioridad</th><th>Qué encontramos</th><th>Dónde</th><th>Qué hay que hacer</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><span class="etq etq-alto">Bloquea</span></td>
+            <td>17 renglones que no son de N3: 16 marcados <code>N1-1</code> y uno marcado <code>N4</code>.</td>
+            <td class="donde">N4 en la fila 56; N1-1 en 147, 249, 285, 400, 450, 623, 628, 709-712, 714, 715, 1037, 1063, 1083</td>
+            <td>Decidir qué es <code>N1-1</code>: si es un almacén real, sale a su propio archivo; si es una zona de N3, se escribe <code>N3</code> y la zona va en Anaquel. El renglón de N4 hay que confirmarlo con N4 para que no quede contado dos veces.</td>
+          </tr>
+          <tr>
+            <td><span class="etq etq-alto">Bloquea</span></td>
+            <td><b>11 renglones sin ningún dato de ubicación</b>: sin almacén, sin anaquel, sin repisa y sin fila, las cuatro a la vez. Sí traen sustancia y cantidad, por eso no saltan a la vista. Aparte, 6 renglones sin nombre de sustancia y 48 sin marca.</td>
+            <td class="donde">sin ubicación: 172, 173, 196, 198, 199, 227, 1097, 1098, 1112, 1113, 1114 · sin nombre: 1083, 1097, 1098, 1112, 1113, 1114 (las dos primeras están vacías por completo)</td>
+            <td>Completar las cuatro columnas de ubicación, y ponerles nombre o borrar el renglón si el reactivo ya no existe. Un renglón sin nombre no se puede migrar.</td>
+          </tr>
+          <tr>
+            <td><span class="etq etq-alto">Bloquea</span></td>
+            <td>Las columnas de peso están en orden distinto al de LUM: aquí K es <b>Frasco vacío</b> y L es <b>Frasco lleno</b>; en LUM son al revés.</td>
+            <td class="donde">columnas K y L</td>
+            <td>No cambiar nada todavía: hay que acordar un solo orden entre N3 y LUM. Si se migra sin acordarlo, la mitad de los pesos queda invertida y nadie lo nota.</td>
+          </tr>
+          <tr>
+            <td><span class="etq etq-medio">Corregir</span></td>
+            <td>La resta no cuadra: frasco vacío 49.36 y lleno 99.91 dan 50.55, pero la cantidad dice 13.15.</td>
+            <td class="donde">fila 481</td>
+            <td>Volver a pesar o corregir el número. Es la única fila de 795 donde la cuenta no sale.</td>
+          </tr>
+          <tr>
+            <td><span class="etq etq-medio">Corregir</span></td>
+            <td>Color de almacenaje: 143 renglones dicen <code>NO TÓXICO</code>, que no es un color, y 33 de ellos además traen un espacio al final. Otros 37 dicen <code>BLANCO</code> en mayúsculas frente a 85 que dicen <code>Blanco</code>.</td>
+            <td class="donde">columna F · 180 renglones</td>
+            <td>Los 143 pasan a <code>Verde</code>. Los colores válidos son seis: verde, rojo, azul, blanco, amarillo y naranja. Y dejar <code>Blanco</code> con una sola forma de escritura.</td>
+          </tr>
+          <tr>
+            <td><span class="etq etq-medio">Corregir</span></td>
+            <td>10 renglones sin color, y esta vez la celda tampoco está pintada: no hay de dónde recuperarlo.</td>
+            <td class="donde">columna F</td>
+            <td>Asignarles color a mano.</td>
+          </tr>
+          <tr>
+            <td><span class="etq etq-medio">Corregir</span></td>
+            <td>26 renglones sin cantidad, 82 sin unidad y 37 sin hoja de seguridad.</td>
+            <td class="donde">columnas M, N, G</td>
+            <td>Completar. En unidad hay además <code>Kg</code> 32 veces y <code>kg</code> una: dejar solo <code>kg</code>.</td>
+          </tr>
+          <tr>
+            <td><span class="etq etq-medio">Corregir</span></td>
+            <td>Ubicación mezclada: 176 dicen <code>Refrigerador</code>, 21 <code>Pasillo</code> y el resto son números de anaquel, pero conviven números de gabinete (311, 312, 313) con números de repisa (1, 2, 3). Además 31 vacíos, 56 sin repisa y 71 sin fila.</td>
+            <td class="donde">columnas C, D, E</td>
+            <td>Completar los vacíos. El refrigerador y el pasillo se quedan como están: son ubicaciones reales y el sistema las acepta.</td>
+          </tr>
+          <tr>
+            <td><span class="etq etq-duda">Decidir</span></td>
+            <td>En Fila hay 100 <code>Der</code> y 72 <code>Izq</code> en lugar de número, por el refrigerador.</td>
+            <td class="donde">columna E · 172 renglones</td>
+            <td>Está bien así si el refrigerador se organiza por lados. Solo hay que confirmarlo para que el sistema lo acepte sin marcarlo como error.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </article>
+
+  <article class="ficha">
+    <header>
+      <h3>Reactivos · Nivel 4</h3>
+      <p class="ruta">43-inventario de reactivos N4.xlsx → hoja «2025 actualización»</p>
+      <p class="cifras">619 reactivos · filas 24 a 642 · es el archivo más limpio de los tres</p>
+    </header>
+    <div class="tabla-envoltura">
+      <table>
+        <thead>
+          <tr><th>Prioridad</th><th>Qué encontramos</th><th>Dónde</th><th>Qué hay que hacer</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><span class="etq etq-alto">Bloquea</span></td>
+            <td>2 renglones sin almacén. Uno además no tiene anaquel; el otro sí.</td>
+            <td class="donde">filas 175 (Reactivo de Hopkins Cole) y 402 (Grasa silicona)</td>
+            <td>Escribir <code>4</code> en la columna de almacén, y completar el anaquel de la fila 175.</td>
+          </tr>
+          <tr>
+            <td><span class="etq etq-alto">Bloquea</span></td>
+            <td>Este archivo <b>no tiene las columnas de peso</b> que sí tienen N3 y LUM: solo registra la cantidad final.</td>
+            <td class="donde">estructura del archivo</td>
+            <td>Confirmar si en N4 se pesa el frasco o no. Si no se pesa, no pasa nada; el sistema lo admite. Pero hay que decirlo, porque si no, parece que faltan datos.</td>
+          </tr>
+          <tr>
+            <td><span class="etq etq-medio">Corregir</span></td>
+            <td>63 renglones están marcados con más de un estado físico a la vez (sólido y líquido), y uno no tiene ninguno.</td>
+            <td class="donde">columnas N, O, P</td>
+            <td>Dejar una sola «x» por renglón. Un reactivo es sólido, líquido o gas.</td>
+          </tr>
+          <tr>
+            <td><span class="etq etq-medio">Corregir</span></td>
+            <td>«¿Su uso implica alguna actividad peligrosa?» está escrito de cuatro formas: <code>Si</code> 290, <code>no</code> 289, <code>No</code> 38 y <code>Sí</code> 1.</td>
+            <td class="donde">columna W</td>
+            <td>Dejar solo <code>Si</code> y <code>No</code>, siempre igual.</td>
+          </tr>
+          <tr>
+            <td><span class="etq etq-medio">Corregir</span></td>
+            <td>Un renglón sin color de almacenaje, uno sin respuesta de actividad peligrosa, sin zona de riesgo y sin personas expuestas, y dos sin grado de riesgo a la salud.</td>
+            <td class="donde">fila 627 (Éter etílico), fila 150 (Mentol), fila 634 (Reactivo de Biuret)</td>
+            <td>Completar los tres renglones. Son pocos y son datos que exige la norma.</td>
+          </tr>
+          <tr>
+            <td><span class="etq etq-medio">Corregir</span></td>
+            <td>61 renglones sin repisa y 69 sin fila.</td>
+            <td class="donde">columnas D y E</td>
+            <td>Completar la ubicación exacta.</td>
+          </tr>
+          <tr>
+            <td><span class="etq etq-duda">Decidir</span></td>
+            <td>35 descripciones tienen la celda pintada: 24 en amarillo y 11 en rojo. Las notas del formato dicen que amarillo es oxidante y rojo es inflamable, pero eso ya se registra en la columna de color de almacenaje.</td>
+            <td class="donde">columna H · 35 renglones</td>
+            <td>Decir qué significa ese pintado. Si es lo mismo que la columna de color, se puede quitar. Si significa otra cosa (pendiente de revisar, por comprar, vencido), hay que escribirlo en Observaciones: <b>el color se pierde al migrar</b>.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </article>
+
+  <article class="ficha">
+    <header>
+      <h3>Reactivos · LUM</h3>
+      <p class="ruta">43-inventario de reactivos_LUM.xlsx → hoja «2025 actualización»</p>
+      <p class="cifras">925 reactivos · filas 24 a 948 · es el archivo con más pendientes</p>
+    </header>
+    <div class="tabla-envoltura">
+      <table>
+        <thead>
+          <tr><th>Prioridad</th><th>Qué encontramos</th><th>Dónde</th><th>Qué hay que hacer</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><span class="etq etq-alto">Bloquea</span></td>
+            <td>
+              <b>Cuatro cantidades están mal por una fórmula recorrida.</b> La fila 397 marca
+              <code>#REF!</code>, y de ahí para abajo cada renglón trae el resultado del renglón
+              anterior: la 398 muestra 266.05 cuando le tocan 140.82; la 399 muestra 140.82
+              cuando le tocan 40.25; la 400 muestra 40.25 cuando le tocan 342.74.
+            </td>
+            <td class="donde">filas 397, 398, 399, 400</td>
+            <td>Rehacer las cuatro restas. Lo grave no es el <code>#REF!</code>, que se ve a simple vista, sino las otras tres: se ven como números normales y están mal.</td>
+          </tr>
+          <tr>
+            <td><span class="etq etq-alto">Bloquea</span></td>
+            <td>143 renglones tienen la celda del color <b>pintada pero vacía</b>: rojo 60, verde 37, amarillo 23, azul 21 y naranja 2. Uno más está vacío y sin pintar.</td>
+            <td class="donde">columna F · 144 renglones</td>
+            <td>Escribir el nombre del color en la celda. El relleno se pierde en la migración y esos 143 reactivos quedarían sin clasificación de riesgo.</td>
+          </tr>
+          <tr>
+            <td><span class="etq etq-alto">Bloquea</span></td>
+            <td>138 renglones no tienen nada de la parte de la norma: sin uso principal, sin propiedades físicas, sin característica tóxica, sin zona de riesgo. Son sobre todo el bloque final, de la fila 814 a la 948.</td>
+            <td class="donde">columnas O a Y · filas 230, 231, 239 y 814-948</td>
+            <td>Completarlos. Es el 15 % del archivo y es justo la información que pide la norma.</td>
+          </tr>
+          <tr>
+            <td><span class="etq etq-medio">Corregir</span></td>
+            <td>El grado de riesgo (azul, amarillo, rojo) está capturado en <b>1 renglón de 925</b>.</td>
+            <td class="donde">columnas U, V, W</td>
+            <td>Decidir si se llena o se deja fuera del alcance por ahora. Tal como está, la columna no sirve para nada.</td>
+          </tr>
+          <tr>
+            <td><span class="etq etq-medio">Corregir</span></td>
+            <td>61 renglones con unidad <code>mL</code> están marcados como sólido. Y las columnas de líquido y gas están vacías en todo el archivo.</td>
+            <td class="donde">columnas N y P a R</td>
+            <td>Marcar el estado que corresponde. Si algo se mide en mililitros, es líquido.</td>
+          </tr>
+          <tr>
+            <td><span class="etq etq-medio">Corregir</span></td>
+            <td>Más de la mitad no tiene pesos: 499 sin peso total y 512 sin peso del frasco vacío.</td>
+            <td class="donde">columnas K y L</td>
+            <td>Si el peso se toma, completarlo. Si en LUM no se pesa y la cantidad se estima, decirlo: es una decisión válida, pero tiene que quedar escrita.</td>
+          </tr>
+          <tr>
+            <td><span class="etq etq-medio">Corregir</span></td>
+            <td>3 renglones sin anaquel, sin cantidad y sin hoja de seguridad; 5 sin unidad; 12 sin repisa y 12 sin fila.</td>
+            <td class="donde">filas 946, 947, 948 (azufre, granalla de cobre, granalla de estaño); sin unidad también 230 y 239</td>
+            <td>Completar los tres renglones del final, que son los que están más incompletos.</td>
+          </tr>
+          <tr>
+            <td><span class="etq etq-medio">Corregir</span></td>
+            <td>El almacén viene como <code>LUM-1</code> en 464 renglones y <code>LUM-2</code> en 460, y uno sin marcar. En el inventario de insumos y en el de equipos no hay columna de almacén: el de insumos usa nombres —<code>Almacen Prepa</code>, <code>Almacen Topo</code>, <code>Almacen Extra</code>— mezclados con muebles.</td>
+            <td class="donde">columna B · fila 239 sin marcar</td>
+            <td><b>Los almacenes van numerados</b>, y el archivo de reactivos ya lo hace bien. Ese formato —<code>LUM-1</code>, <code>LUM-2</code>, y <code>LUM-3</code> y <code>LUM-4</code> para los que falten— es el que hay que llevar a los otros dos archivos, en lugar de los nombres. Si no convence, se propone otro, pero numerado: un nombre se escribe distinto cada vez, un número no.</td>
+          </tr>
+          <tr>
+            <td><span class="etq etq-duda">Decidir</span></td>
+            <td>En Anaquel hay 5 <code>Bidónes</code>, 2 <code>Refrigerador</code> y 2 <code>Refrigerador almacén 1</code>.</td>
+            <td class="donde">columna C</td>
+            <td>Están bien como ubicación, pero <code>Refrigerador</code> y <code>Refrigerador almacén 1</code> deben escribirse igual si son el mismo mueble.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </article>
+
+  <h2>Materiales, insumos y equipos</h2>
+  <p class="h2-nota">
+    Cuatro archivos con el mismo formato base. Los tres que tienen columna
+    <b>FALTANTES</b> la tienen completamente vacía: 1 029 renglones sin un solo dato.
+  </p>
+
+  <article class="ficha">
+    <header>
+      <h3>Materiales y equipos · Nivel 3</h3>
+      <p class="ruta">Inventario de materiales y equipos - Nivel 3 - Mayo 2026.xlsx</p>
+      <p class="cifras">606 renglones · filas 2 a 607</p>
+    </header>
+    <div class="tabla-envoltura">
+      <table>
+        <thead>
+          <tr><th>Prioridad</th><th>Qué encontramos</th><th>Dónde</th><th>Qué hay que hacer</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><span class="etq etq-alto">Bloquea</span></td>
+            <td>46 renglones están clasificados como <code>Reactivo</code> dentro del archivo de materiales, en un bloque seguido. <b>De esos 46, 43 no tienen unidad de medida</b>, y son exactamente los 43 renglones sin unidad de todo el archivo: <code>Cloroformo 4L</code>, <code>HCl 0.5 N</code>, <code>Botella ámbar de alcohol 70%</code>.</td>
+            <td class="donde">columna A · filas 405 a 563</td>
+            <td>Ese bloque parece pertenecer al archivo de reactivos, no al de materiales. Revisar si ya están allá: si están, se quitan de aquí; si no, hay que decidir en cuál de los dos viven y completarles la unidad. Ahora mismo se pueden contar dos veces.</td>
+          </tr>
+          <tr>
+            <td><span class="etq etq-alto">Bloquea</span></td>
+            <td>Un renglón sin cantidad.</td>
+            <td class="donde">fila 247 · «Capilar», unidad Paquete, Gabinete 309</td>
+            <td>Contar y escribir cuántos hay.</td>
+          </tr>
+          <tr>
+            <td><span class="etq etq-medio">Corregir</span></td>
+            <td>43 renglones sin unidad de medida.</td>
+            <td class="donde">columna D</td>
+            <td>Completar.</td>
+          </tr>
+          <tr>
+            <td><span class="etq etq-medio">Corregir</span></td>
+            <td>Unidades escritas de varias formas: <code>Caja</code> 55 / <code>caja</code> 1 / <code>Caja de 100 piezas</code> 1; <code>Paquete</code> 42 / <code>Paquetes</code> 1; <code>Kit</code> 4 / <code>kit</code> 1.</td>
+            <td class="donde">columna D · 17 unidades distintas</td>
+            <td>Unificar en minúscula y singular: <code>caja</code>, <code>paquete</code>, <code>kit</code>. Que la caja sea de 100 piezas se escribe en Observaciones, no en la unidad.</td>
+          </tr>
+          <tr>
+            <td><span class="etq etq-duda">Decidir</span></td>
+            <td>La columna FALTANTES está vacía en los 606 renglones.</td>
+            <td class="donde">columna F</td>
+            <td>O se llena, o se quita. En el sistema nuevo el faltante se calcula solo al hacer el conteo físico, así que probablemente sobre.</td>
+          </tr>
+          <tr>
+            <td><span class="etq etq-duda">Decidir</span></td>
+            <td>431 renglones usan la unidad <code>Individual</code>, que en los demás archivos se llama <code>pieza</code>.</td>
+            <td class="donde">columna D</td>
+            <td>Acordar cuál de las dos se queda para todos los almacenes.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </article>
+
+  <article class="ficha">
+    <header>
+      <h3>Materiales e insumos · Nivel 4</h3>
+      <p class="ruta">Inventario de materiales, insumos, Almacén Nivel 4, enero-julio 2026.xlsx</p>
+      <p class="cifras">370 renglones · filas 2 a 371 · más una hoja «Descripciones» con 2 313 nombres de catálogo</p>
+    </header>
+    <div class="tabla-envoltura">
+      <table>
+        <thead>
+          <tr><th>Prioridad</th><th>Qué encontramos</th><th>Dónde</th><th>Qué hay que hacer</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><span class="etq etq-alto">Bloquea</span></td>
+            <td>7 cantidades escritas con texto: <code>Un frasco</code>, <code>5 juegos</code> (dos veces), <code>2 juegos</code>, <code>1 juegos</code>, <code>2 (1 con 5 menos)</code> y <code>1 ( uso con 15 piezas)</code>.</td>
+            <td class="donde">columna E, la de enero-julio 2026</td>
+            <td>Dejar solo el número. <code>Un frasco</code> es <code>1</code>; <code>2 (1 con 5 menos)</code> son <code>2</code> y la aclaración pasa a Observaciones.</td>
+          </tr>
+          <tr>
+            <td><span class="etq etq-medio">Corregir</span></td>
+            <td>5 renglones dicen <code>Equipos</code> en lugar de <code>Equipo</code>.</td>
+            <td class="donde">columna A</td>
+            <td>Cambiar a <code>Equipo</code>, igual que en los otros archivos.</td>
+          </tr>
+          <tr>
+            <td><span class="etq etq-medio">Corregir</span></td>
+            <td><code>pieza</code> 351 veces y <code>piezas</code> 12. También <code>juegos</code> 5, <code>paquetes</code> 1 y <code>Bolsa</code> 1.</td>
+            <td class="donde">columna F</td>
+            <td>Todo en singular y minúscula: <code>pieza</code>, <code>juego</code>, <code>paquete</code>, <code>bolsa</code>.</td>
+          </tr>
+          <tr>
+            <td><span class="etq etq-medio">Corregir</span></td>
+            <td>4 renglones sin ubicación, y uno con la ubicación escrita como texto: <code>Archivero bodega cajón 1</code>.</td>
+            <td class="donde">columna G</td>
+            <td>Completar los 4. El archivero puede quedarse con nombre si es un mueble real; solo hay que escribirlo siempre igual.</td>
+          </tr>
+          <tr>
+            <td><span class="etq etq-duda">Decidir</span></td>
+            <td>Tres columnas de cantidad: enero-junio 2025, julio-diciembre 2025 y enero-julio 2026. Las dos viejas están incompletas (32 y 26 vacíos).</td>
+            <td class="donde">columnas C, D, E</td>
+            <td>Confirmar que solo se migra la columna vigente. El sistema guarda el historial por movimientos, no por columnas nuevas cada semestre.</td>
+          </tr>
+          <tr>
+            <td><span class="etq etq-duda">Decidir</span></td>
+            <td>FALTANTES vacía en los 370 renglones.</td>
+            <td class="donde">columna H</td>
+            <td>Igual que en N3: llenarla o quitarla.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </article>
+
+  <article class="ficha">
+    <header>
+      <h3>Insumos y materiales · LUM</h3>
+      <p class="ruta">Inventario de Insumos y Materiales LUM E-J 2026 Rev Ais 19-05-26.xlsx</p>
+      <p class="cifras">727 renglones · filas 2 a 728 · más dos hojas aparte: «Ficsa Donación» y «Lijas»</p>
+    </header>
+    <div class="tabla-envoltura">
+      <table>
+        <thead>
+          <tr><th>Prioridad</th><th>Qué encontramos</th><th>Dónde</th><th>Qué hay que hacer</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><span class="etq etq-alto">Bloquea</span></td>
+            <td>Hay dos hojas con inventario propio fuera de la tabla principal: «Ficsa Donación» (tamices) y «Lijas».</td>
+            <td class="donde">hojas 2 y 3 del archivo</td>
+            <td>Decidir si esos artículos entran al inventario. Si entran, pasarlos como renglones normales de la hoja principal; si no, decirlo para no migrarlos por error.</td>
+          </tr>
+          <tr>
+            <td><span class="etq etq-medio">Corregir</span></td>
+            <td>Un renglón dice <code>Insumos</code> y los otros 143 dicen <code>Insumo</code>.</td>
+            <td class="donde">columna A</td>
+            <td>Cambiarlo a <code>Insumo</code>.</td>
+          </tr>
+          <tr>
+            <td><span class="etq etq-medio">Corregir</span></td>
+            <td>Un renglón usa <code>kilo</code> y otros 8 usan <code>kg</code>. También <code>Pieza</code> 2 contra <code>pieza</code> 658, <code>Caja</code> 3 contra <code>caja</code> 8, y <code>Bolsa</code> 4 contra <code>bolsa</code> 1.</td>
+            <td class="donde">columna I · 12 unidades distintas</td>
+            <td>Dejar <code>kg</code>, <code>pieza</code>, <code>caja</code>, <code>bolsa</code>, siempre en minúscula.</td>
+          </tr>
+          <tr>
+            <td><span class="etq etq-medio">Corregir</span></td>
+            <td>La misma ubicación escrita de dos formas: <code>Mesa Central</code> 134 y <code>Mesa central</code> 17; <code>Almacen Prepa</code> 276 y <code>Almacen prepa</code> 3.</td>
+            <td class="donde">columna J</td>
+            <td>Elegir una forma para cada mueble. Para el sistema son dos lugares distintos.</td>
+          </tr>
+          <tr>
+            <td><span class="etq etq-medio">Corregir</span></td>
+            <td>Un renglón sin cantidad en la columna vigente.</td>
+            <td class="donde">columna C, la de E-J 2026</td>
+            <td>Completarlo.</td>
+          </tr>
+          <tr>
+            <td><span class="etq etq-duda">Decidir</span></td>
+            <td>Seis columnas de cantidad: E-J 2026, la diferencia semestral, el total J-D 2025, la intermedia E-J 2025, J-D 2025 y J-D 2024.</td>
+            <td class="donde">columnas C a H</td>
+            <td>Confirmar que solo se migra la vigente. Las otras cinco se conservan en el Excel como respaldo, pero no entran al sistema.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </article>
+
+  <article class="ficha">
+    <header>
+      <h3>Materiales e insumos · Análisis Sensorial</h3>
+      <p class="ruta">Inventario de materiales, insumos Lab. Análisis Sensorial, julio-diciembre 2026.xlsx</p>
+      <p class="cifras">53 renglones · filas 2 a 54 · el archivo más pequeño y el más limpio</p>
+    </header>
+    <div class="tabla-envoltura">
+      <table>
+        <thead>
+          <tr><th>Prioridad</th><th>Qué encontramos</th><th>Dónde</th><th>Qué hay que hacer</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><span class="etq etq-duda">Decidir</span></td>
+            <td>Análisis Sensorial entra como <b>almacén propio</b>, con su responsable y sus propios permisos. Le falta la clave corta con la que se le va a conocer en el sistema, como N3, N4, LUM y LE.</td>
+            <td class="donde">alta del almacén</td>
+            <td>Proponer la clave y quién será el responsable con permiso de editar.</td>
+          </tr>
+          <tr>
+            <td><span class="etq etq-medio">Corregir</span></td>
+            <td>El nombre del archivo dice «julio-diciembre 2026», pero las columnas dicen julio-diciembre 2025 y enero-julio 2026.</td>
+            <td class="donde">nombre del archivo</td>
+            <td>Corregir el nombre para que coincida con el periodo que realmente contiene.</td>
+          </tr>
+          <tr>
+            <td><span class="etq etq-medio">Corregir</span></td>
+            <td>Ubicaciones con erratas y espacios distintos: <code>Gaveta 3, Respisa 1</code> y <code>Gaveta 1, Respisa 2</code> (dice «Respisa»); <code>Gaveta 7, Repisa1</code> contra <code>Gaveta7, Repisa 1</code>.</td>
+            <td class="donde">columna F · 4 renglones</td>
+            <td>Escribirlas todas igual: <code>Gaveta 7, Repisa 1</code>.</td>
+          </tr>
+          <tr>
+            <td><span class="etq etq-medio">Corregir</span></td>
+            <td>Unidades en plural: <code>tubos</code> 2, <code>paquetes</code> 1, y <code>rollo</code> 2.</td>
+            <td class="donde">columna E</td>
+            <td>Singular: <code>tubo</code>, <code>paquete</code>, <code>rollo</code>.</td>
+          </tr>
+          <tr>
+            <td><span class="etq etq-duda">Decidir</span></td>
+            <td>Dos columnas de cantidad y la columna FALTANTES vacía en los 53 renglones.</td>
+            <td class="donde">columnas C, D, G</td>
+            <td>Igual que en los demás: se migra solo la vigente, y FALTANTES se llena o se quita.</td>
+          </tr>
+          <tr>
+            <td><span class="etq etq-duda">Decidir</span></td>
+            <td>La ubicación mezcla dos cosas en una celda: la gaveta y la repisa.</td>
+            <td class="donde">columna F</td>
+            <td>Sí conviene separarlas en dos columnas, como pediste. El sistema las va a guardar separadas de todos modos, y así se puede buscar «todo lo de la gaveta 3» sin depender de cómo se escribió.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </article>
+
+  <h2>Electrónica</h2>
+  <p class="h2-nota">
+    El archivo de componentes es el que más se aparta del formato de los demás. El de equipos,
+    en cambio, es el mejor de los dos que hay en toda la UCL: es el único que registra número de
+    serie y número de inventario.
+  </p>
+
+  <article class="ficha">
+    <header>
+      <h3>Componentes · Laboratorio de Electrónica</h3>
+      <p class="ruta">InventarioEJ2026-LE.xlsx</p>
+      <p class="cifras">802 renglones · filas 2 a 803 · formato distinto al de todos los demás</p>
+    </header>
+    <div class="tabla-envoltura">
+      <table>
+        <thead>
+          <tr><th>Prioridad</th><th>Qué encontramos</th><th>Dónde</th><th>Qué hay que hacer</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><span class="etq etq-duda">Decidir</span></td>
+            <td>
+              <b>La columna «Tipo» no es un tipo.</b> Tiene un solo valor en todo el archivo,
+              <code>LE-LUM-UCL</code>, repetido 675 veces, y 127 renglones vacíos. Es la clave del
+              almacén, no una clasificación.
+            </td>
+            <td class="donde">columna A</td>
+            <td>Confirmarlo. Si es la clave del almacén, la columna sobra: el sistema ya sabe de qué almacén es cada archivo. Y hace falta una clasificación de verdad, como la que usan los demás: material, insumo, equipo, componente.</td>
+          </tr>
+          <tr>
+            <td><span class="etq etq-alto">Bloquea</span></td>
+            <td>6 renglones sin cantidad utilizable: 3 vacíos, 2 con <code>*</code> y 1 con <code>kit</code>.</td>
+            <td class="donde">columna E</td>
+            <td>Poner el número. Si <code>*</code> quiere decir algo (que no se contó, que está en préstamo), hay que escribirlo con letras en Observaciones.</td>
+          </tr>
+          <tr>
+            <td><span class="etq etq-duda">Decidir</span></td>
+            <td>
+              «Descripción breve» y «Descripción» son distintas en 548 renglones. La breve es la
+              especificación (<code>1 Ω 1/2W</code>) y la larga es el nombre completo
+              (<code>Resistencia de carbón 1 Ohm, 1/2W</code>). Pero 136 renglones solo tienen la
+              breve y 109 solo la larga.
+            </td>
+            <td class="donde">columnas C y D</td>
+            <td>Sirven las dos y conviene quedarse con ambas: la larga es el nombre del artículo y la breve distingue variantes. Lo que hay que hacer es completar los 245 renglones a los que les falta una de las dos.</td>
+          </tr>
+          <tr>
+            <td><span class="etq etq-alto">Bloquea</span></td>
+            <td>143 renglones sin ubicación, casi uno de cada cinco.</td>
+            <td class="donde">columna F</td>
+            <td>Completar. Sin ubicación no se puede encontrar la pieza ni imprimir su etiqueta.</td>
+          </tr>
+          <tr>
+            <td><span class="etq etq-duda">Decidir</span></td>
+            <td>Las columnas <b>H</b>, <b>V</b> e <b>I</b> son la posición dentro de la credenza: horizontal, vertical e interior. El dato es correcto; el nombre no se entiende fuera del laboratorio. Además están vacías en unos 360 renglones cada una.</td>
+            <td class="donde">columnas G, H, I</td>
+            <td>Escribir los nombres completos —Horizontal, Vertical, Interior— y completar los vacíos. <b>Las tres son coordenadas, así que las tres llevan número</b>: las 39 celdas de Interior con <code>*</code> y el <code>Suelo</code> de Horizontal se reemplazan por el número que corresponda.</td>
+          </tr>
+          <tr>
+            <td><span class="etq etq-medio">Corregir</span></td>
+            <td>Valores de texto donde se esperan números: <code>*</code> 39 veces en la columna I, <code>Suelo</code> en H, y 11 anotaciones en V como <code>15 Guardados</code>, <code>3 incompletos</code> o <code>Inventario 02190300;06/04/2018</code>.</td>
+            <td class="donde">columnas G, H, I · 52 celdas</td>
+            <td>Dejar solo el número y pasar la anotación a Observaciones.</td>
+          </tr>
+          <tr>
+            <td><span class="etq etq-medio">Corregir</span></td>
+            <td><code>Separador 4</code> 58 veces y <code>separador 4</code> 37 veces: el mismo lugar escrito de dos formas.</td>
+            <td class="donde">columna F</td>
+            <td>Unificar. También 37 renglones sin familia, de 802.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </article>
+
+  <article class="ficha">
+    <header>
+      <h3>Equipos · Laboratorio de Electrónica</h3>
+      <p class="ruta">Inventario_Equipos_LE_EJ2026.xlsx → hoja «Inventario equipos JD2025»</p>
+      <p class="cifras">254 equipos · filas 3 a 256 · más 4 equipos en la hoja «Incorporaciones EJ2026»</p>
+    </header>
+    <div class="tabla-envoltura">
+      <table>
+        <thead>
+          <tr><th>Prioridad</th><th>Qué encontramos</th><th>Dónde</th><th>Qué hay que hacer</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><span class="etq etq-alto">Bloquea</span></td>
+            <td>
+              <b>La tabla no empieza donde se espera.</b> La columna A está vacía de arriba abajo
+              y el encabezado está en la fila 2, no en la 1. Los datos van de la columna B a la H.
+            </td>
+            <td class="donde">columna A y fila 1</td>
+            <td>Borrar la columna A vacía y subir el encabezado a la fila 1. Tal como está, cualquier programa que lea el archivo lo ve vacío: nos pasó en esta misma revisión.</td>
+          </tr>
+          <tr>
+            <td><span class="etq etq-alto">Bloquea</span></td>
+            <td>
+              8 números de serie están repetidos en 26 equipos: <code>24135</code> aparece 7 veces,
+              <code>43921</code> 4 veces, <code>408662</code>, <code>22727</code> y
+              <code>PO#18792</code> 3 veces cada uno.
+            </td>
+            <td class="donde">columna E · 26 renglones</td>
+            <td>Un número de serie no se repite: es lo que distingue un equipo de otro idéntico. Revisar si están mal copiados o si en realidad es el número de modelo.</td>
+          </tr>
+          <tr>
+            <td><span class="etq etq-medio">Corregir</span></td>
+            <td>
+              202 de 254 equipos no tienen número de inventario UAEH, y se dice de dos formas
+              distintas: <code>S/N</code> 161 veces y <code>N/A</code> 41.
+            </td>
+            <td class="donde">columna F</td>
+            <td>Elegir una sola forma para «no tiene». Y aprovechar para levantar los números que sí existan: solo 52 equipos de 254 lo traen.</td>
+          </tr>
+          <tr>
+            <td><span class="etq etq-medio">Corregir</span></td>
+            <td>109 equipos tienen <code>S/N</code> en la columna de número de serie, y uno lo trae con prefijo: <code>SN MY40003165</code> en lugar de <code>MY40003165</code>.</td>
+            <td class="donde">columna E</td>
+            <td>Quitar el prefijo de ese renglón. Los 109 sin serie se quedan así si de verdad no la traen.</td>
+          </tr>
+          <tr>
+            <td><span class="etq etq-medio">Corregir</span></td>
+            <td>147 de 254 equipos tienen como ubicación <code>Almacen</code>, sin más detalle, mientras otros sí dicen anaquel o laboratorio. Uno está sin ubicación.</td>
+            <td class="donde">columna G</td>
+            <td>Detallar dónde está cada uno, al menos hasta el anaquel, como ya se hace con 87 de ellos.</td>
+          </tr>
+          <tr>
+            <td><span class="etq etq-duda">Decidir</span></td>
+            <td>La hoja «Incorporaciones EJ2026» tiene 4 equipos nuevos —21 unidades en total— que no están en la hoja principal, con serie e inventario <code>NO asignado</code>.</td>
+            <td class="donde">hoja 2 del archivo</td>
+            <td>Integrarlos a la hoja principal cuando tengan número asignado, o decir que se migran así.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </article>
+
+  <article class="ficha">
+    <header>
+      <h3>Equipos · LUM</h3>
+      <p class="ruta">Inventario Equipos EJ_2026_LUM.xlsx</p>
+      <p class="cifras">68 renglones · 41 nombres distintos</p>
+    </header>
+    <div class="tabla-envoltura">
+      <table>
+        <thead>
+          <tr><th>Prioridad</th><th>Qué encontramos</th><th>Dónde</th><th>Qué hay que hacer</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><span class="etq etq-alto">Bloquea</span></td>
+            <td>
+              No hay número de serie ni número de inventario UAEH. Hay equipos repetidos —dos
+              analizadores ROTAP idénticos, por ejemplo— y no hay forma de distinguirlos.
+            </td>
+            <td class="donde">estructura del archivo</td>
+            <td>Adoptar el formato del archivo de equipos de Electrónica, cuyas columnas son <code>Equipo · Marca · Modelo · SN · Inventario · Ubicación · Notas</code>. Al de LUM le faltan <code>SN</code> e <code>Inventario</code>. Sin eso no se puede saber a cuál de los dos ROTAP se le dio mantenimiento, ni cuál se descompuso.</td>
+          </tr>
+          <tr>
+            <td><span class="etq etq-medio">Corregir</span></td>
+            <td>18 equipos sin modelo y 6 sin marca.</td>
+            <td class="donde">columnas B y C</td>
+            <td>Completar lo que se pueda. Si de verdad no tiene marca, escribir <code>S/M</code> como ya se hace en otros renglones, no dejar en blanco.</td>
+          </tr>
+          <tr>
+            <td><span class="etq etq-duda">Decidir</span></td>
+            <td>La ubicación solo tiene dos valores para los 68 equipos.</td>
+            <td class="donde">columna D</td>
+            <td>Confirmar si es correcto o si hace falta detallar el laboratorio de cada equipo.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </article>
+
+  <h2>Espacios de sobra y nombres escritos de dos formas</h2>
+  <p class="h2-nota">
+    Esto va aparte porque no se ve. Un nombre que termina en espacio, o una marca escrita hoy en
+    mayúsculas y mañana en minúsculas, se ve idéntico en pantalla pero entra al sistema como dos
+    artículos distintos. Son <b>868 celdas</b> entre los diez archivos, contando solo las columnas
+    de nombre, marca, unidad y ubicación. Todas se arreglan con Buscar y reemplazar, o con la
+    función <code>=ESPACIOS()</code> de Excel.
+  </p>
+
+  <div class="tabla-envoltura">
+    <table>
+      <thead>
+        <tr><th>Archivo</th><th>Celdas con espacio de sobra</th><th>Lo mismo escrito de dos formas</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Materiales N3</td>
+          <td class="donde">417 — 219 artículos, 153 unidades, 45 ubicaciones</td>
+          <td><code>Caja</code>/<code>caja</code>, <code>Kit</code>/<code>kit</code>, <code>Paquete</code>/<code>Paquetes</code></td>
+        </tr>
+        <tr>
+          <td>Reactivos N3</td>
+          <td class="donde">93 — 38 sustancias, 22 marcas, 33 colores</td>
+          <td><b>20 marcas.</b> <code>MEYER</code> 291 / <code>Meyer</code> 12; <code>SIGMA-ALDRICH</code> 64 / <code>Sigma-aldrich</code> 53 / <code>Sigma-Aldrich</code> 9; <code>REASOL</code> 96 / <code>Reasol</code> 1. Más <code>Kg</code>/<code>kg</code>, <code>si</code>/<code>Si</code>, <code>Blanco</code>/<code>BLANCO</code></td>
+        </tr>
+        <tr>
+          <td>Insumos LUM</td>
+          <td class="donde">91 — 90 artículos, 1 clasificación</td>
+          <td><code>pieza</code>/<code>Pieza</code>, <code>caja</code>/<code>Caja</code>, <code>bolsa</code>/<code>Bolsa</code>, <code>Almacen Prepa</code>/<code>Almacen prepa</code>, <code>Mesa Central</code>/<code>Mesa central</code></td>
+        </tr>
+        <tr>
+          <td>Reactivos LUM</td>
+          <td class="donde">65 — 7 sustancias, 58 marcas</td>
+          <td><b>22 marcas.</b> <code>MEYER</code> 252 / <code>Meyer</code> 69; <code>REASOL</code> 121 / <code>Reasol</code> 7; <code>J.T. Baker</code> 61 / <code>J.T. BAKER</code> 11; <code>Sin marca</code> 60 / <code>sin marca</code> 18</td>
+        </tr>
+        <tr>
+          <td>Equipos LE</td>
+          <td class="donde">65 — 40 marcas, 24 modelos, 1 equipo</td>
+          <td><code>Agilent</code> con tres cantidades distintas de espacios de relleno; <code>Steren</code> 63 / <code>STEREN</code> 14; <code>BK Precision</code>/<code>BK PRECISION</code>; <code>Pro`sKit</code>/<code>pro`skit</code></td>
+        </tr>
+        <tr>
+          <td>Materiales N4</td>
+          <td class="donde">55 artículos, más 17 con espacios dobles</td>
+          <td>—</td>
+        </tr>
+        <tr>
+          <td>Componentes LE</td>
+          <td class="donde">35 — 30 descripciones breves, 3 largas, 1 familia, 1 ubicación</td>
+          <td><code>Separador 4</code> 58 / <code>separador 4</code> 37; <code>Cable</code>/<code>cable</code>; <code>Eléctrico</code>/<code>Electrico</code></td>
+        </tr>
+        <tr>
+          <td>Reactivos N4</td>
+          <td class="donde">18 — 13 sustancias, 5 marcas. Más 34 con espacios dobles</td>
+          <td><code>High Purity</code>/<code>High purity</code>, <code>Golden Bell</code>/<code>Golden bell</code>, <code>Cientifica</code>/<code>Científica</code>, y tres reactivos que solo cambian en el acento</td>
+        </tr>
+        <tr>
+          <td>Análisis Sensorial</td>
+          <td class="donde">17 — 14 artículos, 1 unidad, 2 ubicaciones</td>
+          <td><code>Gaveta 7, Repisa1</code>/<code>Gaveta7, Repisa 1</code>, y dos que dicen <code>Respisa</code></td>
+        </tr>
+        <tr>
+          <td>Equipos LUM</td>
+          <td class="donde">12 — 10 nombres, 1 marca, 1 modelo</td>
+          <td><code>METASERV 2000</code>/<code>Metaserv 2000</code></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2>Lo que no puede decidir cada almacén por su cuenta</h2>
+  <p class="h2-nota">
+    Estas siete no son correcciones de captura: son acuerdos. Si cada almacén las resuelve por
+    separado, los archivos vuelven a quedar distintos entre sí.
+  </p>
+
+  <ol>
+    <li><b>El orden de las columnas de peso.</b> N3 pone primero el frasco vacío; LUM pone primero el peso total. Hay que elegir uno y que los dos lo usen.</li>
+    <li><b>Qué es N1-1.</b> Aparece en 16 renglones del archivo de N3 y no es ninguno de los cuatro almacenes conocidos.</li>
+    <li><b>Cuántos almacenes tiene el LUM y qué número le toca a cada uno</b> —<code>LUM-1</code> a <code>LUM-4</code>—, para poder poner la columna de almacén en sus tres archivos.</li>
+    <li><b>La clave de Análisis Sensorial</b>, que entra como almacén propio, y quién es su responsable.</li>
+    <li><b>Qué se hace con los semestres viejos.</b> Hay archivos con hasta seis columnas de cantidad. La propuesta es migrar solo la vigente y que el sistema lleve el historial por movimientos.</li>
+    <li><b>Si la columna FALTANTES se queda.</b> Está vacía en los 1 029 renglones que la tienen.</li>
+    <li><b>Individual o pieza.</b> N3 usa <code>Individual</code> en 431 renglones; los demás usan <code>pieza</code>.</li>
+  </ol>
+
+  <h2>Anexo · Cómo se cuenta un bidón de 4 litros</h2>
+
+  <p>
+    Es la pregunta de fondo de varias de las correcciones de arriba, y conviene resolverla antes
+    de tocar los archivos. Si el inventario dice «1 bidón», no se sabe si quedan 4 litros o
+    medio. Y si dice «0.75 cajas», no se sabe de cuántas piezas era la caja.
+  </p>
+
+  <p>
+    La salida es separar dos cosas que hoy están en la misma celda: <b>cuánto hay</b> y <b>en qué
+    viene</b>.
+  </p>
+
+  <div class="comparativa">
+    <div class="mal">
+      <b>Como está hoy</b>
+      <p>
+        Cantidad: <code>1</code><br>
+        Unidad: <code>bidón</code>
+      </p>
+      <p style="margin-top:.6rem">No se puede restar lo que se gasta en una práctica, porque nadie gasta bidones enteros.</p>
+    </div>
+    <div class="bien">
+      <b>Como debería quedar</b>
+      <p>
+        Cantidad: <code>4</code><br>
+        Unidad: <code>L</code><br>
+        Presentación: <code>bidón de 4 L</code>
+      </p>
+      <p style="margin-top:.6rem">Si se usan 1.5 L, la cantidad queda en 2.5 y el sistema sigue sabiendo que es un bidón.</p>
+    </div>
+  </div>
+
+  <p>
+    La regla es siempre la misma: <b>la cantidad se registra en la unidad más pequeña que se
+    consume</b> —litros, mililitros, gramos, piezas— y el envase es un dato aparte del artículo.
+    Así, media caja de 20 se registra como <code>10</code> <code>pieza</code>, no como
+    <code>0.5</code> <code>caja</code>, y el sistema puede mostrar «media caja» cuando convenga
+    porque sabe que la caja trae 20.
+  </p>
+
+  <div class="caja alerta">
+    <h3>Y cuando no se puede medir</h3>
+    <p>
+      Hay líquidos que no se pueden medir sin sacarlos del envase. Para esos hay dos caminos
+      honestos, y los dos son válidos mientras se elija a propósito:
+    </p>
+    <ul>
+      <li><b>Pesar</b>, que es justo lo que ya hacen N3 y LUM con los sólidos: peso lleno menos peso del envase vacío. Es exacto y no requiere abrir nada.</li>
+      <li><b>Contar envases enteros</b> y registrar el consumo solo cuando se termina uno. Se pierde precisión, pero es rápido y honesto: el sistema muestra «1 bidón abierto» y nadie finge saber cuánto queda.</li>
+    </ul>
+    <p style="margin-bottom:0">
+      Lo que no funciona es escribir un número inventado con cara de exacto. Es preferible un
+      «bidón abierto» claro que un «2.5 L» que nadie midió.
+    </p>
+  </div>
+
+  <div class="caja">
+    <h3>Antes de empezar a corregir</h3>
+    <p style="margin-bottom:0">
+      Conviene guardar una copia del archivo tal como está hoy, con la fecha en el nombre, antes
+      de mover nada. Si algo sale mal en la migración, esa copia es la única forma de saber qué
+      decía el original.
+    </p>
+  </div>
+
+  <footer>
+    Documento de trabajo del proyecto SIGREM-LAB · Unidad Central de Laboratorios · UAEH.
+    Todos los conteos y números de fila de esta hoja se obtuvieron leyendo directamente los diez
+    archivos entregados el 10 de agosto de 2026.
+  </footer>
+
+</div>

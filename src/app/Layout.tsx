@@ -14,6 +14,7 @@ import {
 import { useQueryClient } from '@tanstack/react-query'
 import { Link as EnlaceRuta, Outlet, useLocation } from 'react-router-dom'
 
+import { LogoUAEH } from '@/app/LogoUAEH'
 import { aspectoDeAlmacen } from '@/app/almacenes'
 import { menuDeNavegacion, type ItemMenu } from '@/app/navegacion'
 import { usePerfil } from '@/features/auth/usePerfil'
@@ -105,22 +106,17 @@ export function Layout() {
         }}
       >
         <Stack spacing={1.25} sx={{ p: { xs: 1, md: 2 }, borderBottom: BORDE }}>
-          <Box
-            sx={{
-              bgcolor: 'common.white',
-              borderRadius: 2,
-              p: { xs: 0.5, md: 1 },
-              display: 'flex',
-              justifyContent: 'center',
-            }}
-          >
-            <Box
-              component="img"
-              src="/logo-uaeh.webp"
-              alt="Universidad Autónoma del Estado de Hidalgo"
-              sx={{ height: { xs: 22, md: 38 }, width: 'auto', maxWidth: '100%' }}
-            />
-          </Box>
+          {/* Monograma blanco, sin placa: asi el logo se integra en el guinda
+              en vez de vivir en un parche que ocupaba los 216 px de la barra
+              para dibujar 83. Los 16 px de padding de la cabecera ya son mas
+              resguardo del que la marca pide. En xs mide 46 px de ancho y
+              cabe en los 52 utiles de la barra angosta. */}
+          <LogoUAEH
+            variante="marca"
+            blanco
+            alto={{ xs: 18, md: 30 }}
+            sx={{ alignSelf: { xs: 'center', md: 'flex-start' } }}
+          />
           <Box sx={{ display: SOLO_ANCHO }}>
             <Typography component="p" sx={{ fontWeight: 700, lineHeight: 1.2 }}>
               SIGREM-LAB
