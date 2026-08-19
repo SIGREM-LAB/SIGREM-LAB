@@ -14,6 +14,7 @@ import {
 import { useQueryClient } from '@tanstack/react-query'
 import { Link as EnlaceRuta, Outlet, useLocation } from 'react-router-dom'
 
+import { BotonTema } from '@/app/BotonTema'
 import { LogoUAEH } from '@/app/LogoUAEH'
 import { aspectoDeAlmacen } from '@/app/almacenes'
 import { menuDeNavegacion, type ItemMenu } from '@/app/navegacion'
@@ -96,7 +97,7 @@ export function Layout() {
         sx={{
           width: ANCHO,
           flexShrink: 0,
-          bgcolor: 'primary.main',
+          bgcolor: 'institucional.main',
           color: 'common.white',
           display: 'flex',
           flexDirection: 'column',
@@ -121,7 +122,7 @@ export function Layout() {
             <Typography component="p" sx={{ fontWeight: 700, lineHeight: 1.2 }}>
               SIGREM-LAB
             </Typography>
-            <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.75)' }}>
+            <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.82)' }}>
               Unidad Central de Laboratorios
             </Typography>
           </Box>
@@ -152,29 +153,41 @@ export function Layout() {
                 <Box
                   sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: almacen.color, flexShrink: 0 }}
                 />
-                <Typography variant="caption" noWrap sx={{ color: 'rgba(255,255,255,0.75)' }}>
+                <Typography variant="caption" noWrap sx={{ color: 'rgba(255,255,255,0.82)' }}>
                   {perfil?.almacen?.clave ?? '—'} · {perfil?.rol ?? ''}
                 </Typography>
               </Stack>
             </Box>
           </Stack>
 
-          <Button
-            fullWidth
-            onClick={salir}
-            startIcon={<Icon icon="mdi:logout" width={20} />}
-            sx={{
-              color: 'rgba(255,255,255,0.9)',
-              justifyContent: { xs: 'center', md: 'flex-start' },
-              minWidth: 0,
-              '& .MuiButton-startIcon': { mr: { xs: 0, md: 1 }, ml: 0 },
-              '&:hover': { bgcolor: 'rgba(255,255,255,0.10)' },
-            }}
-          >
-            <Box component="span" sx={{ display: SOLO_ANCHO }}>
-              Cerrar sesión
-            </Box>
-          </Button>
+          <Stack direction={{ xs: 'column', md: 'row' }} spacing={0.5} sx={{ alignItems: 'center' }}>
+            <Button
+              fullWidth
+              onClick={salir}
+              startIcon={<Icon icon="mdi:logout" width={20} />}
+              sx={{
+                color: 'rgba(255,255,255,0.9)',
+                justifyContent: { xs: 'center', md: 'flex-start' },
+                minWidth: 0,
+                '& .MuiButton-startIcon': { mr: { xs: 0, md: 1 }, ml: 0 },
+                '&:hover': { bgcolor: 'rgba(255,255,255,0.10)' },
+              }}
+            >
+              <Box component="span" sx={{ display: SOLO_ANCHO }}>
+                Cerrar sesión
+              </Box>
+            </Button>
+
+            {/* En la barra angosta los dos controles se apilan: 52 px utiles no
+                dan para ponerlos en fila. */}
+            <BotonTema
+              sx={{
+                color: 'rgba(255,255,255,0.9)',
+                flexShrink: 0,
+                '&:hover': { bgcolor: 'rgba(255,255,255,0.10)' },
+              }}
+            />
+          </Stack>
         </Box>
       </Box>
 
