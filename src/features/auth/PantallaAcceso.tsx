@@ -12,10 +12,12 @@ import {
   TextField,
   Typography,
 } from '@mui/material'
+import { useColorScheme } from '@mui/material/styles'
 import { useState, ReactNode } from 'react'
 import { Controller, useForm } from 'react-hook-form'
 import { z } from 'zod'
 
+import { BotonTema } from '@/app/BotonTema'
 import { LogoUAEH } from '@/app/LogoUAEH'
 import { supabase } from '@/lib/supabase'
 
@@ -54,7 +56,11 @@ function adorno(icono: string, fin?: ReactNode) {
     input: {
       startAdornment: (
         <InputAdornment position="start">
-          <Icon icon={icono} width={18} color="#6F6F6E" />
+          {/* Sin esto el icono se pierde sobre la superficie oscura: ese gris
+              estaba clavado a la paleta clara. */}
+          <Box component="span" sx={{ display: 'flex', color: 'text.secondary' }}>
+            <Icon icon={icono} width={18} />
+          </Box>
         </InputAdornment>
       ),
       ...(fin && {
@@ -67,6 +73,12 @@ function adorno(icono: string, fin?: ReactNode) {
 export function PantallaAcceso({ auth = supabase.auth }: { auth?: AuthAcceso }) {
   const [fallo, setFallo] = useState<string | null>(null)
   const [verContrasena, setVerContrasena] = useState(false)
+
+  // `colorScheme`, no `mode`: `mode` vale 'system' cuando el usuario no ha
+  // forzado nada, asi que compararlo con 'dark' daria falso justo en el caso
+  // mas comun -sistema en oscuro y preferencia en automatico-. Vale undefined
+  // en el primer render, y ahi el logo sale a color, que es el lado seguro.
+  const { colorScheme } = useColorScheme()
 
   const {
     control,
@@ -130,11 +142,15 @@ export function PantallaAcceso({ auth = supabase.auth }: { auth?: AuthAcceso }) 
       />
 
       <Box sx={{ position: 'relative', width: '100%', maxWidth: 430 }}>
+        <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 1 }}>
+          <BotonTema />
+        </Box>
+
         <Paper
           elevation={0}
           sx={{ overflow: 'hidden', borderRadius: 3, boxShadow: '0 18px 44px rgba(20,22,26,0.12)' }}
         >
-          <Stack spacing={1.75} sx={{ bgcolor: 'primary.main', color: 'common.white', px: 4, py: 3.5 }}>
+          <Stack spacing={1.75} sx={{ bgcolor: 'institucional.main', color: 'common.white', px: 4, py: 3.5 }}>
             {/* El monograma solo, en blanco: sobre el guinda no hace falta la
                 placa, y a este tamano la firma no se leeria. */}
             <LogoUAEH variante="marca" blanco alto={30} />
@@ -231,7 +247,7 @@ export function PantallaAcceso({ auth = supabase.auth }: { auth?: AuthAcceso }) 
             Decorativo porque el monograma de la cabecera ya anuncio a la
             universidad; anunciarla dos veces no agrega nada. */}
         <Stack spacing={1.25} sx={{ alignItems: 'center', mt: 3 }}>
-          <LogoUAEH alto={105} decorativo sx={{ alignSelf: 'center' }} />
+          <LogoUAEH alto={105} decorativo blanco={colorScheme === 'dark'} sx={{ alignSelf: 'center' }} />
           <Typography
             variant="caption"
             sx={{ display: 'block', textAlign: 'center', color: 'text.secondary' }}

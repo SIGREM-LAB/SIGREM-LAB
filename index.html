@@ -4,9 +4,30 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <!-- El sistema operativo de los almacenes suele estar en modo oscuro. Sin
-         esto el navegador pinta en oscuro lo que dibuja el, no MUI. -->
-    <meta name="color-scheme" content="light" />
+    <!-- Los dos: el navegador ya no tiene que adivinar en cual esta. -->
+    <meta name="color-scheme" content="light dark" />
+    <script>
+      // React monta despues de que el navegador pinta, asi que esto no puede
+      // vivir en un componente: la primera pintura saldria en claro y saltaria
+      // a oscuro. El atributo y la clave son los que usa InitColorSchemeScript
+      // de MUI (su defaultConfig, en el .d.ts del paquete); van literales
+      // porque el entry publico no los exporta.
+      ;(function () {
+        try {
+          var modo = localStorage.getItem('mui-mode') || 'system'
+          var esquema =
+            modo === 'system'
+              ? window.matchMedia('(prefers-color-scheme: dark)').matches
+                ? 'dark'
+                : 'light'
+              : modo
+          document.documentElement.setAttribute('data-mui-color-scheme', esquema)
+        } catch {
+          // Navegador con el almacenamiento bloqueado: se queda en claro, que
+          // es lo que MUI aplica en `:root` cuando no hay atributo.
+        }
+      })()
+    </script>
     <meta name="theme-color" content="#C10230" />
     <meta
       name="description"

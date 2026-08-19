@@ -24,9 +24,16 @@ export function mensajeDeArranque(error: unknown): string {
        </ol>`
     : '<p>Revisa la consola del navegador para el detalle completo.</p>'
 
-  return `<div style="font:16px/1.6 system-ui,sans-serif;max-width:34rem;margin:12vh auto;padding:0 1.5rem;color:#1A1416">
-      <h1 style="font-size:1.4rem;margin:0 0 .5rem">SIGREM-LAB no pudo arrancar</h1>
-      <p style="color:#6F6F6E;margin:0 0 1.25rem">${detalle}</p>
-      ${instrucciones}
+  // Fondo y color explicitos, y el contenedor cubre la ventana: con
+  // <meta color-scheme="light dark"> el navegador pinta su propio fondo segun
+  // el sistema, y esta pantalla no tiene tema del que sacar el suyo. Los hex
+  // son los de `paletaClara`, copiados a mano a proposito: aqui no se puede
+  // importar nada que pueda no haber cargado.
+  return `<div style="min-height:100dvh;background:#F5F6F8;color:#202226;font:16px/1.6 system-ui,sans-serif">
+      <div style="max-width:34rem;margin:0 auto;padding:12vh 1.5rem 0">
+        <h1 style="font-size:1.4rem;margin:0 0 .5rem">SIGREM-LAB no pudo arrancar</h1>
+        <p style="color:#6F6F6E;margin:0 0 1.25rem">${detalle}</p>
+        ${instrucciones}
+      </div>
     </div>`
 }

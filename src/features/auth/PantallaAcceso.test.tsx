@@ -44,4 +44,13 @@ describe('PantallaAcceso', () => {
     expect(screen.queryByText(/Universidad Autónoma del Estado de Hidalgo ·/)).toBeNull()
     expect(screen.getByText(/Sistema Integral de Gestión de Reactivos/)).toBeInTheDocument()
   })
+
+  // El login es una pantalla completa donde alguien se puede quedar un rato, y
+  // la unica que se ve sin haber entrado: el control tiene que estar aqui
+  // tambien, no solo dentro de la app.
+  test('ofrece el control de tema', () => {
+    render(<PantallaAcceso auth={authQue({ error: null })} />)
+
+    expect(screen.getByRole('button', { name: /^Tema:/ })).toBeInTheDocument()
+  })
 })
