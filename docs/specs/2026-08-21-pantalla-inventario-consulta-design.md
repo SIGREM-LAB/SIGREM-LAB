@@ -487,6 +487,42 @@ comportamiento correcto para esta entrega —el saldo solo se mueve por
 Corresponde al diseño de la pantalla de movimientos: probablemente un
 `ajuste_conteo` que tome los pesos como entrada.
 
+**`buscar_articulo()` no sirve todavía, y eso hunde el alta.** Se encontró al
+correr la batería contra la base ya cargada. Son dos defectos independientes:
+
+*Uno.* El umbral por omisión es `0.3`, pero la similitud trigram de un término
+corto contra un nombre canónico largo no llega ni cerca. Medido:
+
+```
+similarity(norm_texto('Ácido succínico, sólido, pureza 99%, presentación 250 g, CAS: ...'), 'acido')
+  = 0.102
+```
+
+Es decir: teclear `"acido"` en el buscar-antes-de-crear devuelve **cero
+candidatos**, y quien captura crea un duplicado. Es exactamente el fallo que el
+catálogo existe para evitar. La causa es que `nombre_canonico` guarda la cadena
+completa —decisión correcta del spec del ETL— y `similarity()` castiga la
+diferencia de longitud. La salida probable es buscar contra la cabeza del nombre
+(lo que `cortarNombre()` llama `cabeza`), o usar `word_similarity()`, que compara
+el término contra la mejor porción del texto en vez de contra todo.
+
+*Dos.* El `limit` recorta por `articulo_id`, no por similitud. El
+`distinct on (articulo_id)` obliga a que el `order by` empiece por `articulo_id`,
+y no hay un reordenamiento externo, así que el orden final es por id. Demostrado:
+
+```
+buscar_articulo('pipeta', 0.1, 2)  ->  696 (0.438), 682 (0.250)
+las dos mas parecidas de verdad    ->  696 (0.438), 745 (0.368)
+```
+
+El segundo mejor candidato se cae de la lista porque su id es más alto. Se
+arregla envolviendo el `distinct on` en una subconsulta y ordenando por
+similitud afuera, antes del `limit`.
+
+Ninguno de los dos afecta a esta pantalla: el listado busca por subcadena
+(`nombre_norm like '%término%'`), no por similitud. Se arreglan con su propia
+prueba cuando entre el alta.
+
 **Las 164 filas de la base local no traen `cantidad_minima`.** El filtro de
 estado va a devolver solo `disponible` y `agotado` hasta que alguien capture
 mínimos. No es un defecto de la pantalla, pero conviene saberlo antes de

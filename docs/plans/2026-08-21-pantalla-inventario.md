@@ -454,6 +454,22 @@ Esperado: FALLA con `relation "public.existencia_listado" does not exist`.
 
 - [ ] **Step 3: Agrega la vista a la migracion**
 
+> **Cuidado:** si la Task 1 ya aplico este archivo, `supabase migration up` **no
+> lo vuelve a correr**: para el CLI esa version ya esta aplicada y contesta
+> "Local database is up to date" sin hacer nada. La vista no se crea y las
+> pruebas siguen en rojo por una razon que no es la que parece.
+>
+> Aplica solo la seccion nueva contra la base local:
+>
+> ```bash
+> sed -n '/^-- La vista que alimenta el listado/,$p' \
+>   supabase/migrations/20260821120000_inventario_consulta.sql \
+>   | docker exec -i supabase_db_SIGREM-LAB psql -U postgres -d postgres -v ON_ERROR_STOP=1
+> ```
+>
+> El archivo sigue siendo la fuente de verdad: en una base limpia corre entero
+> de una sola vez.
+
 Al final de `supabase/migrations/20260821120000_inventario_consulta.sql`:
 
 ```sql
@@ -510,9 +526,19 @@ docker exec -i supabase_db_SIGREM-LAB psql -U postgres -d postgres -c \
   "explain (costs off) select * from public.existencia_listado where nombre_norm like '%acetona%';"
 ```
 
-Esperado: el plan menciona `Bitmap Index Scan on articulo_nombre_trgm_idx`. Si
-sale `Seq Scan on articulo`, el predicado dejo de empujarse y la busqueda se
-degrada en cuanto entren los ~5,500 renglones del ETL.
+Añádele `set enable_seqscan = off;` antes del `explain`.
+
+Esperado: `Index Cond: (norm_texto(nombre_canonico) ~~ '%acetona%')` sobre
+`articulo_nombre_trgm_idx`. Lo que se comprueba es que **el predicado empuja
+hasta `articulo`** y el indice puede servirlo.
+
+Ese ajuste no es trampa, es lo que hace la prueba honesta a este tamano: con 152
+articulos la tabla ocupa 40 kB y el indice 200 kB, asi que sin el el
+planificador elige recorrer la tabla — y **acierta**. Un `Seq Scan` en el plan
+normal no es un defecto. Lo seria que ni siquiera con `enable_seqscan = off`
+apareciera el `Index Cond`, porque eso significaria que el predicado se quedo
+atrapado encima de la vista, y entonces la busqueda si se degrada de verdad
+cuando entren los ~5,500 renglones del ETL.
 
 - [ ] **Step 6: Regenera los tipos**
 
@@ -524,6 +550,21 @@ Esperado: `src/types/database.ts` gana `existencia_listado` bajo `Views`, con
 `Row` y **sin** `Insert` ni `Update` — la vista lleva joins, asi que Postgres no
 la considera actualizable. Que sea de solo lectura por construccion es
 exactamente lo que se quiere.
+
+**Consecuencia que cambia el codigo de las Tasks siguientes:** en el `Row`
+generado **todas** las columnas salen `| null`, incluidas `id`, `cantidad`,
+`estado` y `codigo`, que en la tabla de abajo son `not null`. No es un error del
+generador: a traves de una vista Postgres no expone la no-nulidad, asi que el
+tipo es el honesto.
+
+Dos cosas se siguen de ahi:
+
+- `ESTADO[f.estado]` no compila, porque `f.estado` puede ser `null`. Por eso la
+  Task 3 expone `aspectoDeEstado(estado)` ademas del mapa: un solo lugar donde
+  se decide que pintar cuando no hay estado, en vez de un `?.` regado por los
+  componentes.
+- `key={f.id}` recibe `number | null`. Se usa `f.codigo ?? f.id` como llave, que
+  ademas es mas estable: el codigo es unico por construccion.
 
 - [ ] **Step 7: Commit**
 

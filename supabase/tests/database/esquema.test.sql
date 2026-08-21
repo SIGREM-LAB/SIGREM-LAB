@@ -7,7 +7,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 
-select plan(47);
+select plan(49);
 
 -- Las pruebas corren como postgres, que se salta la RLS. Es lo correcto aqui:
 -- este archivo prueba la forma del esquema, no quien puede ver que. Eso es
@@ -509,6 +509,28 @@ select is(
   'Persona Recien Creada',
   'El nombre sale de los metadatos del alta'
 );
+
+-- ---------------------------------------------------------------------------
+-- La vista del listado hereda la RLS
+-- ---------------------------------------------------------------------------
+-- Esta es la prueba mas importante del archivo. Una vista sin
+-- `security_invoker` corre con los privilegios de su dueno (postgres) y NO
+-- aplica la RLS de las tablas de abajo: publica el inventario completo a la
+-- anon key, que va dentro del binario. Comprobado el 21 de agosto creando las
+-- dos variantes: sin el ajuste, anon leia las 164 existencias; con el, choca
+-- contra 'permission denied for table existencia'.
+--
+-- Falla en silencio -la vista funciona igual de bien-, asi que el seguro va
+-- aqui y no en la revision de nadie.
+select has_view('public', 'existencia_listado', 'La vista del listado existe');
+
+select is(
+  (select reloptions::text[] @> array['security_invoker=on']
+     from pg_class where oid = 'public.existencia_listado'::regclass),
+  true,
+  'La vista del listado corre con los privilegios de quien la consulta'
+);
+
 
 select * from finish();
 rollback;

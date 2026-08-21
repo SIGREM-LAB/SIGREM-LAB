@@ -141,6 +141,13 @@ export type Database = {
             referencedRelation: "articulo"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "articulo_alias_articulo_id_fkey"
+            columns: ["articulo_id"]
+            isOneToOne: false
+            referencedRelation: "existencia_listado"
+            referencedColumns: ["articulo_id"]
+          },
         ]
       }
       articulo_biologico: {
@@ -163,6 +170,13 @@ export type Database = {
             isOneToOne: true
             referencedRelation: "articulo"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "articulo_biologico_articulo_id_fkey"
+            columns: ["articulo_id"]
+            isOneToOne: true
+            referencedRelation: "existencia_listado"
+            referencedColumns: ["articulo_id"]
           },
         ]
       }
@@ -222,6 +236,13 @@ export type Database = {
             isOneToOne: true
             referencedRelation: "articulo"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "articulo_reactivo_articulo_id_fkey"
+            columns: ["articulo_id"]
+            isOneToOne: true
+            referencedRelation: "existencia_listado"
+            referencedColumns: ["articulo_id"]
           },
         ]
       }
@@ -451,6 +472,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "existencia_articulo_id_fkey"
+            columns: ["articulo_id"]
+            isOneToOne: false
+            referencedRelation: "existencia_listado"
+            referencedColumns: ["articulo_id"]
+          },
+          {
             foreignKeyName: "existencia_carga_id_fkey"
             columns: ["carga_id"]
             isOneToOne: false
@@ -576,6 +604,13 @@ export type Database = {
             columns: ["existencia_id"]
             isOneToOne: false
             referencedRelation: "existencia"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "movimiento_existencia_id_fkey"
+            columns: ["existencia_id"]
+            isOneToOne: false
+            referencedRelation: "existencia_listado"
             referencedColumns: ["id"]
           },
           {
@@ -855,6 +890,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "practica_elemento_existencia_id_fkey"
+            columns: ["existencia_id"]
+            isOneToOne: false
+            referencedRelation: "existencia_listado"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "practica_elemento_practica_id_fkey"
             columns: ["practica_id"]
             isOneToOne: false
@@ -942,7 +984,46 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      existencia_listado: {
+        Row: {
+          almacen_clave: string | null
+          almacen_id: number | null
+          articulo_id: number | null
+          cantidad: number | null
+          clasificacion:
+            | Database["public"]["Enums"]["clasificacion_articulo"]
+            | null
+          codigo: string | null
+          creado_en: string | null
+          descripcion: string | null
+          estado: Database["public"]["Enums"]["estado_existencia"] | null
+          fecha_caducidad: string | null
+          id: number | null
+          marca: string | null
+          marca_norm: string | null
+          nombre_canonico: string | null
+          nombre_norm: string | null
+          ubicacion: string | null
+          ubicacion_id: number | null
+          unidad_base: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "existencia_almacen_id_fkey"
+            columns: ["almacen_id"]
+            isOneToOne: false
+            referencedRelation: "almacen"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "existencia_ubicacion_id_almacen_id_fkey"
+            columns: ["ubicacion_id", "almacen_id"]
+            isOneToOne: false
+            referencedRelation: "ubicacion"
+            referencedColumns: ["id", "almacen_id"]
+          },
+        ]
+      }
     }
     Functions: {
       buscar_articulo: {

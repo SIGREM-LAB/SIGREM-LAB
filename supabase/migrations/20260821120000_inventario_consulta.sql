@@ -94,3 +94,43 @@ $funcion$;
 create trigger existencia_recalcula_estado
   before update on public.existencia
   for each row execute function private.recalcular_estado();
+
+
+-- ---------------------------------------------------------------------------
+-- La vista que alimenta el listado
+-- ---------------------------------------------------------------------------
+-- El listado une cuatro tablas, busca sobre tres campos y ordena por cualquier
+-- columna. Contra los recursos embebidos de PostgREST eso se vuelve fragil: un
+-- `or` que cruza una columna propia con una embebida pelea con la sintaxis, y
+-- ordenar por el nombre exige que el embebido sea `!inner`. Aplanado, el
+-- cliente vuelve a ser trivial.
+--
+-- `security_invoker = on` NO ES OPCIONAL y falla en silencio si se omite: sin
+-- el, la vista corre como su dueno y publica el inventario entero a anon. Se
+-- comprobo creando las dos variantes. La prueba en esquema.test.sql existe por
+-- eso, porque una vista mal creada funciona igual de bien hasta el dia malo.
+--
+-- `nombre_norm` va como columna propia y no concatenada con marca y codigo: asi
+-- el predicado empuja hasta `articulo` y usa articulo_nombre_trgm_idx. Una
+-- concatenacion no la cubre ningun indice y obligaria a recorrer la tabla
+-- entera calculando norm_texto por renglon.
+create view public.existencia_listado
+with (security_invoker = on) as
+select e.id, e.codigo, e.marca, e.cantidad, e.estado, e.almacen_id,
+       e.ubicacion_id, e.fecha_caducidad, e.creado_en,
+       a.id as articulo_id,
+       a.nombre_canonico, a.descripcion, a.clasificacion, a.unidad_base,
+       al.clave   as almacen_clave,
+       u.etiqueta as ubicacion,
+       public.norm_texto(a.nombre_canonico)     as nombre_norm,
+       public.norm_texto(coalesce(e.marca, '')) as marca_norm
+from public.existencia e
+join public.articulo a  on a.id  = e.articulo_id
+join public.almacen  al on al.id = e.almacen_id
+left join public.ubicacion u on u.id = e.ubicacion_id;
+
+comment on view public.existencia_listado is
+  'Listado plano para la pantalla de inventario. Hereda la RLS de existencia.';
+
+grant select on public.existencia_listado to authenticated;
+revoke all  on public.existencia_listado from anon;

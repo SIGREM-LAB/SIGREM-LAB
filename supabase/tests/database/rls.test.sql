@@ -14,7 +14,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 
-select plan(40);
+select plan(41);
 
 
 -- ---------------------------------------------------------------------------
@@ -488,6 +488,23 @@ select is(
     where existencia_id = 900001 order by id desc limit 1),
   'El saldo coincide con el ultimo movimiento: el trigger corrio pese al revoke'
 );
+
+-- ---------------------------------------------------------------------------
+-- 41. La vista del listado, frente a la llave publica
+-- ---------------------------------------------------------------------------
+-- El otro candado: aunque la vista herede la RLS por `security_invoker`, anon
+-- no tiene por que alcanzarla. Dos candados en la puerta, como ya hace
+-- `movimiento` con su revoke de update y delete.
+select pg_temp.como_postgres();
+select set_config('role', 'anon', true);
+
+select throws_ok(
+  $$ select count(*) from public.existencia_listado $$,
+  '42501', null,
+  'anon no puede leer la vista del listado'
+);
+
+select pg_temp.como_postgres();
 
 
 select * from finish();
