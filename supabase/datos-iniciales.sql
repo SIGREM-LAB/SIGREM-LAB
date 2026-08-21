@@ -25,10 +25,10 @@
 -- venian identicas en cada renglon de cada archivo. El exportador NOM las
 -- reinyecta por renglon al generar el Excel.
 insert into public.almacen (clave, nombre, uso_principal, zona_riesgo, personas_expuestas) values
-  ('N3',  'Almacen Nivel 3',                        'Practicas de laboratorio en UCL', 'Laboratorio', 80),
-  ('N4',  'Almacen Nivel 4',                        'Practicas de laboratorio en UCL', 'Laboratorio', 80),
-  ('LUM', 'Almacen LUM',                            'Practicas de laboratorio en UCL', 'Laboratorio', 80),
-  ('LE',  'Almacen del Laboratorio de Electronica', 'Practicas de laboratorio en UCL', 'Laboratorio', 40)
+  ('N3',  'Almacén Nivel 3',                        'Prácticas de laboratorio en UCL', 'Laboratorio', 80),
+  ('N4',  'Almacén Nivel 4',                        'Prácticas de laboratorio en UCL', 'Laboratorio', 80),
+  ('LUM', 'Almacén LUM',                            'Prácticas de laboratorio en UCL', 'Laboratorio', 80),
+  ('LE',  'Almacén del Laboratorio de Electrónica', 'Prácticas de laboratorio en UCL', 'Laboratorio', 40)
 on conflict (clave) do nothing;
 
 
@@ -38,13 +38,13 @@ on conflict (clave) do nothing;
 -- Los cuatro primeros salen de la columna Laboratorio de la hoja Equipos del
 -- formato unificado. Son los unicos nombres reales que tenemos.
 insert into public.laboratorio (almacen_id, nombre)
-select id, 'Analisis Sensorial' from public.almacen where clave = 'N4'
+select id, 'Análisis Sensorial' from public.almacen where clave = 'N4'
 union all
-select id, 'Laboratorio de ensenianza 5' from public.almacen where clave = 'N4'
+select id, 'Laboratorio de enseñanza 5' from public.almacen where clave = 'N4'
 union all
-select id, 'Caracterizacion y procesamiento' from public.almacen where clave = 'LUM'
+select id, 'Caracterización y procesamiento' from public.almacen where clave = 'LUM'
 union all
-select id, 'Laboratorio de Electronica' from public.almacen where clave = 'LE'
+select id, 'Laboratorio de Electrónica' from public.almacen where clave = 'LE'
 on conflict do nothing;
 
 -- PENDIENTE DE CONFIRMAR con el responsable de N3: los ejemplos del formato no
@@ -61,14 +61,14 @@ on conflict do nothing;
 -- Catalogos de practicas
 -- ---------------------------------------------------------------------------
 insert into public.programa_educativo (nombre) values
-  ('Ingenieria en Alimentos'),
-  ('Ingenieria en Biotecnologia'),
-  ('Ingenieria Industrial'),
-  ('Ingenieria en Electronica y Telecomunicaciones'),
-  ('Ingenieria Mecanica'),
-  ('Quimica en Alimentos'),
-  ('Quimico Farmaceutico Biologo'),
-  ('Ingenieria en Tecnologias del Software')
+  ('Ingeniería en Alimentos'),
+  ('Ingeniería en Biotecnología'),
+  ('Ingeniería Industrial'),
+  ('Ingeniería en Electrónica y Telecomunicaciones'),
+  ('Ingeniería Mecánica'),
+  ('Química en Alimentos'),
+  ('Químico Farmacéutico Biólogo'),
+  ('Ingeniería en Tecnologías del Software')
 on conflict (nombre) do nothing;
 
 -- Los nueve motivos son las casillas del prototipo. Como catalogo y no como
@@ -76,13 +76,13 @@ on conflict (nombre) do nothing;
 -- mas un redespliegue del frontend.
 insert into public.motivo_observacion (clave, etiqueta, orden) values
   ('no_tenemos',      'No tenemos',        1),
-  ('prestamo_n4',     'Prestamo N4',       2),
-  ('prestamo_n3',     'Prestamo N3',       3),
-  ('prestamo_lum',    'Prestamo LUM',      4),
+  ('prestamo_n4',     'Préstamo N4',       2),
+  ('prestamo_n3',     'Préstamo N3',       3),
+  ('prestamo_lum',    'Préstamo LUM',      4),
   ('contaminado',     'Contaminado',       5),
-  ('se_termino',      'Se termino',        6),
-  ('material_daniado','Material daniado',  7),
-  ('equipo_daniado',  'Equipo daniado',    8),
+  ('se_termino',      'Se terminó',        6),
+  ('material_daniado','Material dañado',  7),
+  ('equipo_daniado',  'Equipo dañado',    8),
   ('otro',            'Otro',              9)
 on conflict (clave) do nothing;
 
@@ -93,47 +93,47 @@ on conflict (clave) do nothing;
 -- Catalogo cerrado: un perfil no puede declarar un campo que no existe aqui.
 -- Sale de las columnas reales de las 6 hojas del formato unificado.
 insert into public.campo_capturable (campo, etiqueta_default, tipo_dato, destino, opciones, ayuda) values
-  ('nombre_articulo',    'Articulo',                  'texto',     'articulo.nombre_canonico', null, 'Pasa por busqueda difusa antes de crear uno nuevo'),
-  ('especificacion',     'Especificacion',            'texto',     'articulo.descripcion',     null, 'Con el articulo forma la identidad: 1000 mL clase A no es 250 mL'),
-  ('clasificacion',      'Clasificacion',             'seleccion', 'articulo.clasificacion',   array['reactivo','material','insumo','equipo','componente','materia_biologica'], null),
-  ('unidad',             'Unidad de medida',          'texto',     'articulo.unidad_base',     null, 'La mas pequenia que se consume; el empaque va en Presentacion'),
+  ('nombre_articulo',    'Artículo',                  'texto',     'articulo.nombre_canonico', null, 'Pasa por búsqueda difusa antes de crear uno nuevo'),
+  ('especificacion',     'Especificación',            'texto',     'articulo.descripcion',     null, 'Con el artículo forma la identidad: 1000 mL clase A no es 250 mL'),
+  ('clasificacion',      'Clasificación',             'seleccion', 'articulo.clasificacion',   array['reactivo','material','insumo','equipo','componente','materia_biologica'], null),
+  ('unidad',             'Unidad de medida',          'texto',     'articulo.unidad_base',     null, 'La más pequeña que se consume; el empaque va en Presentación'),
   ('familia',            'Familia',                   'texto',     'articulo.familia',         null, 'Resistencia, Capacitor, CI Logica Digital...'),
   ('marca',              'Marca',                     'texto',     'existencia.marca',         null, null),
   ('modelo',             'Modelo',                    'texto',     'existencia.modelo',        null, null),
-  ('presentacion',       'Presentacion',              'texto',     'existencia.presentacion',  null, 'El empaque: caja de 100, bidon de 4 L'),
+  ('presentacion',       'Presentación',              'texto',     'existencia.presentacion',  null, 'El empaque: caja de 100, bidón de 4 L'),
   ('cantidad',           'Cantidad en existencia',    'numero',    'movimiento.carga_inicial', null, 'Entra como movimiento, no se escribe directo'),
-  ('cantidad_minima',    'Cantidad minima',           'numero',    'existencia.cantidad_minima', null, 'Por debajo de esto el estado pasa a stock bajo'),
-  ('peso_frasco_vacio',  'Peso del frasco vacio',     'numero',    'existencia.peso_frasco_vacio', null, 'Va ANTES del lleno: regla 13 del formato'),
-  ('peso_total',         'Peso del frasco lleno',     'numero',    'existencia.peso_total',    null, 'La cantidad se deriva de lleno menos vacio'),
-  ('numero_serie',       'Numero de serie',           'texto',     'existencia.numero_serie',  null, 'No se repite entre renglones'),
-  ('numero_inventario',  'Numero de inventario UAEH', 'texto',     'existencia.numero_inventario_uaeh', null, 'No se repite entre renglones'),
-  ('laboratorio',        'Laboratorio',               'seleccion', 'existencia.laboratorio_id', array['(desde laboratorio)'], 'Las opciones salen de la tabla laboratorio del almacen'),
+  ('cantidad_minima',    'Cantidad mínima',           'numero',    'existencia.cantidad_minima', null, 'Por debajo de esto el estado pasa a stock bajo'),
+  ('peso_frasco_vacio',  'Peso del frasco vacío',     'numero',    'existencia.peso_frasco_vacio', null, 'Va ANTES del lleno: regla 13 del formato'),
+  ('peso_total',         'Peso del frasco lleno',     'numero',    'existencia.peso_total',    null, 'La cantidad se deriva de lleno menos vacío'),
+  ('numero_serie',       'Número de serie',           'texto',     'existencia.numero_serie',  null, 'No se repite entre renglones'),
+  ('numero_inventario',  'Número de inventario UAEH', 'texto',     'existencia.numero_inventario_uaeh', null, 'No se repite entre renglones'),
+  ('laboratorio',        'Laboratorio',               'seleccion', 'existencia.laboratorio_id', array['(desde laboratorio)'], 'Las opciones salen de la tabla laboratorio del almacén'),
   ('funcionamiento',     'Funcionamiento',            'seleccion', 'existencia.funcionamiento', array['Correcto','Presenta fallas'], null),
   ('mantenimiento',      'Mantenimiento realizado',   'texto',     'existencia.mantenimiento', null, null),
-  ('fecha_chequeo',      'Fecha de ultimo chequeo',   'fecha',     'existencia.fecha_chequeo', null, null),
-  ('fecha_adquisicion',  'Fecha de adquisicion',      'fecha',     'existencia.fecha_adquisicion', null, 'Dice la antiguedad cuando la caducidad esta ilegible'),
+  ('fecha_chequeo',      'Fecha de último chequeo',   'fecha',     'existencia.fecha_chequeo', null, null),
+  ('fecha_adquisicion',  'Fecha de adquisición',      'fecha',     'existencia.fecha_adquisicion', null, 'Dice la antigüedad cuando la caducidad está ilegible'),
   ('fecha_caducidad',    'Fecha de caducidad',        'fecha',     'existencia.fecha_caducidad', null, 'Informativa: un reactivo caducado no se bloquea'),
   ('origen_especie',     'Origen o especie',          'texto',     'articulo_biologico.origen_especie', null, 'Zea mays, Rattus norvegicus, Aloe vera'),
-  ('metodo_conservacion','Metodo de conservacion',    'texto',     'existencia.metodo_conservacion', null, 'Seco, Refrigeracion, Formol al 10%'),
-  ('temperatura',        'Temperatura',               'texto',     'existencia.temperatura',   null, 'Admite Ambiente, no solo numeros'),
-  ('fecha_recoleccion',  'Fecha de recoleccion',      'fecha',     'existencia.fecha_recoleccion', null, null),
-  ('fecha_preparacion',  'Fecha de preparacion',      'fecha',     'existencia.fecha_preparacion', null, null),
+  ('metodo_conservacion','Método de conservación',    'texto',     'existencia.metodo_conservacion', null, 'Seco, Refrigeración, Formol al 10%'),
+  ('temperatura',        'Temperatura',               'texto',     'existencia.temperatura',   null, 'Admite Ambiente, no solo números'),
+  ('fecha_recoleccion',  'Fecha de recolección',      'fecha',     'existencia.fecha_recoleccion', null, null),
+  ('fecha_preparacion',  'Fecha de preparación',      'fecha',     'existencia.fecha_preparacion', null, null),
   ('responsable_muestra','Responsable de la muestra', 'texto',     'existencia.responsable_muestra', null, null),
-  ('observaciones',      'Observaciones',             'texto',     'existencia.observaciones', null, 'Aqui van las aclaraciones que no caben en una columna de numeros'),
-  ('ubicacion_texto',    'Ubicacion',                 'texto',     'ubicacion.etiqueta',       null, null),
-  ('sub_ubicacion',      'Sub-ubicacion',             'texto',     'ubicacion.componentes.sub_ubicacion', null, 'LUM-1, LUM-2, N3, N4, LE'),
+  ('observaciones',      'Observaciones',             'texto',     'existencia.observaciones', null, 'Aquí van las aclaraciones que no caben en una columna de números'),
+  ('ubicacion_texto',    'Ubicación',                 'texto',     'ubicacion.etiqueta',       null, null),
+  ('sub_ubicacion',      'Sub-ubicación',             'texto',     'ubicacion.componentes.sub_ubicacion', null, 'LUM-1, LUM-2, N3, N4, LE'),
   ('mueble',             'Mueble',                    'texto',     'ubicacion.componentes.mueble', null, 'Anaquel 2, Gabinete 301, Refrigerador, Separador 3'),
   ('repisa',             'Repisa',                    'texto',     'ubicacion.componentes.repisa',  null, null),
-  ('fila_cajon',         'Fila o cajon',              'texto',     'ubicacion.componentes.fila_cajon', null, null),
-  ('coord_h',            'Horizontal',                'texto',     'ubicacion.componentes.h',  null, 'Posicion dentro del mueble, solo numeros'),
-  ('coord_v',            'Vertical',                  'texto',     'ubicacion.componentes.v',  null, 'Posicion dentro del mueble, solo numeros'),
-  ('coord_i',            'Interior',                  'texto',     'ubicacion.componentes.i',  null, 'Posicion dentro del mueble, solo numeros'),
-  ('cas',                'Numero CAS',                'texto',     'articulo_reactivo.cas',    null, 'Identificador universal de la sustancia'),
-  ('color_almacenamiento','Color de almacenaje',      'seleccion', 'articulo_reactivo.color_almacenaje', array['verde','rojo','azul','blanco','amarillo','naranja'], 'Son seis: NO TOXICO no es un color'),
+  ('fila_cajon',         'Fila o cajón',              'texto',     'ubicacion.componentes.fila_cajon', null, null),
+  ('coord_h',            'Horizontal',                'texto',     'ubicacion.componentes.h',  null, 'Posición dentro del mueble, solo números'),
+  ('coord_v',            'Vertical',                  'texto',     'ubicacion.componentes.v',  null, 'Posición dentro del mueble, solo números'),
+  ('coord_i',            'Interior',                  'texto',     'ubicacion.componentes.i',  null, 'Posición dentro del mueble, solo números'),
+  ('cas',                'Número CAS',                'texto',     'articulo_reactivo.cas',    null, 'Identificador universal de la sustancia'),
+  ('color_almacenamiento','Color de almacenaje',      'seleccion', 'articulo_reactivo.color_almacenaje', array['verde','rojo','azul','blanco','amarillo','naranja'], 'Son seis: NO TÓXICO no es un color'),
   ('hoja_seguridad',     'Existencia de hoja de seguridad', 'booleano', 'articulo_reactivo.tiene_hoja_seguridad', null, 'Si la tienes, no si hace falta'),
-  ('estado_fisico',      'Estado fisico',             'seleccion', 'articulo_reactivo.estado_fisico', array['solido','liquido','gas'], 'Uno solo por reactivo'),
-  ('caracteristica_quimica','Caracteristica quimica', 'texto',     'articulo_reactivo.caracteristica_quimica', null, null),
-  ('caracteristica_toxica','Caracteristica toxica',   'texto',     'articulo_reactivo.caracteristica_toxica',  null, null),
+  ('estado_fisico',      'Estado físico',             'seleccion', 'articulo_reactivo.estado_fisico', array['solido','liquido','gas'], 'Uno solo por reactivo'),
+  ('caracteristica_quimica','Característica química', 'texto',     'articulo_reactivo.caracteristica_quimica', null, null),
+  ('caracteristica_toxica','Característica tóxica',   'texto',     'articulo_reactivo.caracteristica_toxica',  null, null),
   ('riesgo_salud',       'NFPA azul: riesgo a la salud',        'numero', 'articulo_reactivo.riesgo_salud',          null, 'Grado 0 a 4'),
   ('riesgo_reactividad', 'NFPA amarillo: reactividad',          'numero', 'articulo_reactivo.riesgo_reactividad',    null, 'Grado 0 a 4'),
   ('riesgo_inflamabilidad','NFPA rojo: inflamabilidad',         'numero', 'articulo_reactivo.riesgo_inflamabilidad', null, 'Grado 0 a 4'),
@@ -153,8 +153,8 @@ insert into public.perfil_captura (almacen_id, clasificacion, nombre, notas) val
   (null, 'insumo',            'Insumos',           'Hoja Insumos, 13 columnas'),
   (null, 'material',          'Material',          'Hoja Material, 13 columnas'),
   (null, 'equipo',            'Equipos',           'Hoja Equipos, 13 columnas. Un renglon por equipo fisico'),
-  (null, 'materia_biologica', 'Materia biologica', 'Hoja Materia biologica, 15 columnas'),
-  (null, 'componente',        'Electronica',       'Hoja Electronica, 14 columnas')
+  (null, 'materia_biologica', 'Materia biológica', 'Hoja Materia biológica, 15 columnas'),
+  (null, 'componente',        'Electrónica',       'Hoja Electrónica, 14 columnas')
 on conflict do nothing;
 
 
