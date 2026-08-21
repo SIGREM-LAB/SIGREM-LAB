@@ -38,13 +38,27 @@ junto con este plan; el plan argumenta desde ahi.
 - **Nunca se escribe `existencia.cantidad` desde el cliente.** Esta pantalla no
   escribe nada, pero la Task 1 lo vuelve imposible por privilegios.
 - **Los tipos se generan.** Nadie edita `src/types/database.ts` a mano.
+- **Nada de `Co-Authored-By` ni firmas de herramientas en los commits.** Misma
+  regla que el plan del tema del 19 de agosto.
 - **Antes de dar por terminada cualquier tarea:**
   `pnpm typecheck && pnpm lint && pnpm test && pnpm build` y `supabase test db`.
   Los cinco en cero.
 - **Las migraciones no se editan una vez aplicadas al remoto.** La de este plan
   es nueva y todavia no se ha empujado, asi que las Tasks 1 y 2 escriben en el
-  mismo archivo y reaplican con `supabase db reset`. Eso es normal mientras el
-  archivo sea local.
+  mismo archivo mientras siga siendo local.
+- **NO se corre `supabase db reset`.** La base local tiene 164 existencias
+  cargadas por el ETL el 21 de agosto, y **no las reproduce ningun archivo del
+  repo**: `seed.sql` no inserta existencias y `datos-iniciales.sql` es para el
+  proyecto remoto. Un reset las borra sin vuelta atras. Se aplica con
+  `supabase migration up`, que solo corre lo pendiente.
+  Los dos archivos de pruebas van envueltos en `begin; ... rollback;`, asi que
+  `supabase test db` no deja rastro y se puede correr las veces que haga falta
+  contra la base viva.
+  Respaldo tomado antes de empezar, por si acaso:
+  `scratchpad/respaldo-inventario-20260821.sql` (164 existencias, 162
+  movimientos, 152 articulos).
+  Si en algun momento hace falta un reset de verdad, primero se restaura ese
+  volcado despues.
 - **Usuarios de prueba** (todos con `sigrem2026`): `admin@uaeh.local`,
   `n3@uaeh.local`, `n4@uaeh.local`, `lum@uaeh.local`, `le@uaeh.local`,
   `lectura@uaeh.local`.
@@ -242,7 +256,7 @@ select is(
 - [ ] **Step 2: Corre las pruebas y comprueba que fallan**
 
 ```bash
-supabase db reset && supabase test db
+supabase migration up && supabase test db
 ```
 
 Esperado: FALLA. Los tres `throws_ok` del hueco A y los tres del hueco B pasan
@@ -351,7 +365,7 @@ create trigger existencia_recalcula_estado
 - [ ] **Step 4: Corre las pruebas y comprueba que pasan**
 
 ```bash
-supabase db reset && supabase test db
+supabase migration up && supabase test db
 ```
 
 Esperado: PASA, 40 de 40.
@@ -433,7 +447,7 @@ select pg_temp.como_postgres();
 - [ ] **Step 2: Corre las pruebas y comprueba que fallan**
 
 ```bash
-supabase db reset && supabase test db
+supabase migration up && supabase test db
 ```
 
 Esperado: FALLA con `relation "public.existencia_listado" does not exist`.
@@ -484,7 +498,7 @@ revoke all  on public.existencia_listado from anon;
 - [ ] **Step 4: Corre las pruebas y comprueba que pasan**
 
 ```bash
-supabase db reset && supabase test db
+supabase migration up && supabase test db
 ```
 
 Esperado: PASA. 41 en `rls.test.sql` y dos mas en `esquema.test.sql`.
