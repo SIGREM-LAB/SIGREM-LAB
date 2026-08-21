@@ -8,6 +8,7 @@ import { PantallaAcceso } from '@/features/auth/PantallaAcceso'
 import { ProveedorSesion } from '@/features/auth/ProveedorSesion'
 import { RutaProtegida, SoloInvitados } from '@/features/auth/RutaProtegida'
 import { PaginaInicio } from '@/features/inventario/PaginaInicio'
+import { PaginaInventario } from '@/features/inventario/PaginaInventario'
 import { tema } from '@/tema'
 
 const cliente = new QueryClient({
@@ -36,6 +37,7 @@ export default function App() {
               <Route element={<RutaProtegida />}>
                 <Route element={<Layout />}>
                   <Route path="/" element={<PaginaInicio />} />
+                  <Route path="/inventario" element={<PaginaInventario />} />
                 </Route>
               </Route>
             </Routes>

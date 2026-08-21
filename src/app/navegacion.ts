@@ -19,7 +19,7 @@ export type ItemMenu = {
 export function menuDeNavegacion(rol: Enums<'rol_usuario'> | undefined): ItemMenu[] {
   const comunes: ItemMenu[] = [
     { ruta: '/',           etiqueta: 'Menú principal', icono: 'mdi:view-dashboard-outline',  disponible: true },
-    { ruta: '/inventario', etiqueta: 'Inventario',     icono: 'mdi:package-variant-closed',  disponible: false },
+    { ruta: '/inventario', etiqueta: 'Inventario',     icono: 'mdi:package-variant-closed',  disponible: true  },
     { ruta: '/practicas',  etiqueta: 'Prácticas',      icono: 'mdi:flask-outline',           disponible: false },
     { ruta: '/reportes',   etiqueta: 'Reportes',       icono: 'mdi:chart-box-outline',       disponible: false },
   ]
