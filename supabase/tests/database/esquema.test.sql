@@ -136,8 +136,22 @@ select hasnt_column('public', 'articulo_reactivo', 'uso_principal',
 -- esto encuentre las dos filas es lo que hace `buscar_articulo` util: el
 -- `distinct on (articulo_id)` devuelve un renglon por articulo, no uno por
 -- alias, asi que los dos matraces salen una vez cada uno.
+-- Acotada a los dos matraces que crea esta prueba. Contar el resultado entero
+-- solo funciona con el catalogo vacio: los datos reales traen sus propios
+-- matraces, y hasta una pipeta volumetrica pasa el umbral.
+--
+-- Sigue probando las dos cosas a la vez. Que salgan 2 y no mas significa que el
+-- `distinct on (articulo_id)` devuelve un renglon por articulo y no uno por
+-- alias; que salgan 2 y no 0, que el acento y la caja no estorbaron.
+--
+-- El maximo sube de 10 a 500 a proposito: el `limit` de buscar_articulo recorta
+-- por articulo_id, asi que con el catalogo cargado un tope bajo dejaria fuera
+-- estos fixtures solo por tener id alto.
 select is(
-  (select count(*)::int from public.buscar_articulo('Matraz Volumétrico', 0.3, 10)),
+  (select count(*)::int
+     from public.buscar_articulo('Matraz Volumétrico', 0.3, 500) b
+     join public.articulo a on a.id = b.articulo_id
+    where a.nombre_canonico = 'Matraz volumetrico'),
   2,
   'buscar_articulo ignora acentos y mayusculas, y devuelve un renglon por articulo'
 );
@@ -199,11 +213,15 @@ select matches(
 -- Hoy en N4 tres numeros de serie se repiten en 30 equipos y nada lo impide.
 insert into public.existencia (id, articulo_id, almacen_id, numero_serie, numero_inventario_uaeh)
 overriding system value
-values (900101, 900002, pg_temp.id_almacen('N4'), '10017662023004', '5311308867');
+-- Series sinteticas, no copiadas del Excel. La version anterior usaba
+-- '10017662023004', que es una serie REAL de un equipo de N4: en cuanto el ETL
+-- cargo ese renglon, el fixture choco contra el indice unico y aborto el
+-- archivo entero en la prueba 19 de 47.
+values (900101, 900002, pg_temp.id_almacen('N4'), 'SERIE-PRUEBA-900101', 'INV-PRUEBA-900101');
 
 select throws_ok(
   $$ insert into public.existencia (articulo_id, almacen_id, numero_serie)
-     values (900002, pg_temp.id_almacen('N4'), '10017662023004') $$,
+     values (900002, pg_temp.id_almacen('N4'), 'SERIE-PRUEBA-900101') $$,
   '23505',
   null,
   'Dos equipos no pueden compartir numero de serie'
@@ -211,7 +229,7 @@ select throws_ok(
 
 select throws_ok(
   $$ insert into public.existencia (articulo_id, almacen_id, numero_inventario_uaeh)
-     values (900002, pg_temp.id_almacen('N4'), '5311308867') $$,
+     values (900002, pg_temp.id_almacen('N4'), 'INV-PRUEBA-900101') $$,
   '23505',
   null,
   'Dos equipos no pueden compartir numero de inventario UAEH'
