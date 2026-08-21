@@ -14,7 +14,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 
-select plan(30);
+select plan(40);
 
 
 -- ---------------------------------------------------------------------------
@@ -84,8 +84,12 @@ select is(
 -- ---------------------------------------------------------------------------
 select pg_temp.como('n3@uaeh.local');
 
+-- Se cuentan LOS FIXTURES, no la tabla entera. Contar todo solo funciona con la
+-- base recien reseteada: en cuanto el ETL carga renglones reales -o en cuanto
+-- alguien captura uno- el numero cambia y la prueba miente sobre lo que probaba.
+-- Lo que importa aqui es que las DOS filas se vean: la de N3 y la de N4.
 select is(
-  (select count(*)::int from public.existencia),
+  (select count(*)::int from public.existencia where id in (900001, 900002)),
   2,
   'El responsable de N3 lee las existencias de todos los almacenes'
 );
@@ -371,6 +375,120 @@ select throws_ok(
   null,
   'Solo el admin cambia los catalogos cerrados'
 );
+
+-- ---------------------------------------------------------------------------
+-- 31-40. Escritura: quien puede, y sobre que columnas
+-- ---------------------------------------------------------------------------
+-- Estas diez cierran los dos huecos que encontro la revision de roles del 21 de
+-- agosto. La prueba 18 no los detecto porque solo ejercita `articulo`.
+
+-- El escenario del hueco A: un usuario de rol `consulta` AL QUE SE LE ASIGNO un
+-- almacen. Es un estado alcanzable -nada lo prohibe- y hasta ahora le daba
+-- permiso de escritura, porque las politicas solo comparaban el almacen.
+select pg_temp.como_postgres();
+update public.perfil set almacen_id = pg_temp.id_almacen('N3')
+ where id = (select id from auth.users where email = 'lectura@uaeh.local');
+
+select pg_temp.como('lectura@uaeh.local');
+
+select throws_ok(
+  $$ insert into public.existencia (articulo_id, almacen_id, cantidad)
+     values (900001, (select id from public.almacen where clave = 'N3'), 5) $$,
+  '42501', null,
+  'Un consulta con almacen asignado no puede crear existencias'
+);
+
+select throws_ok(
+  $$ insert into public.movimiento (existencia_id, tipo, cantidad,
+                                    almacen_id, cantidad_antes, cantidad_despues)
+     values (900001, 'entrada', 5, 0, 0, 0) $$,
+  '42501', null,
+  'Un consulta con almacen asignado no puede registrar movimientos'
+);
+
+select throws_ok(
+  $$ insert into public.ubicacion (almacen_id, etiqueta)
+     values ((select id from public.almacen where clave = 'N3'), 'N3 . Colada') $$,
+  '42501', null,
+  'Un consulta con almacen asignado no puede crear ubicaciones'
+);
+
+-- Devolver el perfil a como estaba: las pruebas no se heredan estado entre si.
+select pg_temp.como_postgres();
+update public.perfil set almacen_id = null
+ where id = (select id from auth.users where email = 'lectura@uaeh.local');
+
+-- El hueco B: el saldo, el codigo del QR y el ancla de permisos no se escriben
+-- desde el cliente. La bitacora es el unico camino.
+select pg_temp.como('n3@uaeh.local');
+
+select throws_ok(
+  $$ update public.existencia set cantidad = 99999 where id = 900001 $$,
+  '42501', null,
+  'Un responsable no puede escribir el saldo directo'
+);
+
+select throws_ok(
+  $$ update public.existencia set codigo = 'N3-FALSO' where id = 900001 $$,
+  '42501', null,
+  'Un responsable no puede reescribir el codigo de la etiqueta'
+);
+
+select throws_ok(
+  $$ update public.existencia set almacen_id = 2 where id = 900001 $$,
+  '42501', null,
+  'Un responsable no puede mudar una existencia a otro almacen'
+);
+
+-- Lo que si le toca sigue funcionando: si esto se rompe, el arreglo se paso de
+-- estricto y la pantalla de alta nace muerta.
+select lives_ok(
+  $$ update public.existencia
+        set observaciones = 'Frasco rayado', marca = 'MEYER'
+      where id = 900001 $$,
+  'Un responsable si edita las columnas descriptivas de lo suyo'
+);
+
+-- El trigger nuevo: fijar un minimo por encima del saldo cambia el estado sin
+-- que medie un movimiento. Antes solo se recalculaba al insertar.
+select pg_temp.como_postgres();
+insert into public.movimiento (existencia_id, tipo, cantidad,
+                               almacen_id, cantidad_antes, cantidad_despues, usuario_id)
+values (900001, 'carga_inicial', 100, 0, 0, 0,
+        (select id from auth.users where email = 'admin@uaeh.local'));
+
+select pg_temp.como('n3@uaeh.local');
+update public.existencia set cantidad_minima = 500 where id = 900001;
+
+select is(
+  (select estado from public.existencia where id = 900001),
+  'stock_bajo'::public.estado_existencia,
+  'Subir el minimo por encima del saldo deja la existencia en stock_bajo'
+);
+
+-- Y el camino legitimo no se rompio: el trigger de movimiento es security
+-- definer, asi que los privilegios de columna de authenticated no lo alcanzan.
+select lives_ok(
+  $$ insert into public.movimiento (existencia_id, tipo, cantidad,
+                                    almacen_id, cantidad_antes, cantidad_despues)
+     values (900001, 'consumo', -10, 0, 0, 0) $$,
+  'Un responsable sigue moviendo el saldo por la bitacora'
+);
+
+-- Se afirma el INVARIANTE, no un numero. Escribir el saldo esperado a mano
+-- ataria esta prueba a la aritmetica de las de arriba -la 7 ya dejo 120 ahi- y
+-- se rompe en cuanto alguien inserta un movimiento mas.
+--
+-- Lo que de verdad importa: el saldo de la existencia SIEMPRE coincide con lo
+-- que dice el ultimo renglon de la bitacora. Si el trigger no hubiera corrido,
+-- por los privilegios de columna, los dos numeros se separarian.
+select is(
+  (select cantidad from public.existencia where id = 900001),
+  (select cantidad_despues from public.movimiento
+    where existencia_id = 900001 order by id desc limit 1),
+  'El saldo coincide con el ultimo movimiento: el trigger corrio pese al revoke'
+);
+
 
 select * from finish();
 rollback;
