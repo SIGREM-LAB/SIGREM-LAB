@@ -70,6 +70,60 @@ function adorno(icono: string, fin?: ReactNode) {
   }
 }
 
+/**
+ * Una de las dos figuras del fondo, a un costado de la tarjeta.
+ *
+ * El ancho se calcula en vez de fijarse porque la figura tiene que caber en la
+ * franja que queda libre a su lado: 215 px es la mitad de la tarjeta y 20 px
+ * el aire que se le deja a cada lado, de ahi el 255. Asi nunca la tapa ni se
+ * sale del lienzo, que era el problema de anclarla a la esquina. Por debajo de
+ * `md` esa franja ya no da para nada y las dos desaparecen.
+ *
+ * El trazo va a 1 y no a los 2 que trae Tabler: ese grosor esta pensado para
+ * un lienzo de 24 px y, escalado, se lee como mancha en vez de como dibujo.
+ * Con CSS se puede bajar porque una regla le gana al atributo `stroke-width`
+ * del `path`.
+ */
+function FiguraFondo({
+  icono,
+  color,
+  lado,
+  giro,
+}: {
+  icono: string
+  color: string
+  lado: 'izquierda' | 'derecha'
+  /** Grados de inclinacion; ninguna de las dos va recta. */
+  giro: number
+}) {
+  const izquierda = lado === 'izquierda'
+  return (
+    <Box
+      aria-hidden
+      sx={(tema) => ({
+        position: 'absolute',
+        [izquierda ? 'right' : 'left']: 'calc(50% + 235px)',
+        [izquierda ? 'top' : 'bottom']: '12%',
+        width: 'min(340px, calc(50vw - 255px))',
+        aspectRatio: '1',
+        display: { xs: 'none', md: 'flex' },
+        color,
+        transform: `rotate(${giro}deg)`,
+        // Caen donde no hay nada que pulsar, pero no hay razon para que una
+        // decoracion se coma un clic.
+        pointerEvents: 'none',
+        '& path': { strokeWidth: 1 },
+        // Sube en oscuro: la misma tinta rinde menos contra `#16181C` de lo
+        // que rinde contra el papel claro.
+        opacity: 0.13,
+        ...tema.applyStyles('dark', { opacity: 0.16 }),
+      })}
+    >
+      <Icon icon={icono} width="100%" height="100%" />
+    </Box>
+  )
+}
+
 export function PantallaAcceso({ auth = supabase.auth }: { auth?: AuthAcceso }) {
   const [fallo, setFallo] = useState<string | null>(null)
   const [verContrasena, setVerContrasena] = useState(false)
@@ -112,34 +166,11 @@ export function PantallaAcceso({ auth = supabase.auth }: { auth?: AuthAcceso }) 
         p: 2,
       }}
     >
-      {/* Dos manchas de color institucional, muy tenues, para que el fondo no
-          sea un gris plano. Decorativas: no las lee un lector de pantalla. */}
-      <Box
-        aria-hidden
-        sx={{
-          position: 'absolute',
-          top: -170,
-          left: -170,
-          width: 420,
-          height: 420,
-          borderRadius: '50%',
-          bgcolor: 'primary.main',
-          opacity: 0.06,
-        }}
-      />
-      <Box
-        aria-hidden
-        sx={{
-          position: 'absolute',
-          bottom: -170,
-          right: -170,
-          width: 420,
-          height: 420,
-          borderRadius: '50%',
-          bgcolor: 'secondary.main',
-          opacity: 0.07,
-        }}
-      />
+      {/* Un matraz y un microscopio, enormes y tenues, en vez de dos circulos:
+          el fondo dice de que va el sistema sin robarle atencion al
+          formulario. Decorativos: no los lee un lector de pantalla. */}
+      <FiguraFondo icono="tabler:flask-2" color="primary.main" lado="izquierda" giro={-10} />
+      <FiguraFondo icono="tabler:microscope" color="secondary.main" lado="derecha" giro={7} />
 
       <Box sx={{ position: 'relative', width: '100%', maxWidth: 430 }}>
         <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 1 }}>
