@@ -45,6 +45,7 @@ function pintar(props: Partial<Parameters<typeof PanelExistencia>[0]> = {}) {
       almacenPropio={1}
       movimientos={MOVIMIENTOS}
       cargandoMovimientos={false}
+      datosTipo={null}
       onCerrar={onCerrar}
       {...props}
     />,

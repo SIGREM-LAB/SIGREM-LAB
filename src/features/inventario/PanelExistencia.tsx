@@ -2,6 +2,7 @@ import { Icon } from '@iconify/react'
 import { Alert, Box, Divider, Drawer, IconButton, Skeleton, Stack, Typography } from '@mui/material'
 
 import { aspectoDeAlmacen } from '@/app/almacenes'
+import { DetalleTipo, type DatosTipo } from './DetalleTipo'
 import { aspectoDeEstado, cortarNombre } from './presentacion'
 import type { Fila } from './TablaExistencias'
 
@@ -25,6 +26,8 @@ type Props = {
   almacenPropio: number | null
   movimientos: Movimiento[]
   cargandoMovimientos: boolean
+  /** Los campos propios del tipo. `null` mientras su consulta esta en vuelo. */
+  datosTipo: DatosTipo | null
   onCerrar: () => void
 }
 
@@ -48,6 +51,7 @@ export function PanelExistencia({
   almacenPropio,
   movimientos,
   cargandoMovimientos,
+  datosTipo,
   onCerrar,
 }: Props) {
   if (fila === null) return null
@@ -139,6 +143,8 @@ export function PanelExistencia({
           </Box>
         </Stack>
       </Stack>
+
+      <DetalleTipo clasificacion={fila.clasificacion} datos={datosTipo} />
 
       <Divider sx={{ my: 2 }} />
 

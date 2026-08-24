@@ -5,7 +5,8 @@ import { usePerfil } from '@/features/auth/usePerfil'
 import { FiltrosInventario } from './FiltrosInventario'
 import { PanelExistencia } from './PanelExistencia'
 import { TablaExistencias, type Fila } from './TablaExistencias'
-import { useAlmacenes, useExistencias, useMovimientos } from './consultas'
+import type { DatosTipo } from './DetalleTipo'
+import { useAlmacenes, useDetalleExistencia, useExistencias, useMovimientos } from './consultas'
 import { filtrosIniciales, type Filtros } from './filtros'
 
 export function PaginaInventario() {
@@ -30,6 +31,30 @@ export function PaginaInventario() {
   const almacenes = useAlmacenes()
   const listado = useExistencias(filtros, pagina, porPagina)
   const movimientos = useMovimientos(abierta?.id ?? null)
+  const detalle = useDetalleExistencia(abierta?.id ?? null)
+
+  // Se aplana aqui, en un solo sitio, y no dentro del panel: la forma anidada
+  // que devuelve PostgREST es un detalle de la consulta, y si el componente la
+  // conociera, cambiar el `select` lo romperia.
+  const datosTipo: DatosTipo | null = detalle.data
+    ? {
+        cas: detalle.data.articulo?.articulo_reactivo?.cas ?? null,
+        estadoFisico: detalle.data.articulo?.articulo_reactivo?.estado_fisico ?? null,
+        colorAlmacenaje: detalle.data.articulo?.articulo_reactivo?.color_almacenaje ?? null,
+        tieneHojaSeguridad: detalle.data.articulo?.articulo_reactivo?.tiene_hoja_seguridad ?? null,
+        riesgoSalud: detalle.data.articulo?.articulo_reactivo?.riesgo_salud ?? null,
+        riesgoInflamabilidad:
+          detalle.data.articulo?.articulo_reactivo?.riesgo_inflamabilidad ?? null,
+        riesgoReactividad: detalle.data.articulo?.articulo_reactivo?.riesgo_reactividad ?? null,
+        numeroSerie: detalle.data.numero_serie,
+        numeroInventario: detalle.data.numero_inventario_uaeh,
+        funcionamiento: detalle.data.funcionamiento,
+        fechaChequeo: detalle.data.fecha_chequeo,
+        metodoConservacion: detalle.data.metodo_conservacion,
+        temperatura: detalle.data.temperatura,
+        origenEspecie: detalle.data.articulo?.articulo_biologico?.origen_especie ?? null,
+      }
+    : null
 
   const cambiarFiltros = (nuevos: Filtros) => {
     setAjustado(true)
@@ -98,6 +123,7 @@ export function PaginaInventario() {
         almacenPropio={almacenPropio}
         movimientos={movimientos.data ?? []}
         cargandoMovimientos={movimientos.isPending && abierta !== null}
+        datosTipo={datosTipo}
         onCerrar={() => setAbierta(null)}
       />
     </Stack>
