@@ -3,7 +3,7 @@
 > **Para quien lo ejecute con agentes:** SUB-SKILL REQUERIDA: usa
 > `superpowers:subagent-driven-development` (recomendada) o
 > `superpowers:executing-plans` para ir tarea por tarea. Los pasos llevan
-> casilla (`- [ ]`) para marcarlos.
+> casilla (`- [x]`) para marcarlos.
 
 **Objetivo:** que `/inventario` liste las existencias de los cuatro almacenes con
 busqueda, filtros y panel de detalle, en modo solo lectura, sobre una vista que
@@ -136,7 +136,7 @@ lo que el componente renderiza*.
 - Produces: `private.recalcular_estado()` (trigger `existencia_recalcula_estado`
   sobre `public.existencia`), y las cuatro politicas con `puede_escribir()`.
 
-- [ ] **Step 1: Escribe las pruebas que fallan**
+- [x] **Step 1: Escribe las pruebas que fallan**
 
 En `supabase/tests/database/rls.test.sql`, cambia la cabecera:
 
@@ -253,7 +253,7 @@ select is(
 );
 ```
 
-- [ ] **Step 2: Corre las pruebas y comprueba que fallan**
+- [x] **Step 2: Corre las pruebas y comprueba que fallan**
 
 ```bash
 supabase migration up && supabase test db
@@ -264,7 +264,7 @@ sin lanzar nada, asi que pgTAP los reporta como `not ok`. La prueba de
 `stock_bajo` tambien falla: hoy nada recalcula en un `UPDATE`, asi que el estado
 se queda en `disponible`.
 
-- [ ] **Step 3: Escribe la migracion**
+- [x] **Step 3: Escribe la migracion**
 
 Crea `supabase/migrations/20260821120000_inventario_consulta.sql`:
 
@@ -362,7 +362,7 @@ create trigger existencia_recalcula_estado
   for each row execute function private.recalcular_estado();
 ```
 
-- [ ] **Step 4: Corre las pruebas y comprueba que pasan**
+- [x] **Step 4: Corre las pruebas y comprueba que pasan**
 
 ```bash
 supabase migration up && supabase test db
@@ -374,7 +374,7 @@ Si falla `'El movimiento aplico el saldo aunque cantidad no sea escribible'`,
 el trigger `aplicar_movimiento` perdio su `security definer`: sin eso corre como
 `authenticated` y choca con el `revoke` de la columna.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add supabase/migrations/20260821120000_inventario_consulta.sql supabase/tests/database/rls.test.sql
@@ -399,7 +399,7 @@ git commit -m "fix(rls): la escritura exige rol, y el saldo solo se mueve por la
   `unidad_base`, `almacen_clave`, `ubicacion`, `nombre_norm`, `marca_norm`.
   En TypeScript: `Tables<'existencia_listado'>`.
 
-- [ ] **Step 1: Escribe las pruebas que fallan**
+- [x] **Step 1: Escribe las pruebas que fallan**
 
 En `supabase/tests/database/esquema.test.sql`, busca el `select plan(N)` de la
 cabecera, sumale 2, y agrega al final:
@@ -444,7 +444,7 @@ select throws_ok(
 select pg_temp.como_postgres();
 ```
 
-- [ ] **Step 2: Corre las pruebas y comprueba que fallan**
+- [x] **Step 2: Corre las pruebas y comprueba que fallan**
 
 ```bash
 supabase migration up && supabase test db
@@ -452,7 +452,7 @@ supabase migration up && supabase test db
 
 Esperado: FALLA con `relation "public.existencia_listado" does not exist`.
 
-- [ ] **Step 3: Agrega la vista a la migracion**
+- [x] **Step 3: Agrega la vista a la migracion**
 
 > **Cuidado:** si la Task 1 ya aplico este archivo, `supabase migration up` **no
 > lo vuelve a correr**: para el CLI esa version ya esta aplicada y contesta
@@ -511,7 +511,7 @@ grant select on public.existencia_listado to authenticated;
 revoke all  on public.existencia_listado from anon;
 ```
 
-- [ ] **Step 4: Corre las pruebas y comprueba que pasan**
+- [x] **Step 4: Corre las pruebas y comprueba que pasan**
 
 ```bash
 supabase migration up && supabase test db
@@ -519,7 +519,7 @@ supabase migration up && supabase test db
 
 Esperado: PASA. 41 en `rls.test.sql` y dos mas en `esquema.test.sql`.
 
-- [ ] **Step 5: Comprueba a mano que el indice se usa**
+- [x] **Step 5: Comprueba a mano que el indice se usa**
 
 ```bash
 docker exec -i supabase_db_SIGREM-LAB psql -U postgres -d postgres -c \
@@ -540,7 +540,7 @@ apareciera el `Index Cond`, porque eso significaria que el predicado se quedo
 atrapado encima de la vista, y entonces la busqueda si se degrada de verdad
 cuando entren los ~5,500 renglones del ETL.
 
-- [ ] **Step 6: Regenera los tipos**
+- [x] **Step 6: Regenera los tipos**
 
 ```bash
 pnpm gen:types
@@ -566,7 +566,7 @@ Dos cosas se siguen de ahi:
 - `key={f.id}` recibe `number | null`. Se usa `f.codigo ?? f.id` como llave, que
   ademas es mas estable: el codigo es unico por construccion.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add supabase/ src/types/database.ts
@@ -588,7 +588,7 @@ git commit -m "feat(db): vista existencia_listado para el listado de inventario"
   - `normalizarTermino(texto: string): string`
   - `ESTADO: Record<Enums<'estado_existencia'>, { etiqueta: string; color: string }>`
 
-- [ ] **Step 1: Escribe la prueba que falla**
+- [x] **Step 1: Escribe la prueba que falla**
 
 Crea `src/features/inventario/presentacion.test.ts`:
 
@@ -659,7 +659,7 @@ describe('ESTADO', () => {
 })
 ```
 
-- [ ] **Step 2: Corre la prueba y comprueba que falla**
+- [x] **Step 2: Corre la prueba y comprueba que falla**
 
 ```bash
 pnpm test presentacion
@@ -667,7 +667,7 @@ pnpm test presentacion
 
 Esperado: FALLA con `Failed to resolve import "./presentacion"`.
 
-- [ ] **Step 3: Escribe el modulo**
+- [x] **Step 3: Escribe el modulo**
 
 Crea `src/features/inventario/presentacion.ts`:
 
@@ -745,7 +745,7 @@ export const ESTADO: Record<Enums<'estado_existencia'>, { etiqueta: string; colo
 }
 ```
 
-- [ ] **Step 4: Corre la prueba y comprueba que pasa**
+- [x] **Step 4: Corre la prueba y comprueba que pasa**
 
 ```bash
 pnpm test presentacion
@@ -753,7 +753,7 @@ pnpm test presentacion
 
 Esperado: PASA, 9 pruebas.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/features/inventario/presentacion.ts src/features/inventario/presentacion.test.ts
@@ -776,7 +776,7 @@ git commit -m "feat(inventario): corte del nombre, normalizacion y mapa de estad
   - `filtrosIniciales(perfil: { rol: Enums<'rol_usuario'>; almacenId: number | null } | undefined): Filtros`
   - `CLASIFICACIONES: { valor: Enums<'clasificacion_articulo'>; etiqueta: string }[]`
 
-- [ ] **Step 1: Escribe la prueba que falla**
+- [x] **Step 1: Escribe la prueba que falla**
 
 Crea `src/features/inventario/filtros.test.ts`:
 
@@ -828,7 +828,7 @@ describe('CLASIFICACIONES', () => {
 })
 ```
 
-- [ ] **Step 2: Corre la prueba y comprueba que falla**
+- [x] **Step 2: Corre la prueba y comprueba que falla**
 
 ```bash
 pnpm test filtros
@@ -836,7 +836,7 @@ pnpm test filtros
 
 Esperado: FALLA con `Failed to resolve import "./filtros"`.
 
-- [ ] **Step 3: Escribe el modulo**
+- [x] **Step 3: Escribe el modulo**
 
 Crea `src/features/inventario/filtros.ts`:
 
@@ -890,7 +890,7 @@ export function filtrosIniciales(
 }
 ```
 
-- [ ] **Step 4: Corre la prueba y comprueba que pasa**
+- [x] **Step 4: Corre la prueba y comprueba que pasa**
 
 ```bash
 pnpm test filtros
@@ -898,7 +898,7 @@ pnpm test filtros
 
 Esperado: PASA, 8 pruebas.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/features/inventario/filtros.ts src/features/inventario/filtros.test.ts
@@ -919,7 +919,7 @@ git commit -m "feat(inventario): estado de filtros y su valor inicial por rol"
 - Produces: `TablaExistencias(props: { filas: Fila[]; total: number; pagina: number; porPagina: number; almacenPropio: number | null; onPagina: (p: number) => void; onPorPagina: (n: number) => void; onAbrir: (fila: Fila) => void })`
   y `type Fila = Tables<'existencia_listado'>`.
 
-- [ ] **Step 1: Escribe la prueba que falla**
+- [x] **Step 1: Escribe la prueba que falla**
 
 Crea `src/features/inventario/TablaExistencias.test.tsx`:
 
@@ -1023,7 +1023,7 @@ describe('TablaExistencias', () => {
 })
 ```
 
-- [ ] **Step 2: Corre la prueba y comprueba que falla**
+- [x] **Step 2: Corre la prueba y comprueba que falla**
 
 ```bash
 pnpm test TablaExistencias
@@ -1031,7 +1031,7 @@ pnpm test TablaExistencias
 
 Esperado: FALLA con `Failed to resolve import "./TablaExistencias"`.
 
-- [ ] **Step 3: Escribe el componente**
+- [x] **Step 3: Escribe el componente**
 
 Crea `src/features/inventario/TablaExistencias.tsx`:
 
@@ -1206,7 +1206,7 @@ export function TablaExistencias({
 }
 ```
 
-- [ ] **Step 4: Corre la prueba y comprueba que pasa**
+- [x] **Step 4: Corre la prueba y comprueba que pasa**
 
 ```bash
 pnpm test TablaExistencias
@@ -1218,7 +1218,7 @@ Si `el detalle se abre con el teclado` falla porque el primer Tab cae en otra
 cosa, comprueba que no haya ningun elemento enfocable antes del `ButtonBase` en
 el arbol renderizado.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/features/inventario/TablaExistencias.tsx src/features/inventario/TablaExistencias.test.tsx
@@ -1237,7 +1237,7 @@ git commit -m "feat(inventario): tabla de existencias con detalle alcanzable por
 - Consumes: `Filtros`, `CLASIFICACIONES` de `./filtros`; `ESTADO` de `./presentacion`.
 - Produces: `FiltrosInventario(props: { filtros: Filtros; almacenes: { id: number; clave: string }[]; onCambio: (filtros: Filtros) => void })`
 
-- [ ] **Step 1: Escribe la prueba que falla**
+- [x] **Step 1: Escribe la prueba que falla**
 
 Crea `src/features/inventario/FiltrosInventario.test.tsx`:
 
@@ -1310,7 +1310,7 @@ describe('FiltrosInventario', () => {
 })
 ```
 
-- [ ] **Step 2: Corre la prueba y comprueba que falla**
+- [x] **Step 2: Corre la prueba y comprueba que falla**
 
 ```bash
 pnpm test FiltrosInventario
@@ -1318,7 +1318,7 @@ pnpm test FiltrosInventario
 
 Esperado: FALLA con `Failed to resolve import "./FiltrosInventario"`.
 
-- [ ] **Step 3: Escribe el componente**
+- [x] **Step 3: Escribe el componente**
 
 Crea `src/features/inventario/FiltrosInventario.tsx`:
 
@@ -1439,7 +1439,7 @@ export function FiltrosInventario({ filtros, almacenes, onCambio }: Props) {
 }
 ```
 
-- [ ] **Step 4: Corre la prueba y comprueba que pasa**
+- [x] **Step 4: Corre la prueba y comprueba que pasa**
 
 ```bash
 pnpm test FiltrosInventario
@@ -1447,7 +1447,7 @@ pnpm test FiltrosInventario
 
 Esperado: PASA, 4 pruebas.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/features/inventario/FiltrosInventario.tsx src/features/inventario/FiltrosInventario.test.tsx
@@ -1467,7 +1467,7 @@ git commit -m "feat(inventario): barra de filtros con etiquetas accesibles"
 - Produces: `PanelExistencia(props: { fila: Fila | null; almacenPropio: number | null; movimientos: Movimiento[]; cargandoMovimientos: boolean; onCerrar: () => void })`
   y `type Movimiento = { id: number; tipo: string; cantidad: number; cantidad_despues: number; ocurrido_en: string; motivo: string | null }`.
 
-- [ ] **Step 1: Escribe la prueba que falla**
+- [x] **Step 1: Escribe la prueba que falla**
 
 Crea `src/features/inventario/PanelExistencia.test.tsx`:
 
@@ -1563,7 +1563,7 @@ describe('PanelExistencia', () => {
 })
 ```
 
-- [ ] **Step 2: Corre la prueba y comprueba que falla**
+- [x] **Step 2: Corre la prueba y comprueba que falla**
 
 ```bash
 pnpm test PanelExistencia
@@ -1571,7 +1571,7 @@ pnpm test PanelExistencia
 
 Esperado: FALLA con `Failed to resolve import "./PanelExistencia"`.
 
-- [ ] **Step 3: Escribe el componente**
+- [x] **Step 3: Escribe el componente**
 
 Crea `src/features/inventario/PanelExistencia.tsx`:
 
@@ -1732,7 +1732,7 @@ export function PanelExistencia({
 }
 ```
 
-- [ ] **Step 4: Corre la prueba y comprueba que pasa**
+- [x] **Step 4: Corre la prueba y comprueba que pasa**
 
 ```bash
 pnpm test PanelExistencia
@@ -1740,7 +1740,7 @@ pnpm test PanelExistencia
 
 Esperado: PASA, 7 pruebas.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/features/inventario/PanelExistencia.tsx src/features/inventario/PanelExistencia.test.tsx
@@ -1765,7 +1765,7 @@ git commit -m "feat(inventario): panel de detalle con historial de movimientos"
   - `useDetalleExistencia(existenciaId: number | null)` → los campos propios del
     tipo (los consume la Task 10)
 
-- [ ] **Step 1: Escribe el modulo**
+- [x] **Step 1: Escribe el modulo**
 
 No lleva prueba unitaria propia: son envoltorios de supabase-js, y probarlos con
 un doble solo afirmaria sobre el doble. Lo que se prueba de verdad son las
@@ -1894,7 +1894,7 @@ export function useAlmacenes() {
 }
 ```
 
-- [ ] **Step 2: Comprueba que compila**
+- [x] **Step 2: Comprueba que compila**
 
 ```bash
 pnpm typecheck && pnpm lint
@@ -1903,7 +1903,7 @@ pnpm typecheck && pnpm lint
 Esperado: cero errores. Si `existencia_listado` no existe en los tipos, la Task 2
 no corrió `pnpm gen:types`.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add src/features/inventario/consultas.ts
@@ -1924,7 +1924,7 @@ git commit -m "feat(inventario): consultas del listado, movimientos y almacenes"
 - Consumes: todo lo anterior, mas `usePerfil` de `@/features/auth/usePerfil`.
 - Produces: la ruta `/inventario`.
 
-- [ ] **Step 1: Escribe la pagina**
+- [x] **Step 1: Escribe la pagina**
 
 Crea `src/features/inventario/PaginaInventario.tsx`:
 
@@ -2030,7 +2030,7 @@ export function PaginaInventario() {
 }
 ```
 
-- [ ] **Step 2: Enciende la ruta y el menu**
+- [x] **Step 2: Enciende la ruta y el menu**
 
 En `src/App.tsx`, agrega el import y la ruta dentro del `Layout`:
 
@@ -2051,7 +2051,7 @@ En `src/app/navegacion.ts`, el item de inventario pasa a disponible:
 { ruta: '/inventario', etiqueta: 'Inventario', icono: 'mdi:package-variant-closed', disponible: true },
 ```
 
-- [ ] **Step 3: Fija en una prueba que el menu ya lleva a algun lado**
+- [x] **Step 3: Fija en una prueba que el menu ya lleva a algun lado**
 
 `src/app/navegacion.test.ts` no afirma nada sobre `disponible` hoy, así que no
 hay nada que corregir: hay algo que **agregar**. Un item marcado `disponible`
@@ -2075,7 +2075,7 @@ Agrega dentro del `describe('menuDeNavegacion', ...)`:
 Córrela antes de tocar `navegacion.ts` y comprueba que falla con
 `expected false to be true`. Luego haz el cambio del Step 2 y vuelve a correrla.
 
-- [ ] **Step 4: Corre todo**
+- [x] **Step 4: Corre todo**
 
 ```bash
 pnpm test && pnpm typecheck && pnpm lint && pnpm build
@@ -2084,7 +2084,7 @@ supabase test db
 
 Esperado: los cinco en cero.
 
-- [ ] **Step 5: Guion de prueba manual**
+- [x] **Step 5: Guion de prueba manual**
 
 `pnpm dev` y recorre esto. Cada paso dice qué hacer y qué debería pasar:
 
@@ -2135,7 +2135,7 @@ Esperado: los cinco en cero.
       confunda con el guinda de la marca
 ```
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add src/features/inventario/PaginaInventario.tsx src/App.tsx src/app/navegacion.ts src/app/navegacion.test.ts
@@ -2164,7 +2164,7 @@ puede usar, y esto lo enriquece sin bloquearlo.
 - Produces: `DetalleTipo(props: { clasificacion: Enums<'clasificacion_articulo'>; datos: DatosTipo | null })`
   y `type DatosTipo` — un objeto **plano**, no la forma que devuelve PostgREST.
 
-- [ ] **Step 1: Comprueba que forma devuelve el anidado**
+- [x] **Step 1: Comprueba que forma devuelve el anidado**
 
 PostgREST devuelve las relaciones 1:1 como objeto o como arreglo según logre
 detectar que la llave foránea es también la primaria. `articulo_reactivo` lo es,
@@ -2178,7 +2178,7 @@ Y en el navegador, con el panel abierto, mira la respuesta en la pestaña de red
 Lo que salga de ahí es lo que aplana el Step 4. Anótalo antes de seguir: es la
 única parte de esta tarea que no se puede saber leyendo el plan.
 
-- [ ] **Step 2: Escribe la prueba que falla**
+- [x] **Step 2: Escribe la prueba que falla**
 
 Crea `src/features/inventario/DetalleTipo.test.tsx`:
 
@@ -2253,7 +2253,7 @@ describe('DetalleTipo', () => {
 })
 ```
 
-- [ ] **Step 3: Corre la prueba y comprueba que falla**
+- [x] **Step 3: Corre la prueba y comprueba que falla**
 
 ```bash
 pnpm test DetalleTipo
@@ -2261,7 +2261,7 @@ pnpm test DetalleTipo
 
 Esperado: FALLA con `Failed to resolve import "./DetalleTipo"`.
 
-- [ ] **Step 4: Escribe el componente**
+- [x] **Step 4: Escribe el componente**
 
 Crea `src/features/inventario/DetalleTipo.tsx`:
 
@@ -2387,7 +2387,7 @@ export function DetalleTipo({
 }
 ```
 
-- [ ] **Step 5: Corre la prueba y comprueba que pasa**
+- [x] **Step 5: Corre la prueba y comprueba que pasa**
 
 ```bash
 pnpm test DetalleTipo
@@ -2395,7 +2395,7 @@ pnpm test DetalleTipo
 
 Esperado: PASA, 6 pruebas.
 
-- [ ] **Step 6: Conectalo al panel**
+- [x] **Step 6: Conectalo al panel**
 
 En `PanelExistencia.tsx`, agrega a las props `datosTipo: DatosTipo | null` y
 píntalo justo antes del `Divider` de Movimientos:
@@ -2439,7 +2439,7 @@ const datosTipo: DatosTipo | null = detalle.data
 
 y pásalo: `<PanelExistencia ... datosTipo={datosTipo} />`.
 
-- [ ] **Step 7: Corre todo y compruebalo a mano**
+- [x] **Step 7: Corre todo y compruebalo a mano**
 
 ```bash
 pnpm test && pnpm typecheck && pnpm lint && pnpm build
@@ -2449,7 +2449,7 @@ Y en el navegador: abre `N3-00003` (Acetona).
 Esperado: el panel muestra `CAS 67-64-1` y su rombo NFPA. Abre después un
 material como un matraz: no aparece ningún bloque extra ni encabezado vacío.
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 git add src/features/inventario/DetalleTipo.tsx src/features/inventario/DetalleTipo.test.tsx src/features/inventario/PanelExistencia.tsx src/features/inventario/PaginaInventario.tsx
