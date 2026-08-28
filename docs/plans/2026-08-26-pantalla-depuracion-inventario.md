@@ -1,8 +1,11 @@
 # Pantalla de depuración de inventario — Plan
 
 > **Estado: entregado.** La tabla existe, el cargador la llena, N3 está cargado
-> en local con sus 337 renglones, la función que los mete al inventario está
-> escrita y la pantalla que los recorre también.
+> en local con sus 113 renglones por revisar, la función que los mete al
+> inventario está escrita y la pantalla que los recorre también.
+>
+> **Al 28 de agosto**, a la espera del archivo corregido de N3. La migración al
+> Supabase remoto está detenida a propósito: nada se ha empujado todavía.
 
 **Objetivo:** que el responsable de cada almacén recorra los renglones que el
 cargador no pudo resolver, uno por uno, con casilla de revisado, y complete o
@@ -29,19 +32,18 @@ reales llegan como `Almacén-Nivel-3/Inventario final.xlsx`, no como
 **N3 está cargado en local:**
 
 ```
-1278 existencias        1157 artículos      302 ubicaciones     3 cargas
- 337 pendientes  =  113 de regla  +  224 posibles duplicados
+1502 existencias        1157 artículos      302 ubicaciones     3 cargas
+ 113 pendientes, todos por una regla de captura sin resolver
 ----
 1615 = los 1615 renglones del archivo, ni uno perdido
 ```
 
 ## Lo que la pantalla tiene que resolver
 
-Los 337 de N3, repartidos así:
+Los 113 de N3, repartidos así:
 
 | Motivo | Renglones | Qué le falta al dato |
 |---|---|---|
-| `posible_duplicado` | 224 | ¿Son 20 frascos, o el mismo capturado 20 veces? |
 | Unidad de empaque (`caja`, `paquete`, `kit`…) | 88 | Cuántas piezas trae cada empaque |
 | Mismo artículo en dos unidades (g y mL, kg y g) | 17 | Si ese frasco se pesó o se midió |
 | Peso lleno ≤ peso vacío | 8 | Volver a pesar; 7 dan cantidad negativa |
@@ -60,28 +62,35 @@ pantalla, porque son el mismo tipo de trabajo:
   UAEH. En uno de ellos el propio almacén ya escribió `Por revisar (Equipo?)`
   en la especificación.
 
-## Decisión tomada: los 224 se apartan, no se colapsan
+## Resuelto: un reactivo repetido es otro frasco
 
-`existencia` identifica una fila por *(articulo, almacen, ubicacion, marca,
-presentacion)*. N3 tiene 20 frascos de Ergosterol en la misma gaveta, misma
-marca, misma presentación, cada uno con su peso. La llave no los distingue.
+**28 de agosto de 2026.** Se preguntó al almacén y la respuesta cierra el tema:
+los reactivos repetidos son intencionales, porque **se manejan por frasco**.
+Cada renglón es un frasco físico con su propio peso; los 20 Ergosterol de la
+misma gaveta son 20 frascos de verdad.
 
-Se evaluaron tres salidas y se eligió la tercera:
+Así que fuera de Equipos ya no se deduplica: cada renglón es una existencia.
+N3 pasó de 1278 existencias a **1502**, y de 337 pendientes a **113**. El motivo
+`posible_duplicado` ya no lo produce nadie.
 
-- ~~Sumar en una existencia~~ — se pierde el peso individual, que es lo que hoy
-  deja ver cuál frasco está por acabarse.
-- ~~Discriminar en la llave natural~~ — migración, y `/inventario` tendría que
-  agrupar o mostraría 20 renglones donde se espera uno.
-- **Apartarlos y preguntar.** Sin migración, sin pérdida silenciosa, y la
-  pregunta —«¿son 20 frascos o un duplicado?»— es exactamente una decisión
-  humana. Si la respuesta resulta ser «casi siempre son frascos distintos», la
-  llave natural se replantea entonces, con datos en la mano.
+Lo que eso cuesta: el cargador pierde su forma de reconocer un renglón ya
+cargado y **deja de ser idempotente**. Se descartó añadir un discriminador a la
+llave —migración, y `/inventario` tendría que agrupar— a favor de **limpiar y
+recargar**, con un seguro en `escribir_hoja()` que se niega a cargar dos veces
+el mismo archivo-hoja en vez de duplicar el inventario en silencio.
+
+Equipos sigue deduplicando por serie: ahí la regla 10 sí exige un renglón por
+equipo físico.
+
+**Queda abierto para cristalería.** N3 traía «pipeta graduada de 1 mL» dos veces
+en la misma ubicación, con 104 y con 27. Eso no son frascos y no está claro si
+se suman. El almacén lo resuelve en su archivo corregido, no el cargador.
 
 ## La pantalla: hecha
 
 Ruta propia `/inventario/depuracion`, no pestaña. Las tres razones: es otro
 trabajo (revisar y corregir, no consultar), sale de otra tabla, y sobre todo es
-**enlazable** — «ve a depurar tus 337» tiene que poder ser un enlace, no una
+**enlazable** — «ve a depurar tus 113» tiene que poder ser un enlace, no una
 instruccion de donde hacer clic. Cuelga de `/inventario` para que la migaja diga
 de donde viene y la barra lateral siga marcando Inventario. El punto de entrada
 es un boton «Depurar N» en la cabecera de `/inventario`, que solo aparece si
@@ -97,9 +106,11 @@ queda algo: es el unico aviso de que ese inventario no esta completo.
   columna de su hoja. La lista de campos sale del propio renglon: ni un
   condicional por hoja ni por almacen, la misma propiedad que hace que el
   formulario de alta se arme desde la base.
-- **Para `posible_duplicado`** se pintan los dos lado a lado —los mismos cinco
-  datos en el mismo orden a izquierda y derecha— y aparece un boton mas: «Es la
-  misma: suma a N3-00015».
+- **Para `posible_duplicado`** se pintan los dos lado a lado y aparece un boton
+  mas, «Es la misma: suma a N3-00015». Ese camino quedo SIN USO el 28 de agosto:
+  el cargador ya no produce ese motivo. Se conserva porque el veredicto
+  `duplicado` de `resolver_pendiente()` sigue siendo valido y la cristaleria
+  puede necesitarlo; si al final no, se quita con su columna y su enum.
 - **Escribir** solo toca `renglon`, `estado` y `nota`. `revisado_por` lo pone el
   trigger.
 - **Sin dependencias nuevas.** MUI 9, TanStack Query, react-hook-form + zod.
@@ -134,7 +145,7 @@ check `estado <> 'resuelto' or existencia_resuelta_id is not null`. Esa columna
 queda fuera del `grant update` por columnas, asi que `resuelto` solo se puede
 alcanzar pasando por la funcion. Sin el candado, el cliente seguia pudiendo
 `update carga_pendiente set estado = 'resuelto'` a secas y volviamos al punto de
-partida: 337 renglones revisados y el inventario intacto.
+partida: los renglones revisados y el inventario intacto.
 
 **Dos formas del renglon.** `posible_duplicado` guarda el renglon ya
 normalizado; `regla` lo guarda CRUDO, tal como venia («Sin marca», «—», «Grado

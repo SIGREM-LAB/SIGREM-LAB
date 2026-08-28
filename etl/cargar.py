@@ -137,6 +137,13 @@ def cargar(origen: Path, cadena: str,
                 nuevas += n
                 apartados += a
                 con.commit()
+            except destino.YaCargado:
+                # No es un problema del dato: es que esta carga no debe correr.
+                # Se aborta entera en vez de anotarla en el informe, donde
+                # quedaría enterrada entre los rechazos de renglón y alguien la
+                # leería como «113 problemas» sin ver que no se cargó nada.
+                con.rollback()
+                raise
             except Exception as error:  # noqa: BLE001 — se anota y se sigue
                 con.rollback()
                 informe.anotar(Problema(
@@ -176,9 +183,13 @@ def main(argv: list[str] | None = None) -> int:
         return 2
 
     if args.cargar:
-        from etl import db
-        informe, nuevas, apartados = cargar(origen, db.dsn(args.dsn),
-                                            args.almacen)
+        from etl import db, destino
+        try:
+            informe, nuevas, apartados = cargar(origen, db.dsn(args.dsn),
+                                                args.almacen)
+        except destino.YaCargado as error:
+            print(f"\n  {error}\n", file=sys.stderr)
+            return 2
         print(f"  {nuevas} existencias nuevas")
         print(f"  {apartados} renglones apartados para revisión "
               f"(public.carga_pendiente)")

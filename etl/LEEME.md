@@ -97,12 +97,28 @@ crudo y el motivo, y lo revisa una persona en pantalla. Las dos escrituras van
 en la misma transacción por hoja: un inventario cargado sin su lista de
 pendientes es un inventario que se cree completo y no lo está.
 
-**Es idempotente.** Correrlo tres veces seguidas deja exactamente lo mismo: la
-segunda y la tercera dicen `0 existencias nuevas, 0 renglones apartados` y no
-acumulan filas de `carga`. Se puede repetir sin miedo.
+**NO es idempotente fuera de Equipos, y es a propósito.** Cada renglón de
+Reactivos, Insumos y Material es una existencia propia: el almacén maneja los
+reactivos **por frasco**, así que 20 renglones del mismo reactivo en la misma
+gaveta son 20 frascos físicos, no el mismo dato capturado 20 veces. Como no se
+deduplica, el cargador no tiene forma de reconocer lo que ya cargó.
 
-Un pendiente ya revisado **sobrevive** a una recarga: el upsert refresca el
-renglón y los problemas, pero no toca `estado`, `nota` ni `revisado_por`.
+Por eso **se niega a cargar dos veces el mismo archivo-hoja**:
+
+```
+«Inventario final.xlsx · Reactivos» ya se cargó en N3. Fuera de Equipos cada
+renglón es una existencia propia, así que volver a cargarlo duplicaría el
+inventario. Para rehacerlo: psql "$DATABASE_URL" -f supabase/limpiar-inventario.sql
+```
+
+Sale con código 2 y no escribe nada. **Para recargar: limpiar primero.** En
+local, `supabase db reset` hace lo mismo y de paso reaplica las migraciones.
+
+Equipos sí sigue deduplicando, por la regla 10: cada equipo físico lleva su
+número de serie, así que un renglón repetido ahí sí es el mismo objeto.
+
+Un pendiente ya revisado **sobrevive** a un re-upsert: el `on conflict` refresca
+el renglón y los problemas, pero no toca `estado`, `nota` ni `revisado_por`.
 
 ## 4. Comprobar que cuadra
 
@@ -175,14 +191,26 @@ crea el artículo y cuál lo reutiliza depende del orden. Va fijo por
 `ORDEN × ORDEN_HOJAS`, nunca por el orden del sistema de archivos ni por cómo el
 encargado ordenó sus pestañas. Cambiarlo hace la migración irreproducible.
 
-**La llave natural no distingue dos frascos iguales en el mismo cajón.** Una
-existencia se identifica por *(articulo, almacen, ubicacion, marca,
-presentacion)*. N3 tenía 20 frascos de Ergosterol en la misma gaveta, misma
-marca, misma presentación, cada uno con su peso: **antes entraba uno y los otros
-19 se descartaban sin un solo error**. Ahora se apartan como
-`posible_duplicado`. Son 224 renglones en N3 y va a pasar en los otros
-almacenes. Está pendiente decidir si la llave necesita un discriminador; ver
-`docs/plans/2026-08-26-pantalla-depuracion-inventario.md`.
+**Un reactivo repetido es otro frasco, no un duplicado.** Esta costó dos vueltas
+y es la lección más cara del archivo de N3.
+
+La llave natural de una existencia era *(articulo, almacen, ubicacion, marca,
+presentacion)*, y N3 traía 20 renglones de Ergosterol en la misma gaveta, misma
+marca, misma presentación, cada uno con su peso. El cargador los colapsaba en
+uno: **entraba el primero y los otros 19 desaparecían sin un solo error**, con
+sus cantidades. Se apartaron como `posible_duplicado` para preguntarlo, y la
+respuesta del almacén fue que **es intencional: los reactivos se manejan por
+frasco y cada renglón es un frasco físico**.
+
+Así que fuera de Equipos ya no se deduplica nada. Los 217 renglones de Reactivos
+que se apartaban ahora entran: N3 pasó de 1278 existencias a 1502, y los
+pendientes de 337 a 113.
+
+**Lo que hay que preguntarle a cada almacén antes de migrar:** si los renglones
+repetidos son objetos distintos o captura duplicada. Para reactivos la respuesta
+de N3 es «frascos distintos». Para cristalería no está claro —N3 traía «pipeta
+graduada de 1 mL» dos veces en la misma ubicación, con 104 y con 27— y eso lo
+resuelve el almacén en su archivo, no el cargador adivinando.
 
 **Los CAS con dígito verificador inválido no los detecta el cargador.** El CAS
 lleva checksum y en N3 fallaba en 29 de 752. El regex solo comprueba la forma,

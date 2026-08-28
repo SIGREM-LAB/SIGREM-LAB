@@ -116,26 +116,39 @@ def _clasificacion(hoja: Hoja, campos: dict[str, Any]) -> str:
 def _existencia_previa(cur, hoja: Hoja, almacen_id: int, articulo_id: int,
                        ubicacion_id: int | None,
                        campos: dict[str, Any]) -> tuple[int, int | None] | None:
-    """Punto 9 del contrato: la llave natural de una existencia.
+    """Punto 9 del contrato: la llave natural de una existencia. Solo Equipos.
 
-    Devuelve (id, carga_id). El `carga_id` es lo que distingue dos situaciones
-    que se ven igual: si la existencia que choca viene de ESTA misma carga, dos
-    renglones del archivo comparten llave natural —los 20 frascos de Ergosterol
-    de N3— y hay que apartarlos para que alguien decida. Si viene de una carga
-    anterior, es el cargador corriendo dos veces sobre el mismo archivo y hay
-    que saltarla en silencio, que es lo que lo hace idempotente.
+    Devuelve (id, carga_id) del equipo ya cargado, o None si no lo hay.
     """
+    # Fuera de Equipos, CADA RENGLON ES UNA EXISTENCIA. No se deduplica.
+    #
+    # Se dedujo al reves durante un tiempo: N3 tenia 20 renglones de Ergosterol
+    # en la misma gaveta, misma marca, misma presentacion, y el cargador los
+    # trataba como el mismo dato capturado 20 veces. No lo era. El almacen
+    # maneja los reactivos POR FRASCO: cada renglon es un frasco fisico con su
+    # propio peso, y son 20 frascos de verdad. Colapsarlos perdia 217 renglones
+    # de N3 y las cantidades de todos menos uno.
+    #
+    # Esto le quita al cargador su forma de reconocer un renglon ya cargado, asi
+    # que DEJA DE SER IDEMPOTENTE fuera de Equipos: volver a correrlo sobre el
+    # mismo archivo duplicaria el inventario. El procedimiento es limpiar y
+    # recargar (supabase/limpiar-inventario.sql), y `escribir_hoja` se niega a
+    # cargar sobre una carga previa del mismo archivo para que no pase por
+    # descuido.
+    if hoja.nombre != "Equipos":
+        return None
+
     serie = campos.get("numero_serie")
     inv = campos.get("numero_inventario")
 
-    if hoja.nombre == "Equipos" and (serie is not None or inv is not None):
+    if serie is not None or inv is not None:
         cur.execute(
             "select id, carga_id from public.existencia "
             " where (numero_serie is not null and numero_serie = %s) "
             "    or (numero_inventario_uaeh is not null "
             "        and numero_inventario_uaeh = %s) limit 1",
             (serie, inv))
-    elif hoja.nombre == "Equipos":
+    else:
         # Un equipo sin serie NI inventario no tiene identidad propia. Lo mejor
         # disponible es dónde está y qué es; sin esto, cada corrida lo vuelve a
         # crear. Dos equipos así, iguales y en el mismo mueble, se colapsarían
@@ -151,18 +164,6 @@ def _existencia_previa(cur, hoja: Hoja, almacen_id: int, articulo_id: int,
             """,
             (articulo_id, almacen_id, ubicacion_id, campos.get("marca"),
              campos.get("modelo")))
-    else:
-        cur.execute(
-            """
-            select id, carga_id from public.existencia
-             where articulo_id = %s and almacen_id = %s
-               and ubicacion_id is not distinct from %s
-               and marca        is not distinct from %s
-               and presentacion is not distinct from %s
-             limit 1
-            """,
-            (articulo_id, almacen_id, ubicacion_id, campos.get("marca"),
-             campos.get("presentacion")))
     fila = cur.fetchone()
     return (fila[0], fila[1]) if fila else None
 
@@ -218,10 +219,34 @@ def apartar(cur, hoja: Hoja, almacen_id: int, carga_id: int | None, fila: int,
     return cur.fetchone()[0]
 
 
+class YaCargado(Exception):
+    """Este archivo-hoja ya se cargó y volver a cargarlo duplicaría todo."""
+
+
 def escribir_hoja(cur, hoja: Hoja, resultado: Resultado,
                   perfil_id: uuid.UUID) -> tuple[int, int]:
     """Devuelve (existencias nuevas, renglones apartados)."""
     almacen_id = db.almacenes(cur)[hoja.almacen]
+
+    # El seguro. Fuera de Equipos ya no se deduplica —cada renglón es un frasco
+    # físico— así que el cargador no tiene forma de reconocer lo que ya cargó:
+    # correrlo dos veces sobre el mismo archivo duplicaría el inventario entero,
+    # en silencio y con las cantidades sumadas dos veces por los movimientos.
+    #
+    # Antes esto no hacía falta porque la llave natural absorbía la segunda
+    # corrida. Ahora el procedimiento es limpiar y recargar, y esto es lo que
+    # obliga a hacerlo a propósito en vez de por descuido.
+    cur.execute(
+        "select count(*) from public.carga "
+        " where almacen_id = %s and archivo = %s and hoja = %s",
+        (almacen_id, hoja.archivo, hoja.nombre))
+    if cur.fetchone()[0]:
+        raise YaCargado(
+            f"«{hoja.archivo} · {hoja.nombre}» ya se cargó en {hoja.almacen}. "
+            f"Fuera de Equipos cada renglón es una existencia propia, así que "
+            f"volver a cargarlo duplicaría el inventario. Para rehacerlo: "
+            f"psql \"$DATABASE_URL\" -f supabase/limpiar-inventario.sql")
+
     labs = db.laboratorios(cur)
     renglones = resultado.validos
     # `filas` son los renglones que traía la HOJA, no los que el validador
@@ -283,28 +308,10 @@ def escribir_hoja(cur, hoja: Hoja, resultado: Resultado,
         ubicacion_id = upsert_ubicacion(cur, almacen_id, c)
         previa = _existencia_previa(cur, hoja, almacen_id,
                                     resolucion.articulo_id, ubicacion_id, c)
+        # Solo Equipos devuelve algo aqui: es la unica hoja donde un renglon
+        # repetido significa el mismo objeto, porque la regla 10 le exige serie
+        # propia a cada equipo fisico. Un reactivo repetido es otro frasco.
         if previa is not None:
-            previa_id, previa_carga = previa
-            # Choque DENTRO de esta misma carga: dos renglones del archivo que
-            # la llave natural no sabe separar. Los 20 frascos de Ergosterol de
-            # N3 caen aquí. Antes se descartaban en silencio —217 renglones de
-            # Reactivos y 11 de Material— y nadie se enteraba.
-            if hoja.nombre != "Equipos" and previa_carga == carga_id:
-                nuevo = apartar(
-                        cur, hoja, almacen_id, carga_id, renglon.fila,
-                        "posible_duplicado", c,
-                        [{"regla": "Llave natural · (articulo, ubicacion, "
-                                   "marca, presentacion)",
-                          "columna": "",
-                          "valor": _apartable(c.get("cantidad")),
-                          "detalle": "otro renglón de este mismo archivo ocupa "
-                                     "la misma llave. ¿Son dos frascos "
-                                     "distintos, o el mismo capturado dos "
-                                     "veces?"}],
-                        existencia_id=previa_id)
-                apartados += 1 if nuevo else 0
-            # Si la previa es de una carga ANTERIOR, es el cargador corriendo
-            # dos veces sobre el mismo archivo: se salta y ya.
             continue
 
         lab_id = labs.get((hoja.almacen, clave(c.get("laboratorio") or "")))
