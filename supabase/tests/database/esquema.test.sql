@@ -7,7 +7,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 
-select plan(49);
+select plan(53);
 
 -- Las pruebas corren como postgres, que se salta la RLS. Es lo correcto aqui:
 -- este archivo prueba la forma del esquema, no quien puede ver que. Eso es
@@ -529,6 +529,47 @@ select is(
      from pg_class where oid = 'public.existencia_listado'::regclass),
   true,
   'La vista del listado corre con los privilegios de quien la consulta'
+);
+
+
+-- ---------------------------------------------------------------------------
+-- El resumen del menu principal, con el mismo seguro que el listado
+-- ---------------------------------------------------------------------------
+select has_view('public', 'almacen_resumen', 'La vista del resumen existe');
+
+select is(
+  (select reloptions::text[] @> array['security_invoker=on']
+     from pg_class where oid = 'public.almacen_resumen'::regclass),
+  true,
+  'La vista del resumen corre con los privilegios de quien la consulta'
+);
+
+-- Los siete `filter` son faciles de escribir mal y el error no se ve: un
+-- estado mal escrito devuelve cero, que parece un dato. Esto ancla que el
+-- total sea exactamente el inventario vivo.
+select pg_temp.como_postgres();
+
+select is(
+  -- sum() de bigint devuelve numeric, y count() bigint: sin el cast, is() no
+  -- puede resolver el tipo y la prueba truena en vez de comparar.
+  (select sum(total)::bigint from public.almacen_resumen),
+  (select count(*) from public.existencia where estado <> 'baja'),
+  'El total del resumen es el inventario vivo, sin las bajas'
+);
+
+
+-- ---------------------------------------------------------------------------
+-- El veredicto de quien depura un renglon
+-- ---------------------------------------------------------------------------
+-- Son DOS y no tres. La tercera salida de un pendiente —no debe cargarse— no es
+-- un veredicto: es `estado = 'descartado'`, un UPDATE normal que no toca el
+-- inventario. Meterla aqui invitaria a que `resolver_pendiente` tuviera un
+-- camino que no crea ninguna existencia, que es justo lo que esa funcion existe
+-- para no permitir.
+select set_eq(
+  $$ select unnest(enum_range(null::public.veredicto_pendiente))::text $$,
+  array['nueva','duplicado'],
+  'veredicto_pendiente solo tiene las dos formas de entrar al inventario'
 );
 
 

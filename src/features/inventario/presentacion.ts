@@ -84,3 +84,30 @@ export function aspectoDeEstado(estado: Enums<'estado_existencia'> | null): Aspe
   if (estado === null) return SIN_ESTADO
   return ESTADO[estado] ?? SIN_ESTADO
 }
+
+/**
+ * Por qué el cargador apartó un renglón. Viven aquí, y no en `pendientes.ts`,
+ * por la misma razón que `ESTADO`: son un atributo del dato —lo que en una
+ * gráfica sería la serie— y la regla del proyecto es que ningún componente
+ * escriba un hex. Se reusan los mismos tonos que ya están razonados arriba.
+ *
+ * `regla` en ámbar y `posible_duplicado` en violeta porque son dos trabajos
+ * distintos: uno se arregla corrigiendo el dato, el otro decidiendo si son dos
+ * cosas o una. Quien revisa agrupa por eso, no por gravedad.
+ */
+export const MOTIVO: Record<Enums<'motivo_pendiente'>, AspectoEstado> = {
+  regla: { etiqueta: 'Regla de captura', color: '#B26A00' },
+  posible_duplicado: { etiqueta: 'Posible duplicado', color: '#7C3AED' },
+}
+
+/**
+ * En qué punto de la revisión está el renglón. `resuelto` se rotula «Cargado» y
+ * no «Resuelto»: desde la migración del 26 de agosto ese estado significa que
+ * la existencia ya está en el inventario, y decirlo así evita la lectura de
+ * «lo miré y ya» que es justo la que dejaba el inventario sin crecer.
+ */
+export const REVISION: Record<Enums<'estado_pendiente'>, AspectoEstado> = {
+  pendiente: { etiqueta: 'Sin revisar', color: '#B26A00' },
+  resuelto: { etiqueta: 'Cargado', color: '#2E7D32' },
+  descartado: { etiqueta: 'Descartado', color: '#6F6F6E' },
+}

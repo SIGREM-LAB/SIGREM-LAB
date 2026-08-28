@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest'
 
-import { CLASIFICACIONES, filtrosIniciales } from './filtros'
+import { CLASIFICACIONES, filtrosIniciales, hayFiltrosActivos } from './filtros'
 
 describe('filtrosIniciales', () => {
   test('un responsable arranca en su propio almacen', () => {
@@ -57,5 +57,28 @@ describe('CLASIFICACIONES', () => {
   test('ninguna etiqueta se repite', () => {
     const etiquetas = CLASIFICACIONES.map((c) => c.etiqueta)
     expect(new Set(etiquetas).size).toBe(etiquetas.length)
+  })
+})
+
+describe('hayFiltrosActivos', () => {
+  const iniciales = filtrosIniciales({ rol: 'responsable', almacenId: 3 })
+
+  // Para un responsable, arrancar viendo solo su almacen NO es tener un filtro
+  // puesto: es su punto de partida. Si contara, el boton de limpiar aparecería
+  // nada mas entrar y "limpiar" no cambiaria nada.
+  test('el arranque de cada rol no cuenta como filtro', () => {
+    expect(hayFiltrosActivos(iniciales, iniciales)).toBe(false)
+  })
+
+  test('detecta un termino tecleado', () => {
+    expect(hayFiltrosActivos({ ...iniciales, termino: 'acetona' }, iniciales)).toBe(true)
+  })
+
+  test('detecta un cambio de almacen', () => {
+    expect(hayFiltrosActivos({ ...iniciales, almacenId: 'todos' }, iniciales)).toBe(true)
+  })
+
+  test('detecta la casilla de bajas', () => {
+    expect(hayFiltrosActivos({ ...iniciales, incluirBaja: true }, iniciales)).toBe(true)
   })
 })

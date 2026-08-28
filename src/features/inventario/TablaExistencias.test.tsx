@@ -30,7 +30,7 @@ function fila(cambios: Partial<Fila> = {}): Fila {
 
 function pintar(props: Partial<Parameters<typeof TablaExistencias>[0]> = {}) {
   const onAbrir = vi.fn()
-  render(
+  const resultado = render(
     <TablaExistencias
       filas={[fila()]}
       total={1}
@@ -43,7 +43,7 @@ function pintar(props: Partial<Parameters<typeof TablaExistencias>[0]> = {}) {
       {...props}
     />,
   )
-  return { onAbrir }
+  return { onAbrir, ...resultado }
 }
 
 describe('TablaExistencias', () => {
@@ -109,5 +109,23 @@ describe('TablaExistencias', () => {
       filas: [fila({ nombre_canonico: null, cantidad: null, estado: null, ubicacion: null })],
     })
     expect(screen.getByRole('button', { name: /N3-00001/ })).toBeInTheDocument()
+  })
+
+  // Las dos pruebas de abajo cuidan lo mismo: que la tabla no se mueva. Con el
+  // reparto automatico de anchos, cada pagina reacomoda las seis columnas segun
+  // el largo de sus datos, y cambiar de almacen se ve como un brinco.
+  test('las columnas llevan ancho fijo', () => {
+    const { container } = pintar()
+    expect(container.querySelectorAll('colgroup col')).toHaveLength(6)
+  })
+
+  // Mientras llega la primera pagina se dibujan renglones vacios con su medida
+  // final, no un hueco que luego empuja todo hacia abajo.
+  test('cargando dibuja renglones de relleno y no anuncia que no hay nada', () => {
+    pintar({ cargando: true, filas: [], total: 0 })
+
+    // Uno de cabecera mas los ocho de relleno.
+    expect(screen.getAllByRole('row')).toHaveLength(9)
+    expect(screen.queryByText(/no se encontraron existencias/i)).not.toBeInTheDocument()
   })
 })

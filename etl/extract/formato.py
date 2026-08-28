@@ -23,6 +23,19 @@ FILA_ENCABEZADO_DEFECTO = 8
 HOJAS_DE_DATOS = ("Reactivos", "Insumos", "Material", "Equipos",
                   "Materia biológica", "Electrónica")
 
+ALMACENES = ("N3", "N4", "LUM", "LE")
+
+# Cuando el almacén no está en el nombre del archivo, está en el de la carpeta.
+# Va como mapa explícito y no como heurística: «Almacén-Nivel-3» no se parece a
+# «N3» por ninguna regla, y adivinarlo mal carga el inventario de un almacén en
+# la ficha de otro sin lanzar un solo error.
+CARPETAS = {
+    "almacen-nivel-3": "N3",
+    "almacen-nivel-4": "N4",
+    "almacen-lum": "LUM",
+    "almacen-le": "LE",
+}
+
 # Qué columna del formato es qué campo. Lo que no está aquí se ignora: «No.» es
 # el consecutivo del Excel, y «7.1-a) Uso principal», «Zona de riesgo» y
 # «Número de personas expuestas» son constantes por almacén que viven en la
@@ -98,7 +111,57 @@ def slug(nombre: str) -> str:
     return "".join(c for c in d if unicodedata.category(c) != "Mn").replace(" ", "-")
 
 
+def _extraer(ws, nombre: str) -> tuple[tuple[int, ...], tuple[dict[str, Any], ...]]:
+    """Los renglones con dato de una hoja, y en qué fila de Excel está cada uno."""
+    campos = CAMPOS[nombre]
+    fila_enc = FILA_ENCABEZADO.get(nombre, FILA_ENCABEZADO_DEFECTO)
+
+    filas: list[int] = []
+    renglones: list[dict[str, Any]] = []
+    for r in range(fila_enc + 1, ws.max_row + 1):
+        crudo = {campo: ws[f"{letra}{r}"].value for campo, letra in campos.items()}
+        if all(v is None for v in crudo.values()):
+            continue
+        filas.append(r)
+        renglones.append(crudo)
+    return tuple(filas), tuple(renglones)
+
+
+def _hoja(ruta: Path, ws, almacen: str, nombre: str) -> Hoja:
+    filas, renglones = _extraer(ws, nombre)
+    return Hoja(
+        ruta=ruta, almacen=almacen, nombre=nombre,
+        responsable=ws["F4"].value, periodo=ws["B5"].value,
+        actualizado=ws["F5"].value, filas=filas, renglones=renglones,
+    )
+
+
+def almacen_de(ruta: Path) -> str:
+    """De qué almacén es el archivo.
+
+    Sigue siendo la decisión D1 —el almacén sale del NOMBRE, no de una columna,
+    porque ninguna hoja trae columna de almacén— pero el nombre puede ser el del
+    archivo o el de su carpeta. Los archivos reales llegan como
+    `Almacén-Nivel-3/Inventario final.xlsx`: el almacén está en la carpeta y el
+    archivo se llama como al encargado le pareció.
+
+    Se prueba, en orden: `N3.xlsx` (un libro por almacén), `N3-Equipos.xlsx`
+    (un archivo por almacén-hoja, lo que usan los ejemplos) y la carpeta.
+    """
+    for candidato in (ruta.stem, ruta.parent.name):
+        c = slug(candidato)
+        for almacen in ALMACENES:
+            if c == almacen.lower() or c.startswith(f"{almacen.lower()}-"):
+                return almacen
+        if c in CARPETAS:
+            return CARPETAS[c]
+    raise ArchivoIlegible(
+        f"{ruta.name}: no se puede saber de qué almacén es. Nombra el archivo "
+        f"«N3.xlsx» o ponlo en una carpeta reconocida ({', '.join(CARPETAS)})")
+
+
 def leer(ruta: Path) -> Hoja:
+    """Un archivo, una hoja de datos. El formato de los ejemplos."""
     almacen, _, resto = ruta.stem.partition("-")
     if not almacen or not resto:
         raise ArchivoIlegible(f"{ruta.name}: el nombre debe ser ALMACEN-Hoja.xlsx")
@@ -115,22 +178,29 @@ def leer(ruta: Path) -> Hoja:
         raise ArchivoIlegible(
             f"{ruta.name}: el archivo dice «{resto}» y la hoja es «{nombre}»")
 
-    ws = libro[nombre]
-    campos = CAMPOS[nombre]
-    fila_enc = FILA_ENCABEZADO.get(nombre, FILA_ENCABEZADO_DEFECTO)
+    return _hoja(ruta, libro[nombre], almacen, nombre)
 
-    filas: list[int] = []
-    renglones: list[dict[str, Any]] = []
-    for r in range(fila_enc + 1, ws.max_row + 1):
-        crudo = {campo: ws[f"{letra}{r}"].value for campo, letra in campos.items()}
-        if all(v is None for v in crudo.values()):
-            continue
-        filas.append(r)
-        renglones.append(crudo)
 
-    return Hoja(
-        ruta=ruta, almacen=almacen, nombre=nombre,
-        responsable=ws["F4"].value, periodo=ws["B5"].value,
-        actualizado=ws["F5"].value,
-        filas=tuple(filas), renglones=tuple(renglones),
-    )
+def leer_libro(ruta: Path, almacen: str | None = None) -> tuple[Hoja, ...]:
+    """Un libro por almacén, con una hoja por clasificación.
+
+    Es como entregan los almacenes de verdad: copian el formato unificado y
+    llenan las hojas que les tocan. `leer()` no puede con eso —exige una sola
+    hoja de datos y el nombre del archivo diciendo cuál es— y por eso el primer
+    archivo real de N3 no se podía ni abrir.
+
+    Las hojas salen en el orden de HOJAS_DE_DATOS y no en el del libro: el
+    catálogo de artículos es global, así que el orden en que se cargan decide
+    cuál renglón crea el artículo y cuál lo reutiliza. Que eso dependa de cómo
+    ordenó sus pestañas el encargado haría la carga irreproducible.
+    """
+    libro = load_workbook(ruta, data_only=True)
+    clave = almacen or almacen_de(ruta)
+
+    presentes = [h for h in HOJAS_DE_DATOS if h in libro.sheetnames]
+    if not presentes:
+        raise ArchivoIlegible(
+            f"{ruta.name}: no trae ninguna hoja de datos del formato "
+            f"unificado. Se buscaron: {', '.join(HOJAS_DE_DATOS)}")
+
+    return tuple(_hoja(ruta, libro[nombre], clave, nombre) for nombre in presentes)

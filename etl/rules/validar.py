@@ -1,8 +1,14 @@
 """Aplica las 13 reglas de captura y los choques con el esquema.
 
-Devuelve los renglones normalizados, o None si la hoja tuvo algún rechazo: una
-hoja entra entera o no entra. Todo lo que aquí se anota como `normalizado` ya
-viene corregido en los renglones que se devuelven.
+Devuelve un `Resultado`: los renglones normalizados que pueden entrar, y los
+que no con el motivo por el que no. Todo lo que aquí se anota como
+`normalizado` ya viene corregido en los renglones que se devuelven.
+
+Hasta el 26 de agosto de 2026 esto era todo-o-nada —la hoja entraba entera o no
+entraba— y devolvía None ante el primer rechazo. El primer archivo real lo
+tumbó: N3 trae 1615 renglones y 113 que ninguna regla puede resolver sin
+preguntarle a una persona, así que todo-o-nada cargaba CERO. Ahora lo válido
+entra y lo demás se aparta en `public.carga_pendiente`.
 
 No conoce la base. Lo único que no se puede comprobar sin ella es el
 laboratorio, y por eso llega como argumento en `Catalogos`: sin conexión ese
@@ -73,22 +79,62 @@ class Renglon:
     campos: dict[str, Any]
 
 
+@dataclass(frozen=True)
+class Rechazado:
+    """Un renglón que no entra, con todo lo que hace falta para revisarlo.
+
+    Lleva el renglón CRUDO, no el normalizado: quien lo revise en pantalla
+    tiene que ver lo que decía el Excel, no lo que el ETL alcanzó a interpretar
+    antes de tropezar.
+    """
+
+    fila: int
+    crudo: dict[str, Any]
+    problemas: tuple[Problema, ...]
+
+
+@dataclass(frozen=True)
+class Resultado:
+    """Lo que entra y lo que se aparta.
+
+    Antes esto era `tuple[Renglon, ...] | None`: si un solo renglón violaba una
+    regla, la hoja entera se caía. Con los archivos sintéticos daba igual
+    —estaban hechos para pasar— pero el primer archivo real de N3 tiene 113
+    renglones así de 1615, y todo-o-nada sobre él carga CERO.
+
+    Ahora la hoja entra por lo válido y lo demás se aparta en
+    `public.carga_pendiente` para que una persona lo resuelva. Quien llame
+    decide: `cargar.py` escribe las dos partes.
+    """
+
+    validos: tuple[Renglon, ...]
+    rechazados: tuple[Rechazado, ...]
+
+
 def _sub_es_del_almacen(sub: str | None, almacen: str) -> bool:
     """«N3» y «LUM-2» sí; «N1-1» en un archivo de N3, no."""
     return sub is None or sub == almacen or sub.startswith(f"{almacen}-")
 
 
 def validar(hoja: Hoja, informe: Informe, catalogos: Catalogos,
-            vistos: Vistos) -> tuple[Renglon, ...] | None:
+            vistos: Vistos) -> Resultado:
     letras = CAMPOS[hoja.nombre]
     salida: list[Renglon] = []
-    hubo_rechazo = False
+    # fila de Excel -> los problemas que la dejan fuera. Es también el registro
+    # de qué filas se rechazaron: la regla 10 anota RETROACTIVAMENTE la fila del
+    # equipo que vio primero cuando aparece la serie repetida, y esa fila puede
+    # llevar rato en `salida`. Con un diccionario de filas rechazadas, sacarla
+    # al final es mirar el diccionario; con una bandera global, no había forma.
+    rechazos: dict[int, list[Problema]] = {}
 
     def anota(fila, campo, regla, valor, accion, detalle):
-        informe.anotar(Problema(
+        problema = Problema(
             archivo=hoja.archivo, hoja=hoja.nombre, fila=fila,
             columna=letras.get(campo, ""), regla=regla, valor=valor,
-            accion=accion, detalle=detalle))
+            accion=accion, detalle=detalle)
+        informe.anotar(problema)
+        if accion == "rechazo" and fila is not None:
+            rechazos.setdefault(fila, []).append(problema)
 
     if hoja.nombre == "Equipos" and not catalogos.laboratorios:
         anota(None, "laboratorio", R_LAB, "", "normalizado",
@@ -100,13 +146,13 @@ def validar(hoja: Hoja, informe: Informe, catalogos: Catalogos,
 
         def aplica(campo, funcion, _crudo=crudo, _fila=fila, _campos=campos):
             """Corre un normalizador sobre el campo y anota lo que salga."""
-            nonlocal rechazado, hubo_rechazo
+            nonlocal rechazado
             try:
                 v = funcion(_crudo.get(campo))
             except n.Rechazo as r:
                 anota(_fila, campo, r.regla, _crudo.get(campo), "rechazo",
                       r.detalle)
-                rechazado = hubo_rechazo = True
+                rechazado = True
                 return None
             if v.aviso:
                 anota(_fila, campo, v.regla or "Normalización",
@@ -137,7 +183,7 @@ def validar(hoja: Hoja, informe: Informe, catalogos: Catalogos,
         if not _sub_es_del_almacen(sub, hoja.almacen):
             anota(fila, "sub_ubicacion", R_SUB, sub, "rechazo",
                   f"«{sub}» no es una sub-ubicación de {hoja.almacen}")
-            rechazado = hubo_rechazo = True
+            rechazado = True
 
         campo_nombre = "sustancia" if hoja.nombre == "Reactivos" else "articulo"
         nombre = aplica(campo_nombre, n.texto)
@@ -157,7 +203,7 @@ def validar(hoja: Hoja, informe: Informe, catalogos: Catalogos,
                 if antes and antes[0] != unidad:
                     anota(fila, "unidad", R_UNIDAD, unidad, "rechazo",
                           f"el mismo artículo está en «{antes[0]}» en {antes[1]}")
-                    rechazado = hubo_rechazo = True
+                    rechazado = True
                 else:
                     vistos.unidades[nombre] = (unidad, hoja.archivo)
 
@@ -177,13 +223,13 @@ def validar(hoja: Hoja, informe: Informe, catalogos: Catalogos,
                     crudo.get("gas")).dato
             except n.Rechazo as error:
                 anota(fila, "solido", error.regla, "", "rechazo", error.detalle)
-                rechazado = hubo_rechazo = True
+                rechazado = True
 
             vacio, lleno = campos.get("peso_vacio"), campos.get("peso_total")
             if vacio is not None and lleno is not None and lleno <= vacio:
                 anota(fila, "peso_vacio", R_PESO, f"{vacio} / {lleno}", "rechazo",
                       f"el peso lleno ({lleno}) no supera al vacío ({vacio})")
-                rechazado = hubo_rechazo = True
+                rechazado = True
 
         if hoja.nombre == "Equipos":
             aplica("funcionamiento", n.funcionamiento)
@@ -196,14 +242,14 @@ def validar(hoja: Hoja, informe: Informe, catalogos: Catalogos,
                 if n.clave(lab) not in validos:
                     anota(fila, "laboratorio", R_LAB, lab, "rechazo",
                           f"«{lab}» no es un laboratorio de {hoja.almacen}")
-                    rechazado = hubo_rechazo = True
+                    rechazado = True
 
             observaciones = campos.get("observaciones") or ""
             encontrado = VARIOS_EQUIPOS.search(observaciones)
             if encontrado and int(encontrado.group(1)) > 1:
                 anota(fila, "observaciones", R_EQUIPO, observaciones, "rechazo",
                       "un renglón por equipo físico, con su serie y su inventario")
-                rechazado = hubo_rechazo = True
+                rechazado = True
 
             for campo, visto, regla in (("numero_serie", vistos.series, R_SERIE),
                                         ("numero_inventario",
@@ -220,11 +266,22 @@ def validar(hoja: Hoja, informe: Informe, catalogos: Catalogos,
                           f"ya estaba en {archivo_previo} fila {fila_previa}")
                     anota(fila_previa, campo, regla, valor, "rechazo",
                           f"se repite en {hoja.archivo} fila {fila}")
-                    rechazado = hubo_rechazo = True
+                    rechazado = True
                 else:
                     visto[valor] = (hoja.archivo, fila)
 
         if not rechazado:
             salida.append(Renglon(fila=fila, campos=campos))
 
-    return None if hubo_rechazo else tuple(salida)
+    # Se filtra contra `rechazos` y no contra la bandera de cada renglón porque
+    # la regla 10 rechaza retroactivamente: cuando encuentra una serie repetida
+    # anota TAMBIÉN la fila del equipo que vio primero, que para entonces ya
+    # está en `salida`. Sin este filtro, de un par de series duplicadas entraría
+    # una de las dos, que es justo lo que la regla existe para impedir.
+    validos = tuple(r for r in salida if r.fila not in rechazos)
+    rechazados = tuple(
+        Rechazado(fila=fila, crudo=dict(crudo),
+                  problemas=tuple(rechazos[fila]))
+        for fila, crudo in zip(hoja.filas, hoja.renglones)
+        if fila in rechazos)
+    return Resultado(validos=validos, rechazados=rechazados)

@@ -34,6 +34,15 @@ export const CLASIFICACIONES: { valor: Enums<'clasificacion_articulo'>; etiqueta
  * `perfil` llega en `undefined` mientras su consulta está en vuelo, y para
  * entonces la pantalla ya se está pintando.
  */
+/**
+ * Si lo vigente es lo de arranque no hay nada que limpiar, y el boton de
+ * limpiar no tiene por que aparecer.
+ */
+export function hayFiltrosActivos(filtros: Filtros, iniciales: Filtros): boolean {
+  const campos = Object.keys(iniciales) as (keyof Filtros)[]
+  return campos.some((campo) => filtros[campo] !== iniciales[campo])
+}
+
 export function filtrosIniciales(
   perfil: { rol: Enums<'rol_usuario'>; almacenId: number | null } | undefined,
 ): Filtros {
