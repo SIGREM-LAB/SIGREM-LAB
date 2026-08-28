@@ -15,6 +15,14 @@ export default defineConfig({
     environment: 'jsdom',
     setupFiles: ['./src/test/setup.ts'],
     globals: true,
+    // Los 5000 ms por omision no miden nada de estas pruebas: con veintitantos
+    // archivos levantando su propio jsdom en paralelo, montar el primer
+    // componente de un archivo ya se lleva varios segundos, y las tres pruebas
+    // mas pesadas -BotonTema, PantallaAcceso y PanelPendiente- fallaban por eso
+    // en la corrida completa mientras pasaban aisladas. Un timeout que depende
+    // de cuantos nucleos tenga la maquina de quien corre `pnpm test` no dice si
+    // el codigo esta bien.
+    testTimeout: 20_000,
     // src/lib/supabase.ts falla al importarse sin estas variables, y esa
     // validacion es deliberada. Las pruebas inyectan un doble del cliente;
     // estos valores solo existen para que el modulo cargue.

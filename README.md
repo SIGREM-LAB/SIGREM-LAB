@@ -83,7 +83,9 @@ escribir pruebas no es opcional.
 
 ## Datos de origen
 
-Los Excel de los almacenes **no viven en git**. Ver [`etl/datos/README.md`](etl/datos/README.md).
+Los Excel de los almacenes **no viven en git**: son binarios que git no sabe
+diferenciar, y son datos institucionales reales de la UCL-UAEH. Se copian a mano en
+`etl/Datos-Reales-JD2026/`, carpeta ignorada por `.gitignore`.
 
 ## `referencia/`
 

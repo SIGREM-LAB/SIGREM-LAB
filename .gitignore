@@ -28,9 +28,13 @@ __pycache__/
 .venv/
 venv/
 
-# Datos de origen: los Excel viven en el OneDrive del equipo, no en git
-etl/datos/*
-!etl/datos/README.md
+# Datos de origen: los Excel reales de la UCL viven fuera de git.
+#
+# Son binarios —git guarda una copia entera de cada version y no puede hacer
+# diff de un .xlsx— y son datos institucionales reales. Los repositorios
+# escolares tienden a volverse publicos; el inventario de reactivos de la
+# universidad no debe viajar en ese paquete. Se copian a mano en esta carpeta.
+etl/Datos-Reales-JD2026/
 
 # Editor directories and files
 .vscode/*
@@ -42,3 +46,24 @@ etl/datos/*
 *.njsproj
 *.sln
 *.sw?
+
+# Salida del cargador: los informes de excepciones se regeneran en cada corrida
+etl/review/*.csv
+.pytest_cache/
+
+# Todo lo de pruebas queda FUERA del repositorio por ahora.
+#
+# `etl/ejemplos/` son los archivos sinteticos en el formato unificado y el
+# script que los genera. Sirven para probar la migracion, no son producto.
+# Decision pendiente: si se suben, quien clone el repo puede correr el cargador
+# sin pedirle nada a nadie; si no se suben, hay que regenerarlos con
+# `python etl/ejemplos/generar.py` y para eso hace falta el formato unificado,
+# que vive fuera del repo.
+etl/ejemplos/
+
+# Las pruebas del cargador.
+etl/tests/
+
+# Temporales de Word: los deja abiertos Office y no son parte de nada.
+~$*
+~WRL*.tmp

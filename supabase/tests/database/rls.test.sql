@@ -14,7 +14,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 
-select plan(30);
+select plan(62);
 
 
 -- ---------------------------------------------------------------------------
@@ -57,7 +57,8 @@ select pg_temp.como_postgres();
 
 insert into public.articulo (id, nombre_canonico, clasificacion, unidad_base, verificado)
 overriding system value
-values (900001, 'Acido succinico, solido, grado reactivo', 'reactivo', 'g', true);
+values (900001, 'Acido succinico, solido, grado reactivo', 'reactivo', 'g', true),
+       (900002, 'Acetona, liquido, grado A.C.S.',          'reactivo', 'mL', true);
 
 insert into public.existencia (id, articulo_id, almacen_id, codigo, marca, cantidad_minima)
 overriding system value
@@ -84,8 +85,12 @@ select is(
 -- ---------------------------------------------------------------------------
 select pg_temp.como('n3@uaeh.local');
 
+-- Se cuentan LOS FIXTURES, no la tabla entera. Contar todo solo funciona con la
+-- base recien reseteada: en cuanto el ETL carga renglones reales -o en cuanto
+-- alguien captura uno- el numero cambia y la prueba miente sobre lo que probaba.
+-- Lo que importa aqui es que las DOS filas se vean: la de N3 y la de N4.
 select is(
-  (select count(*)::int from public.existencia),
+  (select count(*)::int from public.existencia where id in (900001, 900002)),
   2,
   'El responsable de N3 lee las existencias de todos los almacenes'
 );
@@ -371,6 +376,388 @@ select throws_ok(
   null,
   'Solo el admin cambia los catalogos cerrados'
 );
+
+-- ---------------------------------------------------------------------------
+-- 31-40. Escritura: quien puede, y sobre que columnas
+-- ---------------------------------------------------------------------------
+-- Estas diez cierran los dos huecos que encontro la revision de roles del 21 de
+-- agosto. La prueba 18 no los detecto porque solo ejercita `articulo`.
+
+-- El escenario del hueco A: un usuario de rol `consulta` AL QUE SE LE ASIGNO un
+-- almacen. Es un estado alcanzable -nada lo prohibe- y hasta ahora le daba
+-- permiso de escritura, porque las politicas solo comparaban el almacen.
+select pg_temp.como_postgres();
+update public.perfil set almacen_id = pg_temp.id_almacen('N3')
+ where id = (select id from auth.users where email = 'lectura@uaeh.local');
+
+select pg_temp.como('lectura@uaeh.local');
+
+select throws_ok(
+  $$ insert into public.existencia (articulo_id, almacen_id, cantidad)
+     values (900001, (select id from public.almacen where clave = 'N3'), 5) $$,
+  '42501', null,
+  'Un consulta con almacen asignado no puede crear existencias'
+);
+
+select throws_ok(
+  $$ insert into public.movimiento (existencia_id, tipo, cantidad,
+                                    almacen_id, cantidad_antes, cantidad_despues)
+     values (900001, 'entrada', 5, 0, 0, 0) $$,
+  '42501', null,
+  'Un consulta con almacen asignado no puede registrar movimientos'
+);
+
+select throws_ok(
+  $$ insert into public.ubicacion (almacen_id, etiqueta)
+     values ((select id from public.almacen where clave = 'N3'), 'N3 . Colada') $$,
+  '42501', null,
+  'Un consulta con almacen asignado no puede crear ubicaciones'
+);
+
+-- Devolver el perfil a como estaba: las pruebas no se heredan estado entre si.
+select pg_temp.como_postgres();
+update public.perfil set almacen_id = null
+ where id = (select id from auth.users where email = 'lectura@uaeh.local');
+
+-- El hueco B: el saldo, el codigo del QR y el ancla de permisos no se escriben
+-- desde el cliente. La bitacora es el unico camino.
+select pg_temp.como('n3@uaeh.local');
+
+select throws_ok(
+  $$ update public.existencia set cantidad = 99999 where id = 900001 $$,
+  '42501', null,
+  'Un responsable no puede escribir el saldo directo'
+);
+
+select throws_ok(
+  $$ update public.existencia set codigo = 'N3-FALSO' where id = 900001 $$,
+  '42501', null,
+  'Un responsable no puede reescribir el codigo de la etiqueta'
+);
+
+select throws_ok(
+  $$ update public.existencia set almacen_id = 2 where id = 900001 $$,
+  '42501', null,
+  'Un responsable no puede mudar una existencia a otro almacen'
+);
+
+-- Lo que si le toca sigue funcionando: si esto se rompe, el arreglo se paso de
+-- estricto y la pantalla de alta nace muerta.
+select lives_ok(
+  $$ update public.existencia
+        set observaciones = 'Frasco rayado', marca = 'MEYER'
+      where id = 900001 $$,
+  'Un responsable si edita las columnas descriptivas de lo suyo'
+);
+
+-- El trigger nuevo: fijar un minimo por encima del saldo cambia el estado sin
+-- que medie un movimiento. Antes solo se recalculaba al insertar.
+select pg_temp.como_postgres();
+insert into public.movimiento (existencia_id, tipo, cantidad,
+                               almacen_id, cantidad_antes, cantidad_despues, usuario_id)
+values (900001, 'carga_inicial', 100, 0, 0, 0,
+        (select id from auth.users where email = 'admin@uaeh.local'));
+
+select pg_temp.como('n3@uaeh.local');
+update public.existencia set cantidad_minima = 500 where id = 900001;
+
+select is(
+  (select estado from public.existencia where id = 900001),
+  'stock_bajo'::public.estado_existencia,
+  'Subir el minimo por encima del saldo deja la existencia en stock_bajo'
+);
+
+-- Y el camino legitimo no se rompio: el trigger de movimiento es security
+-- definer, asi que los privilegios de columna de authenticated no lo alcanzan.
+select lives_ok(
+  $$ insert into public.movimiento (existencia_id, tipo, cantidad,
+                                    almacen_id, cantidad_antes, cantidad_despues)
+     values (900001, 'consumo', -10, 0, 0, 0) $$,
+  'Un responsable sigue moviendo el saldo por la bitacora'
+);
+
+-- Se afirma el INVARIANTE, no un numero. Escribir el saldo esperado a mano
+-- ataria esta prueba a la aritmetica de las de arriba -la 7 ya dejo 120 ahi- y
+-- se rompe en cuanto alguien inserta un movimiento mas.
+--
+-- Lo que de verdad importa: el saldo de la existencia SIEMPRE coincide con lo
+-- que dice el ultimo renglon de la bitacora. Si el trigger no hubiera corrido,
+-- por los privilegios de columna, los dos numeros se separarian.
+select is(
+  (select cantidad from public.existencia where id = 900001),
+  (select cantidad_despues from public.movimiento
+    where existencia_id = 900001 order by id desc limit 1),
+  'El saldo coincide con el ultimo movimiento: el trigger corrio pese al revoke'
+);
+
+-- ---------------------------------------------------------------------------
+-- 41. La vista del listado, frente a la llave publica
+-- ---------------------------------------------------------------------------
+-- El otro candado: aunque la vista herede la RLS por `security_invoker`, anon
+-- no tiene por que alcanzarla. Dos candados en la puerta, como ya hace
+-- `movimiento` con su revoke de update y delete.
+select pg_temp.como_postgres();
+select set_config('role', 'anon', true);
+
+select throws_ok(
+  $$ select count(*) from public.existencia_listado $$,
+  '42501', null,
+  'anon no puede leer la vista del listado'
+);
+
+select throws_ok(
+  $$ select count(*) from public.almacen_resumen $$,
+  '42501', null,
+  'anon tampoco puede leer el resumen del menu'
+);
+
+select pg_temp.como_postgres();
+
+
+-- ---------------------------------------------------------------------------
+-- 43-50. Renglones pendientes de revision
+-- ---------------------------------------------------------------------------
+-- La tabla que aparta lo que el cargador no puede resolver solo. Se rige por
+-- las mismas reglas que `existencia`: leo todo, escribo lo mio. Lo propio de
+-- aqui es que `revisado_por` la pone la base, no el cliente: es la firma de
+-- quien dio el visto bueno.
+insert into public.carga_pendiente
+  (id, almacen_id, archivo, hoja, fila, motivo, renglon, problemas)
+overriding system value
+values
+  (900001, pg_temp.id_almacen('N3'), 'N3.xlsx', 'Insumos', 13, 'regla',
+   '{"articulo": "Guantes de latex", "unidad": "paquete"}'::jsonb,
+   '[{"regla": "Regla 2", "columna": "G", "valor": "paquete",
+      "detalle": "es un empaque, no una unidad de consumo"}]'::jsonb),
+  (900002, pg_temp.id_almacen('N4'), 'N4.xlsx', 'Insumos', 20, 'regla',
+   '{"articulo": "Pipeta Pasteur", "unidad": "caja"}'::jsonb,
+   '[{"regla": "Regla 2", "columna": "G", "valor": "caja",
+      "detalle": "es un empaque, no una unidad de consumo"}]'::jsonb);
+
+select pg_temp.como('n3@uaeh.local');
+
+select is(
+  (select count(*)::int from public.carga_pendiente where id in (900001, 900002)),
+  2,
+  'El responsable de N3 lee los pendientes de todos los almacenes'
+);
+
+select lives_ok(
+  $$ insert into public.carga_pendiente
+       (almacen_id, archivo, hoja, fila, motivo, renglon, problemas)
+     values ((select id from public.almacen where clave = 'N3'),
+             'N3.xlsx', 'Material', 99, 'regla', '{"articulo": "Vaso"}'::jsonb,
+             '[{"regla": "Regla 1", "detalle": "texto en columna de numeros"}]'::jsonb) $$,
+  'El responsable de N3 puede apartar un renglon de N3'
+);
+
+select throws_ok(
+  $$ insert into public.carga_pendiente
+       (almacen_id, archivo, hoja, fila, motivo, renglon, problemas)
+     values ((select id from public.almacen where clave = 'N4'),
+             'N4.xlsx', 'Material', 99, 'regla', '{"articulo": "Vaso"}'::jsonb,
+             '[{"regla": "Regla 1", "detalle": "texto en columna de numeros"}]'::jsonb) $$,
+  '42501', null,
+  'El responsable de N3 NO puede apartar un renglon de N4 (WITH CHECK)'
+);
+
+-- `descartado` y no `resuelto`: desde la migracion del 26 de agosto, `resuelto`
+-- exige la existencia que salio del renglon y solo `resolver_pendiente()` puede
+-- ponerla. `descartado` sigue siendo un UPDATE normal —es el renglon que se
+-- miro y NO debe cargarse— y ejercita el mismo grant y el mismo trigger de
+-- firma. La prueba 53 cubre que la otra puerta quedo cerrada.
+select lives_ok(
+  $$ update public.carga_pendiente
+        set estado = 'descartado', nota = 'Renglon repetido en el archivo'
+      where id = 900001 $$,
+  'El responsable de N3 puede cerrar un pendiente suyo'
+);
+
+-- El cliente no mando `revisado_por`: lo puso el trigger. Es lo que impide
+-- firmar en nombre de otro.
+-- Se compara contra `auth.uid()` de esta misma sesion y no contra auth.users:
+-- el rol `authenticated` tiene denegada la lectura de esa tabla, como ya
+-- advierte el helper `como()` de arriba. Ademas dice mejor lo que importa: la
+-- firma es la del usuario que hizo el UPDATE.
+select is(
+  (select revisado_por from public.carga_pendiente where id = 900001),
+  (select auth.uid()),
+  'La base firma la revision con quien la hizo, no con lo que mande el cliente'
+);
+
+-- Ajeno: el USING de la politica no lo ve, asi que afecta cero filas y no
+-- truena. Por eso se comprueba el dato, no la ausencia de error.
+select lives_ok(
+  $$ update public.carga_pendiente set estado = 'descartado' where id = 900002 $$,
+  'Revisar un pendiente ajeno no lanza error: afecta cero filas'
+);
+
+select is(
+  (select estado from public.carga_pendiente where id = 900002),
+  'pendiente'::public.estado_pendiente,
+  'El pendiente de N4 sigue sin revisar pese al UPDATE del responsable de N3'
+);
+
+-- `fila` es el hallazgo del cargador, no un campo de la pantalla. El revoke por
+-- columna es lo que lo protege, y sin el revoke a nivel tabla que va antes no
+-- serviria de nada.
+select throws_ok(
+  $$ update public.carga_pendiente set fila = 1 where id = 900001 $$,
+  '42501', null,
+  'Ni el responsable puede reescribir la fila de Excel de un pendiente'
+);
+
+
+-- ---------------------------------------------------------------------------
+-- 51-52. La ficha NOM de un reactivo
+-- ---------------------------------------------------------------------------
+-- `articulo_reactivo` se quedo hasta ahora con lectura y admin, mientras su
+-- gemela `articulo_biologico` si tenia alta. No se notaba porque el unico que
+-- llenaba esa ficha era el cargador, que corre con la llave de servicio. Se
+-- nota en cuanto una persona crea un reactivo desde la pantalla de depuracion:
+-- sin esta politica el frasco entraria sin rombo, sin CAS y sin color.
+select lives_ok(
+  $$ insert into public.articulo_reactivo (articulo_id, cas, riesgo_salud)
+     values (900001, '110-15-6', 2) $$,
+  'El responsable puede capturar la ficha NOM del reactivo que acaba de crear'
+);
+
+select pg_temp.como('lectura@uaeh.local');
+
+select throws_ok(
+  $$ insert into public.articulo_reactivo (articulo_id, cas)
+     values (900002, '67-64-1') $$,
+  '42501', null,
+  'Un usuario de consulta NO puede capturar una ficha NOM (WITH CHECK)'
+);
+
+
+-- ---------------------------------------------------------------------------
+-- 53-62. Resolver un pendiente lo mete al inventario
+-- ---------------------------------------------------------------------------
+-- El agujero que cierra `resolver_pendiente`: hasta ahora dar el visto bueno
+-- dejaba el renglon revisado y el inventario igual que antes. Lo que se prueba
+-- aqui son sus tres promesas —la cantidad entra por movimiento, corre con los
+-- privilegios de quien llama, y resolver dos veces no duplica— mas el candado
+-- que impide llegar a `resuelto` por fuera.
+select pg_temp.como_postgres();
+
+insert into public.carga_pendiente
+  (id, almacen_id, archivo, hoja, fila, motivo, renglon, problemas, existencia_id)
+overriding system value
+values
+  -- Unidad de empaque: el caso de 88 de los 337 renglones de N3.
+  (900003, pg_temp.id_almacen('N3'), 'N3.xlsx', 'Insumos', 21, 'regla',
+   '{"articulo": "Papel filtro Whatman No. 3", "especificacion": "125 mm",
+     "unidad": "caja", "cantidad": 2, "marca": "Sin marca",
+     "sub_ubicacion": "N3", "mueble": "Gabinete 309", "repisa": "—"}'::jsonb,
+   '[{"regla": "Regla 2", "columna": "G", "valor": "caja",
+      "detalle": "es un empaque, no una unidad de consumo"}]'::jsonb,
+   null),
+  -- Choque por llave natural: el caso de los otros 224.
+  (900004, pg_temp.id_almacen('N3'), 'N3.xlsx', 'Reactivos', 33, 'posible_duplicado',
+   '{"sustancia": "Acido succinico, solido, grado reactivo", "unidad": "g",
+     "cantidad": 50, "marca": "SIGMA"}'::jsonb,
+   '[{"regla": "Llave natural", "columna": "", "valor": 50,
+      "detalle": "otro renglon del mismo archivo ocupa la misma llave"}]'::jsonb,
+   900001),
+  (900005, pg_temp.id_almacen('N4'), 'N4.xlsx', 'Insumos', 44, 'regla',
+   '{"articulo": "Vaso de precipitados", "unidad": "pieza", "cantidad": 3}'::jsonb,
+   '[{"regla": "Regla 1", "detalle": "texto en columna de numeros"}]'::jsonb,
+   null);
+
+select pg_temp.como('n3@uaeh.local');
+
+select throws_ok(
+  $$ update public.carga_pendiente set estado = 'resuelto' where id = 900003 $$,
+  '23514', null,
+  'Marcar resuelto a mano ya no cuela: resuelto significa que entro a existencia'
+);
+
+-- El renglon llega YA corregido, que es lo que manda la pantalla: la unidad deja
+-- de ser un empaque y la cantidad viene en piezas.
+create temporary table resuelta as
+select public.resolver_pendiente(
+  900003,
+  '{"articulo": "Papel filtro Whatman No. 3", "especificacion": "125 mm",
+    "unidad": "pieza", "cantidad": 100, "marca": "Sin marca",
+    "sub_ubicacion": "N3", "mueble": "Gabinete 309", "repisa": "—"}'::jsonb,
+  'nueva', 'Cada caja trae 100 hojas') as id;
+
+select isnt(
+  (select id from resuelta), null,
+  'Resolver un pendiente devuelve la existencia que creo'
+);
+
+select is(
+  (select e.cantidad from public.existencia e where e.id = (select id from resuelta)),
+  100::numeric(14,4),
+  'La existencia nueva quedo con la cantidad del renglon corregido'
+);
+
+-- La comprobacion que de verdad importa: el saldo NO se escribio a mano. Si
+-- alguien cambiara la funcion para hacer `insert into existencia (cantidad)`,
+-- la prueba de arriba seguiria pasando y esta no.
+select is(
+  (select m.tipo::text from public.movimiento m
+    where m.existencia_id = (select id from resuelta)),
+  'carga_inicial',
+  'La cantidad entro por movimiento, no escribiendo existencia.cantidad'
+);
+
+select is(
+  (select existencia_resuelta_id from public.carga_pendiente where id = 900003),
+  (select id from resuelta),
+  'El pendiente queda apuntando a la existencia en que se convirtio'
+);
+
+select is(
+  (select revisado_por from public.carga_pendiente where id = 900003),
+  (select auth.uid()),
+  'La base firma tambien la revision que pasa por resolver_pendiente'
+);
+
+-- Idempotencia. Un doble clic, un reintento de la red o dos pestañas abiertas
+-- sobre el mismo renglon no pueden acabar en dos frascos donde hay uno.
+select is(
+  public.resolver_pendiente(900003),
+  (select id from resuelta),
+  'Resolver un pendiente ya resuelto devuelve la misma existencia'
+);
+
+select is(
+  (select count(*)::int from public.existencia e
+     join public.articulo a on a.id = e.articulo_id
+    where a.nombre_canonico = 'Papel filtro Whatman No. 3'),
+  1,
+  'Resolver dos veces no crea una segunda existencia'
+);
+
+-- El otro veredicto: no es un frasco mas, es el mismo renglon de inventario.
+-- Se le suma al que ya esta, y tambien por movimiento.
+select public.resolver_pendiente(900004, null, 'duplicado', 'Es el mismo frasco');
+
+-- Por el motivo y no solo por el tipo: la existencia 900001 ya trae una carga
+-- inicial de las pruebas de arriba, y lo que se mide aqui es el efecto de ESTE
+-- movimiento sobre el saldo, no el saldo acumulado.
+select is(
+  (select cantidad_despues - cantidad_antes from public.movimiento
+    where existencia_id = 900001 and tipo = 'carga_inicial'
+      and motivo like 'Depuracion de%'),
+  50::numeric(14,4),
+  'El veredicto duplicado suma su cantidad a la existencia con la que choco'
+);
+
+-- SECURITY INVOKER: la funcion no le presta a nadie privilegios que no tenga.
+-- Conocer el id de un pendiente de N4 no alcanza para resolverlo.
+select throws_ok(
+  $$ select public.resolver_pendiente(900005) $$,
+  '42501', null,
+  'El responsable de N3 no puede resolver un pendiente de N4 aunque sepa su id'
+);
+
+select pg_temp.como_postgres();
+
 
 select * from finish();
 rollback;

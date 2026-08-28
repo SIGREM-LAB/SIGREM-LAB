@@ -7,7 +7,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 
-select plan(47);
+select plan(53);
 
 -- Las pruebas corren como postgres, que se salta la RLS. Es lo correcto aqui:
 -- este archivo prueba la forma del esquema, no quien puede ver que. Eso es
@@ -136,8 +136,22 @@ select hasnt_column('public', 'articulo_reactivo', 'uso_principal',
 -- esto encuentre las dos filas es lo que hace `buscar_articulo` util: el
 -- `distinct on (articulo_id)` devuelve un renglon por articulo, no uno por
 -- alias, asi que los dos matraces salen una vez cada uno.
+-- Acotada a los dos matraces que crea esta prueba. Contar el resultado entero
+-- solo funciona con el catalogo vacio: los datos reales traen sus propios
+-- matraces, y hasta una pipeta volumetrica pasa el umbral.
+--
+-- Sigue probando las dos cosas a la vez. Que salgan 2 y no mas significa que el
+-- `distinct on (articulo_id)` devuelve un renglon por articulo y no uno por
+-- alias; que salgan 2 y no 0, que el acento y la caja no estorbaron.
+--
+-- El maximo sube de 10 a 500 a proposito: el `limit` de buscar_articulo recorta
+-- por articulo_id, asi que con el catalogo cargado un tope bajo dejaria fuera
+-- estos fixtures solo por tener id alto.
 select is(
-  (select count(*)::int from public.buscar_articulo('Matraz Volumétrico', 0.3, 10)),
+  (select count(*)::int
+     from public.buscar_articulo('Matraz Volumétrico', 0.3, 500) b
+     join public.articulo a on a.id = b.articulo_id
+    where a.nombre_canonico = 'Matraz volumetrico'),
   2,
   'buscar_articulo ignora acentos y mayusculas, y devuelve un renglon por articulo'
 );
@@ -199,11 +213,15 @@ select matches(
 -- Hoy en N4 tres numeros de serie se repiten en 30 equipos y nada lo impide.
 insert into public.existencia (id, articulo_id, almacen_id, numero_serie, numero_inventario_uaeh)
 overriding system value
-values (900101, 900002, pg_temp.id_almacen('N4'), '10017662023004', '5311308867');
+-- Series sinteticas, no copiadas del Excel. La version anterior usaba
+-- '10017662023004', que es una serie REAL de un equipo de N4: en cuanto el ETL
+-- cargo ese renglon, el fixture choco contra el indice unico y aborto el
+-- archivo entero en la prueba 19 de 47.
+values (900101, 900002, pg_temp.id_almacen('N4'), 'SERIE-PRUEBA-900101', 'INV-PRUEBA-900101');
 
 select throws_ok(
   $$ insert into public.existencia (articulo_id, almacen_id, numero_serie)
-     values (900002, pg_temp.id_almacen('N4'), '10017662023004') $$,
+     values (900002, pg_temp.id_almacen('N4'), 'SERIE-PRUEBA-900101') $$,
   '23505',
   null,
   'Dos equipos no pueden compartir numero de serie'
@@ -211,7 +229,7 @@ select throws_ok(
 
 select throws_ok(
   $$ insert into public.existencia (articulo_id, almacen_id, numero_inventario_uaeh)
-     values (900002, pg_temp.id_almacen('N4'), '5311308867') $$,
+     values (900002, pg_temp.id_almacen('N4'), 'INV-PRUEBA-900101') $$,
   '23505',
   null,
   'Dos equipos no pueden compartir numero de inventario UAEH'
@@ -491,6 +509,69 @@ select is(
   'Persona Recien Creada',
   'El nombre sale de los metadatos del alta'
 );
+
+-- ---------------------------------------------------------------------------
+-- La vista del listado hereda la RLS
+-- ---------------------------------------------------------------------------
+-- Esta es la prueba mas importante del archivo. Una vista sin
+-- `security_invoker` corre con los privilegios de su dueno (postgres) y NO
+-- aplica la RLS de las tablas de abajo: publica el inventario completo a la
+-- anon key, que va dentro del binario. Comprobado el 21 de agosto creando las
+-- dos variantes: sin el ajuste, anon leia las 164 existencias; con el, choca
+-- contra 'permission denied for table existencia'.
+--
+-- Falla en silencio -la vista funciona igual de bien-, asi que el seguro va
+-- aqui y no en la revision de nadie.
+select has_view('public', 'existencia_listado', 'La vista del listado existe');
+
+select is(
+  (select reloptions::text[] @> array['security_invoker=on']
+     from pg_class where oid = 'public.existencia_listado'::regclass),
+  true,
+  'La vista del listado corre con los privilegios de quien la consulta'
+);
+
+
+-- ---------------------------------------------------------------------------
+-- El resumen del menu principal, con el mismo seguro que el listado
+-- ---------------------------------------------------------------------------
+select has_view('public', 'almacen_resumen', 'La vista del resumen existe');
+
+select is(
+  (select reloptions::text[] @> array['security_invoker=on']
+     from pg_class where oid = 'public.almacen_resumen'::regclass),
+  true,
+  'La vista del resumen corre con los privilegios de quien la consulta'
+);
+
+-- Los siete `filter` son faciles de escribir mal y el error no se ve: un
+-- estado mal escrito devuelve cero, que parece un dato. Esto ancla que el
+-- total sea exactamente el inventario vivo.
+select pg_temp.como_postgres();
+
+select is(
+  -- sum() de bigint devuelve numeric, y count() bigint: sin el cast, is() no
+  -- puede resolver el tipo y la prueba truena en vez de comparar.
+  (select sum(total)::bigint from public.almacen_resumen),
+  (select count(*) from public.existencia where estado <> 'baja'),
+  'El total del resumen es el inventario vivo, sin las bajas'
+);
+
+
+-- ---------------------------------------------------------------------------
+-- El veredicto de quien depura un renglon
+-- ---------------------------------------------------------------------------
+-- Son DOS y no tres. La tercera salida de un pendiente —no debe cargarse— no es
+-- un veredicto: es `estado = 'descartado'`, un UPDATE normal que no toca el
+-- inventario. Meterla aqui invitaria a que `resolver_pendiente` tuviera un
+-- camino que no crea ninguna existencia, que es justo lo que esa funcion existe
+-- para no permitir.
+select set_eq(
+  $$ select unnest(enum_range(null::public.veredicto_pendiente))::text $$,
+  array['nueva','duplicado'],
+  'veredicto_pendiente solo tiene las dos formas de entrar al inventario'
+);
+
 
 select * from finish();
 rollback;

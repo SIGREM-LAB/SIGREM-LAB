@@ -1,40 +1,32 @@
 import { Icon } from '@iconify/react'
-import {
-  Alert,
-  Box,
-  Card,
-  CardContent,
-  Chip,
-  Grid,
-  Skeleton,
-  Stack,
-  Typography,
-} from '@mui/material'
-import { useQuery } from '@tanstack/react-query'
+import { Alert, Grid, Skeleton, Stack } from '@mui/material'
 
-import { aspectoDeAlmacen } from '@/app/almacenes'
+import { AccionPendiente } from '@/app/AccionPendiente'
+import { CuerpoPagina, EncabezadoPagina } from '@/app/EncabezadoPagina'
+import { menuDeNavegacion } from '@/app/navegacion'
 import { usePerfil } from '@/features/auth/usePerfil'
-import { supabase } from '@/lib/supabase'
+import { AtajosPendientes } from './AtajosPendientes'
+import { OtrosAlmacenes } from './OtrosAlmacenes'
+import { TarjetaAlmacen } from './TarjetaAlmacen'
+import { useResumenAlmacenes } from './consultas'
+import { repartirAlmacenes } from './menu'
+
+/** Alto de cada hueco mientras carga, para que la pantalla no se recoloque. */
+const ALTO_PORTADA = 252
+const ALTO_ATAJO = 76
 
 /**
- * Provisional. Existe para comprobar de punta a punta que la sesion, la RLS y
- * las consultas funcionan juntas: los numeros que salen aqui son los que el
- * usuario tiene permitido ver.
+ * El menú principal: tu almacén primero.
+ *
+ * La pantalla sigue la forma del permiso y no una preferencia de composición.
+ * Se edita uno y se consultan cuatro, así que el propio ocupa el bloque grande
+ * con sus acciones y los demás quedan en una lista de consulta al lado.
  */
 export function PaginaInicio() {
   const { data: perfil } = usePerfil()
+  const resumen = useResumenAlmacenes()
 
-  const resumen = useQuery({
-    queryKey: ['resumen-almacenes'],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('almacen')
-        .select('id, clave, nombre, existencia (id)')
-        .order('clave')
-      if (error) throw error
-      return data.map((a) => ({ ...a, total: a.existencia.length }))
-    },
-  })
+  const almacenPropio = perfil?.almacen?.id ?? null
 
   const encabezado = (
     <Stack spacing={0.5}>
@@ -47,117 +39,88 @@ export function PaginaInicio() {
 
   if (resumen.isPending) {
     return (
-      <Stack spacing={3}>
+      <>
         {encabezado}
-        <Grid container spacing={2}>
-          {[0, 1, 2, 3].map((i) => (
-            <Grid key={i} size={{ xs: 12, sm: 6, md: 3 }}>
-              <Skeleton variant="rounded" height={116} />
+        <CuerpoPagina>
+          <Stack spacing={2}>
+            <Grid container spacing={2}>
+              <Grid size={{ xs: 12, md: 8 }}>
+                <Skeleton variant="rounded" height={ALTO_PORTADA} />
+              </Grid>
+              <Grid size={{ xs: 12, md: 4 }}>
+                <Skeleton variant="rounded" height={ALTO_PORTADA} />
+              </Grid>
             </Grid>
-          ))}
-        </Grid>
-      </Stack>
+
+            <Grid container spacing={2}>
+              {[0, 1, 2].map((i) => (
+                <Grid key={i} size={{ xs: 12, sm: 6, md: 4 }}>
+                  <Skeleton variant="rounded" height={ALTO_ATAJO} />
+                </Grid>
+              ))}
+            </Grid>
+          </Stack>
+        </CuerpoPagina>
+      </>
     )
   }
 
   if (resumen.error) {
     return (
-      <Stack spacing={3}>
+      <>
         {encabezado}
-        <Alert severity="error">No se pudo leer el inventario: {resumen.error.message}</Alert>
-      </Stack>
+        <CuerpoPagina>
+          <Alert severity="error">No se pudo leer el inventario: {resumen.error.message}</Alert>
+        </CuerpoPagina>
+      </>
     )
   }
 
-  const vacio = resumen.data.every((a) => a.total === 0)
+  const { portada, otros } = repartirAlmacenes(resumen.data, almacenPropio)
+  const pendientes = menuDeNavegacion(perfil?.rol).filter((item) => !item.disponible)
+
+  // El aviso mira los cuatro, no solo la portada: que el almacén de quien entra
+  // esté vacío no significa que no se haya cargado nada.
+  const vacio = resumen.data.every((almacen) => almacen.total === 0)
 
   return (
-    <Stack spacing={3}>
+    <>
       {encabezado}
 
-      <Card>
-        <CardContent>
-          <Stack
-            direction={{ xs: 'column', sm: 'row' }}
-            spacing={1}
-            sx={{ justifyContent: 'space-between', alignItems: { sm: 'baseline' }, mb: 2.5 }}
-          >
-            <Typography variant="h3">Existencias por almacén</Typography>
-            <Typography variant="body2" sx={{ color: 'text.secondary' }}>
-              Ves los cuatro almacenes; solo puedes editar el tuyo
-            </Typography>
-          </Stack>
+      <CuerpoPagina>
+        <Stack spacing={2}>
+          {portada === null ? null : (
+            <Grid container spacing={2}>
+              <Grid size={{ xs: 12, md: 8 }}>
+                <TarjetaAlmacen
+                  portada={portada}
+                  // Sin almacén propio la portada es la suma de la Unidad, y
+                  // entonces no hay uno concreto al que llevar el inventario.
+                  almacenId={portada.propio ? almacenPropio : null}
+                />
+              </Grid>
 
-          <Grid container spacing={2}>
-            {resumen.data.map((almacen) => {
-              const aspecto = aspectoDeAlmacen(almacen.clave)
-              const propio = almacen.id === perfil?.almacen?.id
+              <Grid size={{ xs: 12, md: 4 }}>
+                <OtrosAlmacenes
+                  almacenes={otros}
+                  titulo={portada.propio ? 'Otros almacenes' : 'Almacenes'}
+                  subtitulo={portada.propio ? 'Solo consulta' : 'Toda la Unidad'}
+                />
+              </Grid>
+            </Grid>
+          )}
 
-              return (
-                <Grid key={almacen.id} size={{ xs: 12, sm: 6, md: 3 }}>
-                  <Box
-                    sx={{
-                      height: '100%',
-                      p: 2,
-                      borderRadius: 2,
-                      bgcolor: 'background.default',
-                      border: '1px solid',
-                      borderColor: propio ? 'primary.main' : 'transparent',
-                    }}
-                  >
-                    <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center' }}>
-                      <Box
-                        sx={{
-                          width: 40,
-                          height: 40,
-                          borderRadius: 2,
-                          bgcolor: aspecto.color,
-                          color: 'common.white',
-                          display: 'grid',
-                          placeItems: 'center',
-                          flexShrink: 0,
-                        }}
-                      >
-                        <Icon icon={aspecto.icono} width={22} />
-                      </Box>
-                      <Box sx={{ minWidth: 0 }}>
-                        <Typography
-                          variant="h2"
-                          sx={{ fontSize: '1.6rem', fontVariantNumeric: 'tabular-nums' }}
-                        >
-                          {almacen.total}
-                        </Typography>
-                        <Typography variant="caption" sx={{ color: 'text.secondary' }}>
-                          existencias
-                        </Typography>
-                      </Box>
-                    </Stack>
+          <AtajosPendientes items={pendientes} />
 
-                    <Stack
-                      direction="row"
-                      spacing={1}
-                      sx={{ alignItems: 'center', mt: 1.5, minWidth: 0 }}
-                    >
-                      <Typography variant="body2" noWrap title={almacen.nombre} sx={{ flex: 1 }}>
-                        {almacen.clave}
-                      </Typography>
-                      {propio && <Chip label="Tu almacén" size="small" color="primary" />}
-                    </Stack>
-                  </Box>
-                </Grid>
-              )
-            })}
-          </Grid>
-        </CardContent>
-      </Card>
-
-      {vacio && (
-        <Alert severity="info" icon={<Icon icon="mdi:database-import-outline" width={20} />}>
-          Los almacenes están dados de alta, pero todavía no se cargan las existencias de los
-          Excel: esa migración entra después de la reunión, cuando quede claro qué columnas se
-          conservan.
-        </Alert>
-      )}
-    </Stack>
+          {vacio ? (
+            <Alert severity="info" icon={<Icon icon="mdi:database-import-outline" width={20} />}>
+              Los almacenes están dados de alta, pero todavía no se cargan las existencias de los
+              Excel: esa migración entra después de la reunión, cuando quede claro qué columnas se
+              conservan.
+            </Alert>
+          ) : null}
+        </Stack>
+      </CuerpoPagina>
+    </>
   )
 }
