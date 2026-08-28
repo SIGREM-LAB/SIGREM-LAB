@@ -28,14 +28,13 @@ __pycache__/
 .venv/
 venv/
 
-# Datos de origen: los Excel viven en el OneDrive del equipo, no en git
-etl/datos/*
-!etl/datos/README.md
-# El manifiesto si va: lleva nombre, tamanio y SHA256 de los diez archivos de
-# origen, y es lo unico que permite detectar que alguien actualizo un Excel
-# antes de migrar. Sin el, el procedimiento de verificacion del README no se
-# puede correr. No contiene datos del inventario, solo nombres y hashes.
-!etl/datos/manifest.csv
+# Datos de origen: los Excel reales de la UCL viven fuera de git.
+#
+# Son binarios —git guarda una copia entera de cada version y no puede hacer
+# diff de un .xlsx— y son datos institucionales reales. Los repositorios
+# escolares tienden a volverse publicos; el inventario de reactivos de la
+# universidad no debe viajar en ese paquete. Se copian a mano en esta carpeta.
+etl/Datos-Reales-JD2026/
 
 # Editor directories and files
 .vscode/*
