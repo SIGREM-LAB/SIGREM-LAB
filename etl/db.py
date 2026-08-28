@@ -15,7 +15,12 @@ import psycopg
 from etl.rules.normalizar import clave
 from etl.rules.validar import Catalogos
 
-CORREO_DE_CARGA = "carga@uaeh.local"
+# Quien firma la carga. En local sale de seed.sql; en remoto NO existe, porque
+# datos-iniciales.sql excluye a proposito los usuarios de prueba —meter en
+# produccion seis cuentas con la contrasenia escrita en el repositorio seria
+# abrir seis puertas con llave conocida—. Alla se da de alta un usuario de
+# servicio propio desde el dashboard de Auth y se apunta aqui con la variable.
+CORREO_DE_CARGA = os.environ.get("ETL_CORREO_CARGA", "carga@uaeh.local")
 
 # Lo que imprime `supabase start`.
 DSN_LOCAL = "postgresql://postgres:postgres@127.0.0.1:54322/postgres"
