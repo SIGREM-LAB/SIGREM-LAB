@@ -29,13 +29,12 @@ export function PaginaInicio() {
   const almacenPropio = perfil?.almacen?.id ?? null
 
   const encabezado = (
-    <EncabezadoPagina
-      titulo={perfil?.nombre === undefined ? 'Hola' : `Hola, ${perfil.nombre}`}
-      descripcion="Sistema Integral de Gestión de Reactivos, Materiales y Equipos de Laboratorio"
-      acciones={
-        <AccionPendiente etiqueta="Nueva existencia" icono="mdi:plus" variante="contained" />
-      }
-    />
+    <Stack spacing={0.5}>
+      <Typography variant="h1">Hola, {perfil?.nombre ?? ''}</Typography>
+      <Typography sx={{ color: 'text.secondary' }}>
+        Sistema Integral de Gestión de Reactivos, Materiales, Insumos, Equipos y Materia Biológica
+      </Typography>
+    </Stack>
   )
 
   if (resumen.isPending) {
