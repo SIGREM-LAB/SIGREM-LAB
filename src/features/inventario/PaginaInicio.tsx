@@ -29,12 +29,16 @@ export function PaginaInicio() {
   const almacenPropio = perfil?.almacen?.id ?? null
 
   const encabezado = (
-    <Stack spacing={0.5}>
-      <Typography variant="h1">Hola, {perfil?.nombre ?? ''}</Typography>
-      <Typography sx={{ color: 'text.secondary' }}>
-        Sistema Integral de Gestión de Reactivos, Materiales, Insumos, Equipos y Materia Biológica
-      </Typography>
-    </Stack>
+    <EncabezadoPagina
+      titulo={perfil?.nombre === undefined ? 'Hola' : `Hola, ${perfil.nombre}`}
+      // El lema largo es el mismo que la pantalla de acceso: nombra las cinco
+      // clasificaciones. La versión corta que traía esta rama se dejaba fuera
+      // insumos y materia biológica, y decía otra cosa que la puerta de entrada.
+      descripcion="Sistema Integral de Gestión de Reactivos, Materiales, Insumos, Equipos y Materia Biológica"
+      acciones={
+        <AccionPendiente etiqueta="Nueva existencia" icono="mdi:plus" variante="contained" />
+      }
+    />
   )
 
   if (resumen.isPending) {
