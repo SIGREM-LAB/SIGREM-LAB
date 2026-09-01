@@ -1,7 +1,6 @@
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { render, screen } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
-import { describe, expect, test } from 'vitest'
+import { describe, expect, test, vi } from 'vitest'
 
 import { RutaProtegida, SoloAdmin, SoloInvitados } from './RutaProtegida'
 import { ContextoSesion, type EstadoSesion } from './contexto'
@@ -78,40 +77,40 @@ describe('SoloInvitados', () => {
 })
 
 /**
- * Se siembra la caché de Query en vez de simular la red: `usePerfil` lee de
- * ['perfil', usuarioId], así que poner el dato ahí es la forma honesta de decir
- * "el perfil ya llegó", y es el mismo criterio con el que estas pruebas inyectan
- * la sesión por su contexto.
- *
- * Para el caso "todavía cargando" se pasa la sesión en carga: `usePerfil` queda
- * con `enabled: false`, así que se queda en isPending sin salir a la red. Es
- * también lo que pasa de verdad al recargar la página.
+ * `usePerfil` se simula en su frontera y no se siembra la caché de Query. Es la
+ * única forma determinista de provocar el estado de error: sembrar la caché
+ * puede fingir "ya llegó", pero no "falló", y ese es justo el caso que dejaba la
+ * pantalla en blanco cuando la base no responde.
  */
-function montarAdmin(sesion: EstadoSesion, rol?: 'admin' | 'responsable' | 'consulta') {
-  const cliente = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-  if (rol !== undefined) {
-    cliente.setQueryData(['perfil', 'u-1'], { id: 'u-1', nombre: 'Quien sea', rol })
-  }
+const { simularPerfil } = vi.hoisted(() => ({ simularPerfil: vi.fn() }))
+vi.mock('./usePerfil', () => ({ usePerfil: simularPerfil }))
+
+function montarAdmin(estado: {
+  data?: { rol: 'admin' | 'responsable' | 'consulta' }
+  isPending?: boolean
+  isError?: boolean
+}) {
+  simularPerfil.mockReturnValue({
+    data: estado.data,
+    isPending: estado.isPending ?? false,
+    isError: estado.isError ?? false,
+  })
 
   return render(
-    <QueryClientProvider client={cliente}>
-      <ContextoSesion.Provider value={sesion}>
-        <MemoryRouter initialEntries={['/administracion/academico']}>
-          <Routes>
-            <Route path="/" element={<p>Menu principal</p>} />
-            <Route element={<SoloAdmin />}>
-              <Route path="/administracion/academico" element={<p>Panel academico</p>} />
-            </Route>
-          </Routes>
-        </MemoryRouter>
-      </ContextoSesion.Provider>
-    </QueryClientProvider>,
+    <MemoryRouter initialEntries={['/administracion/academico']}>
+      <Routes>
+        <Route path="/" element={<p>Menu principal</p>} />
+        <Route element={<SoloAdmin />}>
+          <Route path="/administracion/academico" element={<p>Panel academico</p>} />
+        </Route>
+      </Routes>
+    </MemoryRouter>,
   )
 }
 
 describe('SoloAdmin', () => {
   test('el admin entra al panel académico', () => {
-    montarAdmin({ estado: 'con-sesion', usuarioId: 'u-1' }, 'admin')
+    montarAdmin({ data: { rol: 'admin' } })
 
     expect(screen.getByText('Panel academico')).toBeInTheDocument()
   })
@@ -120,25 +119,38 @@ describe('SoloAdmin', () => {
   // detiene son las políticas de RLS—. Es para que un responsable no se meta a
   // una pantalla que le va a fallar en cada botón.
   test('un responsable rebota al menú principal', () => {
-    montarAdmin({ estado: 'con-sesion', usuarioId: 'u-1' }, 'responsable')
+    montarAdmin({ data: { rol: 'responsable' } })
 
     expect(screen.getByText('Menu principal')).toBeInTheDocument()
     expect(screen.queryByText('Panel academico')).not.toBeInTheDocument()
   })
 
   test('un usuario de consulta rebota al menú principal', () => {
-    montarAdmin({ estado: 'con-sesion', usuarioId: 'u-1' }, 'consulta')
+    montarAdmin({ data: { rol: 'consulta' } })
 
     expect(screen.getByText('Menu principal')).toBeInTheDocument()
     expect(screen.queryByText('Panel academico')).not.toBeInTheDocument()
   })
 
-  // Mismo hueco que en RutaProtegida: si el guard decide mientras el perfil
-  // todavía no se conoce, el admin acaba en la portada cada vez que recarga.
-  test('mientras el perfil no se conoce no decide nada', () => {
-    montarAdmin({ estado: 'cargando' })
+  // Mientras no se sabe el rol no se decide, pero tampoco se deja la pantalla
+  // vacía: con la base caída esta consulta no termina, y un hueco mudo es
+  // indistinguible de una pantalla rota.
+  test('mientras el perfil no se conoce avisa, sin decidir', () => {
+    montarAdmin({ isPending: true })
 
     expect(screen.queryByText('Panel academico')).not.toBeInTheDocument()
     expect(screen.queryByText('Menu principal')).not.toBeInTheDocument()
+    expect(screen.getByText('Comprobando tus permisos…')).toBeInTheDocument()
+  })
+
+  // La que motivó el arreglo. Con `supabase stop` esta ruta se quedaba en blanco
+  // para siempre: sin cabecera, sin mensaje y sin volver a la portada.
+  test('si el perfil no se puede leer, lo dice en vez de quedarse en blanco', () => {
+    montarAdmin({ isError: true })
+
+    expect(screen.queryByText('Panel academico')).not.toBeInTheDocument()
+    expect(
+      screen.getByText(/No se pudo comprobar tu perfil/),
+    ).toBeInTheDocument()
   })
 })
