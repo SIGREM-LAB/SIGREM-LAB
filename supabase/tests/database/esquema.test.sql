@@ -7,7 +7,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 
-select plan(53);
+select plan(60);
 
 -- Las pruebas corren como postgres, que se salta la RLS. Es lo correcto aqui:
 -- este archivo prueba la forma del esquema, no quien puede ver que. Eso es
@@ -570,6 +570,102 @@ select set_eq(
   $$ select unnest(enum_range(null::public.veredicto_pendiente))::text $$,
   array['nueva','duplicado'],
   'veredicto_pendiente solo tiene las dos formas de entrar al inventario'
+);
+
+
+-- ---------------------------------------------------------------------------
+-- El plan academico: la tabla puente y el catalogo de practicas
+-- ---------------------------------------------------------------------------
+select pg_temp.como_postgres();
+
+insert into public.programa_educativo (id, nombre) overriding system value
+values (900901, 'Programa de prueba A'),
+       (900902, 'Programa de prueba B');
+
+-- Una sola fila de asignatura, en dos programas y en dos semestres distintos.
+-- Es el caso que justifica que el semestre viva en la relacion: si estuviera en
+-- asignatura, esta fila no tendria un valor correcto que poner.
+insert into public.asignatura (id, nombre) overriding system value
+values (900911, 'Bioquimica de prueba'),
+       (900912, 'Microbiologia de prueba');
+
+insert into public.programa_asignatura (programa_educativo_id, asignatura_id, semestre)
+values (900901, 900911, 3),
+       (900902, 900911, 6),
+       (900901, 900912, 2);
+
+insert into public.practica_catalogo (id, asignatura_id, numero, nombre)
+overriding system value
+values (900921, 900911, 1, 'Identificacion de carbohidratos'),
+       (900922, 900912, 1, 'Siembra en placa');
+
+-- La FK compuesta practica_pareja_valida. Sin ella nada impide registrar una
+-- practica de Bioquimica bajo un programa que no la lleva.
+--
+-- registrado_por va explicito en las tres: este archivo corre como postgres, y
+-- ahi auth.uid() es NULL. El coalesce del trigger no tiene de donde sacarlo y la
+-- columna es NOT NULL, asi que sin esto fallaria por 23502 y no por lo que la
+-- prueba quiere medir.
+select throws_ok(
+  $$ insert into public.practica (programa_educativo_id, asignatura_id, laboratorio_id,
+                                  registrado_por)
+     values (900902, 900912, (select id from public.laboratorio limit 1),
+             (select id from public.perfil where nombre = 'Responsable N4')) $$,
+  '23503',
+  null,
+  'No se registra una practica con una pareja programa-asignatura que no esta en el plan'
+);
+
+-- La MAS importante de las siete, y la unica que prueba que algo SIGUE
+-- funcionando en vez de que algo falla. MATCH SIMPLE es el default: con
+-- asignatura_id nulo la restriccion no verifica nada. Si alguien "arregla" la
+-- FK poniendole match full, el registro de practicas sin asignatura se rompe en
+-- silencio y esta prueba es lo unico que lo grita.
+select lives_ok(
+  $$ insert into public.practica (programa_educativo_id, laboratorio_id, registrado_por)
+     values (900901, (select id from public.laboratorio limit 1),
+             (select id from public.perfil where nombre = 'Responsable N4')) $$,
+  'Una practica sin asignatura sigue pudiendo registrarse'
+);
+
+-- La llave candidata unique (id, asignatura_id) de practica_catalogo.
+select throws_ok(
+  $$ insert into public.practica (programa_educativo_id, asignatura_id,
+                                  practica_catalogo_id, laboratorio_id, registrado_por)
+     values (900901, 900911, 900922, (select id from public.laboratorio limit 1),
+             (select id from public.perfil where nombre = 'Responsable N4')) $$,
+  '23503',
+  null,
+  'La practica elegida tiene que ser de la asignatura elegida'
+);
+
+select throws_ok(
+  $$ insert into public.programa_asignatura (programa_educativo_id, asignatura_id, semestre)
+     values (900902, 900912, 0) $$,
+  '23514', null,
+  'El semestre 0 no existe'
+);
+
+select throws_ok(
+  $$ insert into public.programa_asignatura (programa_educativo_id, asignatura_id, semestre)
+     values (900902, 900912, 13) $$,
+  '23514', null,
+  'El semestre 13 no existe'
+);
+
+-- Sin el indice sobre norm_texto, "Bioquimica" y "Bioquimica" con acento son
+-- dos asignaturas distintas, y a las tres semanas hay cuatro.
+select throws_ok(
+  $$ insert into public.asignatura (nombre) values ('BIOQUÍMICA DE PRUEBA') $$,
+  '23505', null,
+  'Una asignatura no se duplica por acentos ni por mayusculas'
+);
+
+select throws_ok(
+  $$ insert into public.practica_catalogo (asignatura_id, numero, nombre)
+     values (900911, 1, 'Otra practica numero uno') $$,
+  '23505', null,
+  'No hay dos practicas con el mismo numero en una asignatura'
 );
 
 
