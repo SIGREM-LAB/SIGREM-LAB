@@ -32,7 +32,13 @@ export function menuDeNavegacion(rol: Enums<'rol_usuario'> | undefined): ItemMen
       ruta: '/inventario-general',
       etiqueta: 'Inventario general',
       icono: 'mdi:shield-check-outline',
-      disponible: false,
+      disponible: true,
+    },
+    {
+      ruta: '/usuarios',
+      etiqueta: 'Administración de usuarios',
+      icono: 'mdi:account-cog-outline',
+      disponible: true,
     },
   ]
 }

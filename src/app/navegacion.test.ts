@@ -9,12 +9,21 @@ describe('menuDeNavegacion', () => {
     const rutas = menuDeNavegacion('admin').map((i) => i.ruta)
 
     expect(rutas).toContain('/inventario-general')
+    expect(rutas).toContain('/usuarios')
   })
 
   test('un responsable no ve el inventario general', () => {
     const rutas = menuDeNavegacion('responsable').map((i) => i.ruta)
 
     expect(rutas).not.toContain('/inventario-general')
+    expect(rutas).not.toContain('/usuarios')
+  })
+
+  test('un usuario de consulta no ve las opciones administrativas', () => {
+    const rutas = menuDeNavegacion('consulta').map((i) => i.ruta)
+
+    expect(rutas).not.toContain('/inventario-general')
+    expect(rutas).not.toContain('/usuarios')
   })
 
   // Mientras carga el perfil no hay rol todavia. Si en ese hueco se colara la
@@ -23,6 +32,7 @@ describe('menuDeNavegacion', () => {
     const rutas = menuDeNavegacion(undefined).map((i) => i.ruta)
 
     expect(rutas).not.toContain('/inventario-general')
+    expect(rutas).not.toContain('/usuarios')
   })
 
   test('ninguna ruta se repite', () => {

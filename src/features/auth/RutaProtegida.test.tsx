@@ -1,9 +1,13 @@
 import { render, screen } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
-import { describe, expect, test } from 'vitest'
+import { beforeEach, describe, expect, test, vi } from 'vitest'
 
-import { RutaProtegida, SoloInvitados } from './RutaProtegida'
+import { RutaProtegida, SoloAdministradores, SoloInvitados } from './RutaProtegida'
 import { ContextoSesion, type EstadoSesion } from './contexto'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+
+const { usePerfil } = vi.hoisted(() => ({ usePerfil: vi.fn() }))
+vi.mock('./usePerfil', () => ({ usePerfil }))
 
 function montar(sesion: EstadoSesion) {
   return render(
@@ -73,5 +77,43 @@ describe('SoloInvitados', () => {
     montarAcceso({ estado: 'sin-sesion' })
 
     expect(screen.getByText('Pantalla de acceso')).toBeInTheDocument()
+  })
+})
+
+function montarAdmin(sesion: EstadoSesion, rol: 'admin' | 'responsable' | 'consulta') {
+  usePerfil.mockReturnValue({ isPending: false, error: null, data: { rol } })
+  const cliente = new QueryClient()
+
+  return render(
+    <QueryClientProvider client={cliente}>
+      <ContextoSesion.Provider value={sesion}>
+        <MemoryRouter initialEntries={['/usuarios']}>
+          <Routes>
+            <Route path="/" element={<p>Página principal</p>} />
+            <Route path="/entrar" element={<p>Pantalla de acceso</p>} />
+            <Route element={<SoloAdministradores />}>
+              <Route path="/usuarios" element={<p>Administración de usuarios</p>} />
+            </Route>
+          </Routes>
+        </MemoryRouter>
+      </ContextoSesion.Provider>
+    </QueryClientProvider>,
+  )
+}
+
+describe('SoloAdministradores', () => {
+  beforeEach(() => usePerfil.mockReset())
+
+  test('permite el acceso al administrador', () => {
+    montarAdmin({ estado: 'con-sesion', usuarioId: 'admin-1' }, 'admin')
+
+    expect(screen.getByText('Administración de usuarios')).toBeInTheDocument()
+  })
+
+  test('rechaza el acceso directo de un usuario normal', () => {
+    montarAdmin({ estado: 'con-sesion', usuarioId: 'user-1' }, 'responsable')
+
+    expect(screen.getByText('Página principal')).toBeInTheDocument()
+    expect(screen.queryByText('Administración de usuarios')).not.toBeInTheDocument()
   })
 })
