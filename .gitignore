@@ -35,6 +35,11 @@ venv/
 # escolares tienden a volverse publicos; el inventario de reactivos de la
 # universidad no debe viajar en ese paquete. Se copian a mano en esta carpeta.
 etl/Datos-Reales-JD2026/
+etl/Inventarios-JD2026/
+etl/Inventarios-JD2026-corregido/
+
+# Bloqueos de LibreOffice/Excel sobre esos libros.
+.~lock.*#
 
 # Editor directories and files
 .vscode/*
