@@ -42,3 +42,4 @@ etl/datos/*
 *.njsproj
 *.sln
 *.sw?
+.env.remoto
