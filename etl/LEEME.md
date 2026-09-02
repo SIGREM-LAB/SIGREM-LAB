@@ -2,14 +2,36 @@
 
 Procedimiento probado con N3 el 26 de agosto de 2026: 1615 renglones, de los
 cuales 1278 quedaron cargados y 337 esperando revisión humana. Ni uno perdido.
+Esos dos números son los de antes de la regla del frasco; después de ella la
+misma corrida dio 1502 y 113 (última trampa de este archivo).
+
+Repetido con la *Versión 2* de N3 el 2 de septiembre de 2026, ya solo con las
+tres hojas que el almacén dio por cerradas:
+
+| Hoja | Renglones | Existencias | Pendientes |
+|---|---:|---:|---:|
+| Reactivos | 1081 | 1062 | 19 |
+| Material | 447 | 394 | 53 |
+| Insumos | 82 | 46 | 36 |
+| **Total** | **1610** | **1502** | **108** |
+
+1164 artículos, y los cuatro controles del paso 4 en cero. Equipos y Electrónica
+quedaron fuera a propósito, con `--hoja`.
+
+Esos son los números **después** del paso 2. Cargando el archivo tal como llegó
+daba 1428 y 182: las 151 correcciones deterministas mueven 74 renglones de
+«pendiente» a «cargado», casi todos los `Gabienete` de Material. Lo que queda
+pendiente ya no tiene arreglo automático: 83 de Regla 2, 17 de unidad contra
+`articulo.unidad_base` y 8 de Regla 13.
 
 Los otros tres almacenes se migran igual. Lo que sigue es el orden, qué esperar
 en cada paso, y las trampas que ya nos costaron una vez.
 
 ## 0. Antes de empezar
 
-Los Excel reales **no van a git** (`.gitignore` ignora `etl/Datos-Reales-JD2026/`).
-Son binarios que git no sabe diferenciar y datos institucionales de la UCL.
+Los Excel reales **no van a git**: `.gitignore` ignora `etl/Datos-Reales-JD2026/`
+y `etl/Inventarios-JD2026/`. Son binarios que git no sabe diferenciar y datos
+institucionales de la UCL.
 
 ```
 etl/Datos-Reales-JD2026/
@@ -19,6 +41,17 @@ etl/Datos-Reales-JD2026/
 ```
 
 El original **nunca se edita**. Ni para arreglar una falta de ortografía.
+
+> **Si estrenas una carpeta de entregas, agrégala al `.gitignore` en el mismo
+> commit.** El bloque de ese archivo ignora rutas literales, no un patrón: la
+> entrega de septiembre llegó como `etl/Inventarios-JD2026/` y salía en
+> `git status` como archivo nuevo, a un `git add -A` de publicar el inventario
+> de la universidad.
+
+**Cierra el Excel antes de cargar.** `openpyxl` lee el último estado
+**guardado**; con el libro abierto en LibreOffice o Excel, lo que no hayas
+guardado no entra y no hay ni un aviso. El síntoma de que sigue abierto es un
+`.~lock.<archivo>#` junto al libro (también ignorado por git).
 
 ## 1. Revisar el archivo antes de cargarlo
 
@@ -35,7 +68,11 @@ Lo que hay que mirar en ese CSV, en este orden:
 1. **Hojas presentes.** N3 mandó Reactivos, Insumos y Material. Faltaban Equipos
    y Materia biológica, y eso no lo dice ningún error: la hoja que no está,
    sencillamente no aparece. Cuéntalas a mano contra lo que el almacén dijo que
-   entregaba.
+   entregaba. La primera línea del resumen dice cuántas leyó (`3 hojas, …`), y
+   ese número es lo primero que hay que comparar. **Una pestaña que existe pero
+   se llama distinto cuenta como ausente:** el libro de septiembre traía
+   `Material biológico` y el código espera `Materia biológica`
+   (`formato.HOJAS_DE_DATOS`), así que se ignoró sin un solo aviso.
 2. **Rechazos por regla.** Son los que necesitan a una persona.
 3. **Normalizados.** Los arregla el cargador solo; se leen para confirmar que no
    está «arreglando» algo que en realidad estaba bien.
@@ -45,22 +82,38 @@ Lo que hay que mirar en ese CSV, en este orden:
 ```bash
 python -m etl.corregir              # regenera corregido/ desde original/
 python -m etl.corregir --verificar  # solo comprueba lo ya generado
+
+# otra carpeta de entregas
+python -m etl.corregir --origen etl/Inventarios-JD2026 \
+                       --destino etl/Inventarios-JD2026-corregido
 ```
+
+El destino **no puede colgar del origen**, y el comando lo rechaza si lo
+intentas: `rglob` volvería a encontrar los corregidos de la corrida anterior y
+los trataría como originales, o sea correcciones sobre correcciones sin que
+nadie se entere.
 
 **Solo entra aquí lo que tiene un destino único y comprobable sin preguntarle a
 nadie.** Las correcciones se declaran en `etl/corregir.py`, no se editan en el
 Excel: cuando el almacén mande la siguiente versión se vuelve a correr y el diff
 de `correcciones-aplicadas.csv` se lee.
 
-Lo que entró en N3 (140 celdas):
+Lo que entró en la Versión 2 de N3 (151 celdas):
 
 | Qué | Cuántas |
 |---|---|
 | `Gabienete` → `Gabinete` (el propio ETL nombra el destino) | 74 |
-| `SIN MARCA` → `Sin marca` | 43 |
+| `SIN MARCA` → `Sin marca` | 42 |
+| `presentacion` → `presentación`, sin acento | 10 |
 | Erratas con destino único (`geado`→`grado`, 8 deletreos de `presentación`…) | 17 |
 | Artículos partidos por puntuación o acento | 5 |
+| `presentación250` → `presentación 250`, falta el espacio | 2 |
 | Número guardado como texto | 1 |
+
+En la Versión 1 fueron 140: `SIN MARCA` bajó de 43 a 42, y los dos últimos
+renglones son de la revisión de septiembre. **Cada fila fijada volvió a caer en
+el mismo número de fila que en agosto**, así que los pins de `filas=` seguían
+siendo válidos; eso se comprueba, no se supone.
 
 **El criterio para meter una errata aquí:** la palabra mal escrita aparece ≤3
 veces y la correcta cientos. Si hay duda, no entra.
@@ -69,6 +122,19 @@ veces y la correcta cientos. Si hay duda, no entra.
 por parecido y da falsos positivos que parecen buenos: `piseta` (es una piseta,
 no una pipeta), `nitrito` (no es nitrato), `subnitrato`, `anhídrido`,
 `tricloruro`. Las cinco son palabras reales. Corregirlas es inventar datos.
+
+Tampoco entraron las cinco `. Presentación 500 g` de Reactivos. Ahí la
+mayúscula **es correcta**: va después de un punto. Lo anómalo es el punto donde
+el resto de la hoja pone coma, y cambiar un separador es decidir cómo se lee el
+artículo. Eso lo resuelve la pantalla de depuración, no este archivo.
+
+**Y cuidado con las erratas que son prefijo de la palabra buena.**
+`resentación` está dentro de `presentación`, y `presentacio` dentro de
+`presentacion`. Sin el `filas=` que las acota, la primera habría reescrito 1031
+celdas buenas y la segunda habría dejado `presentaciónn` en diez. Por eso el
+acotado por filas no es una optimización: es lo que hace que la corrección sea
+correcta. Cuando agregues una errata corta, comprueba a mano contra cuántas
+celdas casa en toda la hoja antes de fijarla.
 
 **Y sobre todo: nada de fusión difusa de artículos.** En N3 había 100 pares de
 nombres que difieren en 1-3 caracteres y son artículos **distintos**:
@@ -80,9 +146,18 @@ mayúsculas y puntuación. Fuera de ahí, dos nombres parecidos son dos artícul
 **solo** en lo que dice su bitácora, y comprueba que sobrevivan las validaciones
 de datos y las celdas combinadas. Si algo no cuadra, falla y no genera.
 
-> **Ruido de coma flotante.** openpyxl serializa con `%.16g` y Excel guardaba 17
+> **Dos artefactos de openpyxl al reescribir el libro.** Ninguno es un cambio de
+> dato, los dos se toleran, y los dos se cuentan y se imprimen en su renglón de
+> la verificación en vez de esconderse en la igualdad.
+>
+> *Ruido de coma flotante.* openpyxl serializa con `%.16g` y Excel guardaba 17
 > cifras: `44.459999999999994` sale `44.45999999999999`. La deriva medida en N3
-> fue de 4.1e-16 relativa. Se tolera pero se mide y se reporta; no se esconde.
+> fue de 4.1e-16 relativa.
+>
+> *Cadena vacía contra celda en blanco.* Excel las distingue; openpyxl colapsa
+> la primera en la segunda. En la Versión 2 de N3 pasa una sola vez, en
+> `Reactivos!I1066`, una marca vacía. La primera corrida de septiembre falló
+> justo por esto, que es la señal de que el verificador hace su trabajo.
 
 ## 3. Cargar
 
@@ -90,6 +165,22 @@ de datos y las celdas combinadas. Si algo no cuadra, falla y no genera.
 python -m etl.cargar --origen etl/Datos-Reales-JD2026/corregido --almacen N3            # simulacro
 python -m etl.cargar --origen etl/Datos-Reales-JD2026/corregido --almacen N3 --cargar   # de verdad
 ```
+
+**`--hoja` carga solo unas clasificaciones.** Es repetible y valida el nombre
+contra `ORDEN_HOJAS`, así que una pestaña mal escrita la rechaza `argparse` en
+vez de cargar de menos en silencio. Sin la bandera entran todas las que traiga
+el libro.
+
+```bash
+python -m etl.cargar --origen etl/Inventarios-JD2026 --almacen N3 \
+  --hoja Reactivos --hoja Insumos --hoja Material --cargar
+```
+
+Hace falta porque el almacén entrega **el libro completo** aunque no dé por
+buenas todas las pestañas a la vez: N3 cerró Reactivos, Insumos y Material en
+septiembre y dejó Equipos y Electrónica para después. Filtrar aquí y no borrando
+pestañas deja intacto el archivo del almacén. El filtro se aplica sobre la lista
+**ya ordenada**, así que no toca `ORDEN × ORDEN_HOJAS` ni la reproducibilidad.
 
 **El cargador no es todo-o-nada.** Lo válido entra a `existencia`; lo que
 ninguna regla puede resolver aterriza en `public.carga_pendiente` con el renglón
@@ -185,6 +276,13 @@ que se les ocurra. `formato.leer_libro()` lee eso, y el almacén sale del nombre
 del archivo (`N3.xlsx`) o de su carpeta (`Almacén-Nivel-3/`, mapa explícito en
 `formato.CARPETAS`). **Si añades un almacén con carpeta nueva, agrégala a ese
 mapa** o el cargador no sabrá de quién es el archivo.
+
+Ya pasó: la entrega de septiembre venía en `Almacen-N3/` y el mapa solo conocía
+`almacen-nivel-3`, así que `almacen_de()` lanzaba `ArchivoIlegible` y no se leía
+nada. Ahora el mapa acepta las dos formas —`almacen-nivel-3` y `almacen-n3`—
+para los cuatro almacenes. Falla ruidosamente, que es lo correcto: el castigo de
+adivinar mal es cargar el inventario de un almacén en la ficha de otro sin un
+solo error.
 
 **El orden de carga no es cosmético.** `articulo` es global, así que qué renglón
 crea el artículo y cuál lo reutiliza depende del orden. Va fijo por
