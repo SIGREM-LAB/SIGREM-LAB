@@ -251,29 +251,18 @@ export type Database = {
           activo: boolean
           id: number
           nombre: string
-          programa_educativo_id: number | null
         }
         Insert: {
           activo?: boolean
           id?: never
           nombre: string
-          programa_educativo_id?: number | null
         }
         Update: {
           activo?: boolean
           id?: never
           nombre?: string
-          programa_educativo_id?: number | null
         }
-        Relationships: [
-          {
-            foreignKeyName: "asignatura_programa_educativo_id_fkey"
-            columns: ["programa_educativo_id"]
-            isOneToOne: false
-            referencedRelation: "programa_educativo"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
       }
       campo_capturable: {
         Row: {
@@ -898,6 +887,7 @@ export type Database = {
           id: number
           laboratorio_id: number
           observaciones: string | null
+          practica_catalogo_id: number | null
           programa_educativo_id: number
           registrado_por: string
         }
@@ -910,6 +900,7 @@ export type Database = {
           id?: never
           laboratorio_id: number
           observaciones?: string | null
+          practica_catalogo_id?: number | null
           programa_educativo_id: number
           registrado_por: string
         }
@@ -922,6 +913,7 @@ export type Database = {
           id?: never
           laboratorio_id?: number
           observaciones?: string | null
+          practica_catalogo_id?: number | null
           programa_educativo_id?: number
           registrado_por?: string
         }
@@ -948,10 +940,31 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "practica_catalogo_coincide"
+            columns: ["practica_catalogo_id", "asignatura_id"]
+            isOneToOne: false
+            referencedRelation: "practica_catalogo"
+            referencedColumns: ["id", "asignatura_id"]
+          },
+          {
             foreignKeyName: "practica_laboratorio_id_fkey"
             columns: ["laboratorio_id"]
             isOneToOne: false
             referencedRelation: "laboratorio"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "practica_pareja_valida"
+            columns: ["programa_educativo_id", "asignatura_id"]
+            isOneToOne: false
+            referencedRelation: "programa_asignatura"
+            referencedColumns: ["programa_educativo_id", "asignatura_id"]
+          },
+          {
+            foreignKeyName: "practica_practica_catalogo_id_fkey"
+            columns: ["practica_catalogo_id"]
+            isOneToOne: false
+            referencedRelation: "practica_catalogo"
             referencedColumns: ["id"]
           },
           {
@@ -966,6 +979,41 @@ export type Database = {
             columns: ["registrado_por"]
             isOneToOne: false
             referencedRelation: "perfil"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      practica_catalogo: {
+        Row: {
+          activo: boolean
+          asignatura_id: number
+          creado_en: string
+          id: number
+          nombre: string
+          numero: number
+        }
+        Insert: {
+          activo?: boolean
+          asignatura_id: number
+          creado_en?: string
+          id?: never
+          nombre: string
+          numero: number
+        }
+        Update: {
+          activo?: boolean
+          asignatura_id?: number
+          creado_en?: string
+          id?: never
+          nombre?: string
+          numero?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "practica_catalogo_asignatura_id_fkey"
+            columns: ["asignatura_id"]
+            isOneToOne: false
+            referencedRelation: "asignatura"
             referencedColumns: ["id"]
           },
         ]
@@ -1101,6 +1149,39 @@ export type Database = {
             columns: ["practica_id"]
             isOneToOne: false
             referencedRelation: "practica"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      programa_asignatura: {
+        Row: {
+          asignatura_id: number
+          programa_educativo_id: number
+          semestre: number | null
+        }
+        Insert: {
+          asignatura_id: number
+          programa_educativo_id: number
+          semestre?: number | null
+        }
+        Update: {
+          asignatura_id?: number
+          programa_educativo_id?: number
+          semestre?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "programa_asignatura_asignatura_id_fkey"
+            columns: ["asignatura_id"]
+            isOneToOne: false
+            referencedRelation: "asignatura"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "programa_asignatura_programa_educativo_id_fkey"
+            columns: ["programa_educativo_id"]
+            isOneToOne: false
+            referencedRelation: "programa_educativo"
             referencedColumns: ["id"]
           },
         ]
@@ -1266,6 +1347,10 @@ export type Database = {
           p_renglon?: Json
           p_veredicto?: Database["public"]["Enums"]["veredicto_pendiente"]
         }
+        Returns: number
+      }
+      vincular_asignatura: {
+        Args: { p_nombre: string; p_programa: number; p_semestre?: number }
         Returns: number
       }
     }

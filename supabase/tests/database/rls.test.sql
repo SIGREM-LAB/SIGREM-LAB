@@ -14,7 +14,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 
-select plan(62);
+select plan(73);
 
 
 -- ---------------------------------------------------------------------------
@@ -754,6 +754,116 @@ select throws_ok(
   $$ select public.resolver_pendiente(900005) $$,
   '42501', null,
   'El responsable de N3 no puede resolver un pendiente de N4 aunque sepa su id'
+);
+
+select pg_temp.como_postgres();
+
+
+-- ---------------------------------------------------------------------------
+-- 63-73. El plan academico: quien lo lee y quien lo escribe
+-- ---------------------------------------------------------------------------
+select pg_temp.como_postgres();
+
+insert into public.programa_educativo (id, nombre) overriding system value
+values (900801, 'Programa academico de prueba');
+
+insert into public.asignatura (id, nombre) overriding system value
+values (900811, 'Asignatura de prueba RLS');
+
+insert into public.programa_asignatura (programa_educativo_id, asignatura_id, semestre)
+values (900801, 900811, 4);
+
+insert into public.practica_catalogo (id, asignatura_id, numero, nombre)
+overriding system value
+values (900821, 900811, 1, 'Practica de prueba RLS');
+
+select pg_temp.como('n3@uaeh.local');
+
+-- La lectura abierta no es un descuido: es lo que permitira que el formulario
+-- de registro de practicas arme sus tres selects. Si estas dos dan 0, la
+-- pantalla de practicas sale vacia y nadie sabe por que.
+select is(
+  (select count(*)::int from public.programa_asignatura where asignatura_id = 900811),
+  1,
+  'El responsable de N3 lee el plan academico'
+);
+
+select is(
+  (select count(*)::int from public.practica_catalogo where id = 900821),
+  1,
+  'El responsable de N3 lee el catalogo de practicas'
+);
+
+select throws_ok(
+  $$ insert into public.programa_asignatura (programa_educativo_id, asignatura_id, semestre)
+     values (900801, 900811, 5) $$,
+  '42501', null,
+  'El responsable no vincula asignaturas: el plan es de los cuatro almacenes'
+);
+
+select throws_ok(
+  $$ insert into public.practica_catalogo (asignatura_id, numero, nombre)
+     values (900811, 2, 'Practica colada') $$,
+  '42501', null,
+  'El responsable no da de alta practicas del plan'
+);
+
+-- Ojo con como falla cada clausula: USING falso no explota, deja 0 filas. Por
+-- eso estas dos se miden contando y no con throws_ok.
+update public.practica_catalogo set nombre = 'Renombrada a la mala' where id = 900821;
+select is(
+  (select nombre from public.practica_catalogo where id = 900821),
+  'Practica de prueba RLS',
+  'El responsable no edita el catalogo, y falla en silencio'
+);
+
+delete from public.programa_asignatura where asignatura_id = 900811;
+select is(
+  (select count(*)::int from public.programa_asignatura where asignatura_id = 900811),
+  1,
+  'El responsable no desvincula asignaturas, y tambien falla en silencio'
+);
+
+-- security invoker: la funcion no presta privilegios. Misma prueba que la de
+-- resolver_pendiente.
+select throws_ok(
+  $$ select public.vincular_asignatura(900801, 'Colada por la funcion', 1::smallint) $$,
+  '42501', null,
+  'vincular_asignatura no le presta al responsable privilegios que no tiene'
+);
+
+select pg_temp.como('admin@uaeh.local');
+
+select lives_ok(
+  $$ select public.vincular_asignatura(900801, 'Asignatura creada por el admin', 7::smallint) $$,
+  'El admin si vincula asignaturas, y la funcion crea la que falta'
+);
+
+-- Comprobando el valor y no con lives_ok: un update contra un USING falso deja
+-- 0 filas SIN lanzar excepcion, asi que lives_ok pasaria aunque la politica del
+-- admin no existiera. Esta version se cae si la escritura no aterriza.
+update public.practica_catalogo set nombre = 'Renombrada por el admin' where id = 900821;
+select is(
+  (select nombre from public.practica_catalogo where id = 900821),
+  'Renombrada por el admin',
+  'El admin edita el catalogo de practicas'
+);
+
+-- anon lleva la llave dentro del binario y cualquiera puede extraerla. El plan
+-- academico no es secreto, pero la regla del proyecto es que anon no llega a
+-- ninguna tabla.
+select set_config('role', 'anon', true);
+
+select throws_ok(
+  $$ select count(*) from public.programa_asignatura $$,
+  '42501', null,
+  'anon no lee el plan academico'
+);
+
+select throws_ok(
+  $$ select count(*) from public.practica_catalogo $$,
+  '42501', null,
+  'anon no lee el catalogo de practicas'
 );
 
 select pg_temp.como_postgres();
