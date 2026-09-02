@@ -82,6 +82,15 @@ export function menuDeNavegacion(rol: Enums<'rol_usuario'> | undefined): ItemMen
   return [
     ...comunes,
     {
+      ruta: '/administracion/academico',
+      etiqueta: 'Plan académico',
+      icono: 'mdi:school-outline',
+      grupo: 'administracion',
+      descripcion: 'Programas, asignaturas y prácticas del plan de estudios',
+      color: 'grey.600',
+      disponible: true,
+    },
+    {
       ruta: '/inventario-general',
       etiqueta: 'Inventario general',
       icono: 'mdi:shield-check-outline',

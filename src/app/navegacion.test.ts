@@ -42,3 +42,23 @@ describe('menuDeNavegacion', () => {
     expect(new Set(rutas).size).toBe(rutas.length)
   })
 })
+
+describe('el panel académico', () => {
+  test('solo lo ve el admin, y ya está disponible', () => {
+    const panel = menuDeNavegacion('admin').find((i) => i.ruta === '/administracion/academico')
+
+    expect(panel?.disponible).toBe(true)
+  })
+
+  test('un responsable no lo ve', () => {
+    const rutas = menuDeNavegacion('responsable').map((i) => i.ruta)
+
+    expect(rutas).not.toContain('/administracion/academico')
+  })
+
+  test('sin perfil todavía, tampoco', () => {
+    const rutas = menuDeNavegacion(undefined).map((i) => i.ruta)
+
+    expect(rutas).not.toContain('/administracion/academico')
+  })
+})

@@ -332,3 +332,58 @@ select p.id, c.campo, c.obligatorio, c.orden
                ('observaciones',   false, 13)
        ) as c(campo, obligatorio, orden)
  where p.almacen_id is null and p.clasificacion = 'componente';
+
+
+-- ---------------------------------------------------------------------------
+-- Plan academico de PRUEBA
+-- ---------------------------------------------------------------------------
+-- Datos desechables, solo para poder recorrer la pantalla a mano. El plan real
+-- se captura desde /administracion/academico, desde cero: los catalogos que hay
+-- en el repo no sirven de semilla, porque los 8 programas de aqui arriba y los
+-- 11 del prototipo coinciden en uno solo de 88 combinaciones.
+--
+-- Esto vive en seed.sql y NO en datos-iniciales.sql a proposito: seed.sql solo
+-- lo corre `supabase db reset` en local, asi que estas filas no pueden llegar a
+-- produccion. Es la misma razon por la que los usuarios de prueba estan aqui.
+--
+-- Estan elegidos para ejercitar los tres casos raros, no para verse llenos:
+--   Quimica General  -> compartida por los tres programas
+--   Bioquimica       -> UNA fila, 3er semestre en uno y 6to en otro
+--   Bromatologia     -> semestre NULL (optativa), tiene que ordenar al final
+--   Bromatologia y Farmacognosia -> sin practicas, para ver el estado vacio
+insert into public.asignatura (nombre) values
+  ('Química General'),
+  ('Bioquímica'),
+  ('Análisis de Alimentos'),
+  ('Bromatología'),
+  ('Farmacognosia'),
+  ('Microbiología');
+
+insert into public.programa_asignatura (programa_educativo_id, asignatura_id, semestre)
+select p.id, a.id, v.semestre
+  from (values
+    ('Química en Alimentos',            'Química General',       1),
+    ('Química en Alimentos',            'Bioquímica',            3),
+    ('Química en Alimentos',            'Análisis de Alimentos', 5),
+    ('Química en Alimentos',            'Bromatología',       null),
+    ('Químico Farmacéutico Biólogo',    'Química General',       1),
+    ('Químico Farmacéutico Biólogo',    'Bioquímica',            6),
+    ('Químico Farmacéutico Biólogo',    'Farmacognosia',         4),
+    ('Ingeniería en Biotecnología',     'Química General',       1),
+    ('Ingeniería en Biotecnología',     'Microbiología',         2)
+  ) as v(programa, asignatura, semestre)
+  join public.programa_educativo p on p.nombre = v.programa
+  join public.asignatura         a on a.nombre = v.asignatura;
+
+insert into public.practica_catalogo (asignatura_id, numero, nombre)
+select a.id, v.numero, v.nombre
+  from (values
+    ('Química General',       1, 'Material de laboratorio y medición'),
+    ('Química General',       2, 'Preparación de disoluciones'),
+    ('Química General',       3, 'Titulación ácido-base'),
+    ('Bioquímica',            1, 'Identificación de carbohidratos'),
+    ('Bioquímica',            2, 'Actividad enzimática'),
+    ('Análisis de Alimentos', 1, 'Determinación de humedad'),
+    ('Microbiología',         1, 'Siembra en placa')
+  ) as v(asignatura, numero, nombre)
+  join public.asignatura a on a.nombre = v.asignatura;

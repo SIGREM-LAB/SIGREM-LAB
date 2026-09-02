@@ -4,9 +4,10 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { BrowserRouter, Route, Routes } from 'react-router-dom'
 
 import { Layout } from '@/app/Layout'
+import { PaginaAcademico } from '@/features/academico/PaginaAcademico'
 import { PantallaAcceso } from '@/features/auth/PantallaAcceso'
 import { ProveedorSesion } from '@/features/auth/ProveedorSesion'
-import { RutaProtegida, SoloInvitados } from '@/features/auth/RutaProtegida'
+import { RutaProtegida, SoloAdmin, SoloInvitados } from '@/features/auth/RutaProtegida'
 import { PaginaDepuracion } from '@/features/inventario/PaginaDepuracion'
 import { PaginaInicio } from '@/features/inventario/PaginaInicio'
 import { PaginaInventario } from '@/features/inventario/PaginaInventario'
@@ -46,6 +47,15 @@ export default function App() {
                       Cuelga de /inventario para que la migaja diga de dónde
                       viene y para que la barra lateral siga marcando Inventario. */}
                   <Route path="/inventario/depuracion" element={<PaginaDepuracion />} />
+
+                  {/* Bajo /administracion y no en la raíz: es el primero de
+                      cinco bloques de catálogo que sólo toca el admin, y el
+                      prefijo es lo que evita que cada uno se invente su sitio.
+                      SoloAdmin va aquí y no dentro de la pantalla para que la
+                      redirección ocurra antes de montar nada. */}
+                  <Route element={<SoloAdmin />}>
+                    <Route path="/administracion/academico" element={<PaginaAcademico />} />
+                  </Route>
                 </Route>
               </Route>
             </Routes>
