@@ -62,7 +62,8 @@ def archivos(origen: Path, almacen: str | None = None) -> list[Path]:
     return rutas
 
 
-def hojas_de(origen: Path, almacen: str | None = None) -> list[Hoja]:
+def hojas_de(origen: Path, almacen: str | None = None,
+             hojas_pedidas: tuple[str, ...] | None = None) -> list[Hoja]:
     """Todas las hojas de datos del origen, en el orden de carga.
 
     Reconoce las dos formas en que llegan los archivos:
@@ -74,9 +75,21 @@ def hojas_de(origen: Path, almacen: str | None = None) -> list[Hoja]:
     es global, así que cuál renglón crea el artículo y cuál lo reutiliza depende
     del orden de carga. Que eso lo decidiera el orden alfabético de una carpeta
     haría la migración irreproducible.
+
+    `hojas_pedidas` filtra por clasificación. Los almacenes entregan el libro
+    completo pero no siempre dan por buenas todas las pestañas a la vez: N3
+    cerró Reactivos, Insumos y Material en septiembre y dejó Equipos y
+    Electrónica para después. Filtrar aquí —y no borrando pestañas del Excel—
+    deja el archivo del almacén intacto. El filtro NO altera el orden: se
+    aplica sobre la lista ya ordenada.
     """
+    def pedidas(hojas: list[Hoja]) -> list[Hoja]:
+        if hojas_pedidas is None:
+            return hojas
+        return [h for h in hojas if h.nombre in hojas_pedidas]
+
     if archivos(origen, almacen):
-        return [leer(ruta) for ruta in archivos(origen, almacen)]
+        return pedidas([leer(ruta) for ruta in archivos(origen, almacen)])
 
     libros: list[tuple[str, Path]] = []
     for ruta in sorted(origen.rglob("*.xlsx")):
@@ -92,23 +105,26 @@ def hojas_de(origen: Path, almacen: str | None = None) -> list[Hoja]:
         for suya, ruta in libros:
             if suya == clave:
                 hojas.extend(leer_libro(ruta, clave))
-    return hojas
+    return pedidas(hojas)
 
 
 def simular(origen: Path, catalogos: Catalogos,
-            almacen: str | None = None
+            almacen: str | None = None,
+            hojas_pedidas: tuple[str, ...] | None = None
             ) -> tuple[Informe, dict[str, Resultado]]:
     """Lee y valida sin tocar la base."""
     informe, vistos = Informe(), Vistos()
     resultados: dict[str, Resultado] = {}
-    for hoja in hojas_de(origen, almacen):
+    for hoja in hojas_de(origen, almacen, hojas_pedidas):
         resultados[f"{hoja.archivo} · {hoja.nombre}"] = validar(
             hoja, informe, catalogos, vistos)
     return informe, resultados
 
 
 def cargar(origen: Path, cadena: str,
-           almacen: str | None = None) -> tuple[Informe, int, int]:
+           almacen: str | None = None,
+           hojas_pedidas: tuple[str, ...] | None = None
+           ) -> tuple[Informe, int, int]:
     """Una transacción por hoja: entra lo válido y se aparta lo demás.
 
     La transacción sigue siendo por hoja, pero ya no es todo-o-nada sobre el
@@ -127,7 +143,7 @@ def cargar(origen: Path, cadena: str,
             perfil = db.perfil_de_carga(cur)
         con.commit()
 
-        for hoja in hojas_de(origen, almacen):
+        for hoja in hojas_de(origen, almacen, hojas_pedidas):
             resultado = validar(hoja, informe, catalogos, vistos)
             if not resultado.validos and not resultado.rechazados:
                 continue
@@ -172,6 +188,10 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--juego", choices=("limpios", "defectos"))
     p.add_argument("--origen", type=Path)
     p.add_argument("--almacen", choices=ORDEN)
+    p.add_argument("--hoja", choices=ORDEN_HOJAS, action="append",
+                   metavar="HOJA",
+                   help="solo estas clasificaciones; repetible. Por omisión, "
+                        "todas las que traiga el libro")
     p.add_argument("--cargar", action="store_true",
                    help="escribe en la base; sin esto es simulacro")
     p.add_argument("--dsn", help="por omisión, DATABASE_URL")
@@ -182,11 +202,13 @@ def main(argv: list[str] | None = None) -> int:
         print(f"No existe {origen}", file=sys.stderr)
         return 2
 
+    pedidas = tuple(args.hoja) if args.hoja else None
+
     if args.cargar:
         from etl import db, destino
         try:
             informe, nuevas, apartados = cargar(origen, db.dsn(args.dsn),
-                                                args.almacen)
+                                                args.almacen, pedidas)
         except destino.YaCargado as error:
             print(f"\n  {error}\n", file=sys.stderr)
             return 2
@@ -197,7 +219,7 @@ def main(argv: list[str] | None = None) -> int:
         # El simulacro corre sin base, pero si la hay se aprovecha: el único
         # control que no se puede hacer en frío es el del laboratorio.
         informe, resultados = simular(origen, _catalogos_si_hay(args.dsn),
-                                      args.almacen)
+                                      args.almacen, pedidas)
         validos = sum(len(r.validos) for r in resultados.values())
         apartados = sum(len(r.rechazados) for r in resultados.values())
         print(f"  {len(resultados)} hojas, {validos} renglones cargables, "

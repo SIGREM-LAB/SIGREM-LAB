@@ -29,11 +29,19 @@ ALMACENES = ("N3", "N4", "LUM", "LE")
 # Va como mapa explícito y no como heurística: «Almacén-Nivel-3» no se parece a
 # «N3» por ninguna regla, y adivinarlo mal carga el inventario de un almacén en
 # la ficha de otro sin lanzar un solo error.
+#
+# Conviven dos convenciones porque los almacenes entregaron con nombres
+# distintos: «Almacén-Nivel-3» en la entrega de agosto y «Almacen-N3» en la de
+# septiembre. Se aceptan las dos en vez de renombrar carpetas a mano, que es un
+# paso manual que alguien va a olvidar y cuyo castigo es el del comentario de
+# arriba.
 CARPETAS = {
     "almacen-nivel-3": "N3",
     "almacen-nivel-4": "N4",
     "almacen-lum": "LUM",
     "almacen-le": "LE",
+    "almacen-n3": "N3",
+    "almacen-n4": "N4",
 }
 
 # Qué columna del formato es qué campo. Lo que no está aquí se ignora: «No.» es
