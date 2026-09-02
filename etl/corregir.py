@@ -3,6 +3,10 @@
     python -m etl.corregir              genera y verifica
     python -m etl.corregir --verificar  solo verifica lo ya generado
 
+    # otra carpeta de entregas
+    python -m etl.corregir --origen etl/Inventarios-JD2026 \
+                           --destino etl/Inventarios-JD2026-corregido
+
 Aqui van SOLO las correcciones deterministas: las que tienen un destino unico
 y comprobable sin preguntarle a nadie. Una errata cuyo arreglo dependa de saber
 cuantas piezas trae una caja, o de si ese frasco se peso o se midio, no entra
@@ -158,7 +162,40 @@ MARCAS = [
     for hoja in ("Reactivos", "Insumos", "Material")
 ]
 
-CORRECCIONES = MUEBLES + PARTIDOS + ERRATAS + PRESENTACION + MARCAS
+# 4b. «presentacion» sin acento, y «presentación» pegada al numero. Salieron al
+#     revisar la Version 2 de N3 el 2 de septiembre de 2026; la Version 1 no
+#     los traia o no se habian mirado.
+#
+#     Cumplen el mismo criterio que el bloque de arriba: destino unico, la
+#     grafia correcta aparece mas de mil veces en la misma columna, y el
+#     resultado no depende de saber nada que no este en la celda.
+#
+#     OJO con el orden de estas dos cadenas. «presentacion» contiene
+#     «presentacio», asi que si esta correccion no estuviera acotada por filas
+#     pisaria a la de arriba y dejaria «presentaciónn». Las filas son disjuntas
+#     —492 y 1035 alli, estas diez aqui— y por eso no se tocan.
+ACENTOS = [
+    Correccion("Reactivos", "sustancia", "presentacion", "presentación",
+               "Errata · «presentación» sin acento; x1046 bien escrita",
+               filas=(142, 143, 144, 329, 366, 367, 711, 1028, 1029, 1030),
+               esperadas=10),
+]
+
+# NO entran aqui las cinco «. Presentación 500 g» (filas 449, 450, 958, 960,
+# 975). La mayuscula es correcta: van despues de un punto. Lo raro es el punto
+# donde el resto de la hoja pone coma, y cambiar un separador es decidir por el
+# almacen como se lee su articulo. Eso es de la pantalla de depuracion.
+PEGADOS = [
+    Correccion("Reactivos", "sustancia", "presentación250", "presentación 250",
+               "Regla 3 · falta el espacio antes de la cantidad",
+               filas=(489,), esperadas=1),
+    Correccion("Reactivos", "sustancia", "presentación500", "presentación 500",
+               "Regla 3 · falta el espacio antes de la cantidad",
+               filas=(889,), esperadas=1),
+]
+
+CORRECCIONES = (MUEBLES + PARTIDOS + ERRATAS + PRESENTACION + ACENTOS
+                + PEGADOS + MARCAS)
 
 # 6. Regla 1. Un numero guardado como texto. `normalizar.numero()` lo rechaza y
 #    con el se cae la hoja entera de Material.
@@ -297,6 +334,19 @@ def _iguales(a, b) -> tuple[bool, float]:
     return a == b, 0.0
 
 
+def _vacia(v) -> bool:
+    """Una celda sin dato.
+
+    Excel distingue la cadena vacia de la celda en blanco; openpyxl, al
+    reescribir el libro, colapsa la primera en la segunda. En N3 pasa una sola
+    vez —Reactivos!I1066, una marca vacia— y es la misma clase de cosa que el
+    ruido de coma flotante: artefacto de serializacion, no un dato que cambie.
+    Se tolera, pero se cuenta y se reporta aparte; enterrarlo en la igualdad
+    seria dejar de mirar justo donde este archivo existe para mirar.
+    """
+    return v is None or v == ""
+
+
 def verificar(origen: Path, destino: Path,
               tocadas: set[tuple[str, str]]) -> tuple[list[str], list[str]]:
     """Que el corregido difiera del original SOLO en las celdas de la bitacora.
@@ -344,7 +394,7 @@ def verificar(origen: Path, destino: Path,
                              f"{ha.max_column - hb.max_column} columna(s) "
                              f"fantasma, sin una sola celda con dato")
 
-        esperadas = ruido = 0
+        esperadas = ruido = vaciadas = 0
         deriva_max = 0.0
         for fila in range(1, ha.max_row + 1):
             for col in range(1, ha.max_column + 1):
@@ -352,6 +402,9 @@ def verificar(origen: Path, destino: Path,
                 va_, vb_ = celda.value, hb.cell(row=fila, column=col).value
                 if (nombre, celda.coordinate) in tocadas:
                     esperadas += 1
+                    continue
+                if _vacia(va_) and _vacia(vb_):
+                    vaciadas += va_ != vb_
                     continue
                 igual, deriva = _iguales(va_, vb_)
                 if igual:
@@ -364,7 +417,8 @@ def verificar(origen: Path, destino: Path,
 
         notas.append(f"{nombre}: {esperadas} celdas corregidas, "
                      f"{ruido} con ruido de coma flotante "
-                     f"(deriva maxima {deriva_max:.1e})")
+                     f"(deriva maxima {deriva_max:.1e}), "
+                     f"{vaciadas} cadena vacia → celda en blanco")
 
     return fallas, notas
 
@@ -381,18 +435,32 @@ def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(description="Corrige lo determinista del origen.")
     p.add_argument("--verificar", action="store_true",
                    help="no regenera; solo comprueba lo que ya hay")
+    p.add_argument("--origen", type=Path, default=ORIGINAL,
+                   help=f"por omisión, {ORIGINAL.relative_to(RAIZ)}")
+    p.add_argument("--destino", type=Path, default=CORREGIDO,
+                   help=f"por omisión, {CORREGIDO.relative_to(RAIZ)}")
     args = p.parse_args(argv)
 
-    if not ORIGINAL.is_dir():
-        print(f"No existe {ORIGINAL}", file=sys.stderr)
+    origen_raiz, destino_raiz = args.origen.resolve(), args.destino.resolve()
+
+    if not origen_raiz.is_dir():
+        print(f"No existe {origen_raiz}", file=sys.stderr)
+        return 2
+
+    # El destino no puede colgar del origen: `rglob` volveria a encontrar los
+    # corregidos de la corrida anterior y los trataria como originales, o sea
+    # correcciones sobre correcciones sin que nadie se entere.
+    if origen_raiz == destino_raiz or destino_raiz.is_relative_to(origen_raiz):
+        print(f"El destino no puede estar dentro del origen: "
+              f"{destino_raiz} ⊂ {origen_raiz}", file=sys.stderr)
         return 2
 
     total = fallas_totales = 0
-    for origen in sorted(ORIGINAL.rglob("*.xlsx")):
+    for origen in sorted(origen_raiz.rglob("*.xlsx")):
         if origen.name.startswith("~$"):
             continue
-        destino = CORREGIDO / origen.relative_to(ORIGINAL)
-        print(f"  {origen.relative_to(DATOS)}")
+        destino = destino_raiz / origen.relative_to(origen_raiz)
+        print(f"  {origen.relative_to(origen_raiz)}")
 
         if not args.verificar:
             bitacora = corregir(origen, destino)
@@ -401,7 +469,7 @@ def main(argv: list[str] | None = None) -> int:
             print(f"    {len(bitacora.filas)} celdas corregidas → {BITACORA}")
 
         if not destino.exists():
-            print(f"    falta {destino.relative_to(DATOS)}", file=sys.stderr)
+            print(f"    falta {destino.relative_to(destino_raiz)}", file=sys.stderr)
             return 1
 
         fallas, notas = verificar(origen, destino,
