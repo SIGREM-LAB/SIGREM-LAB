@@ -14,7 +14,6 @@ import { PaginaInventarioGeneral } from '@/features/inventario/PaginaInventarioG
 import { PaginaUsuarios } from '@/features/usuarios/PaginaUsuarios'
 import { RutaProtegida, SoloAdmin, SoloInvitados } from '@/features/auth/RutaProtegida'
 import { PaginaDepuracion } from '@/features/inventario/PaginaDepuracion'
-import { PaginaInicio } from '@/features/inventario/PaginaInicio'
 import { PaginaInventario } from '@/features/inventario/PaginaInventario'
 import { tema } from '@/tema'
 
