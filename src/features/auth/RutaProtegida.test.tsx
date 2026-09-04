@@ -117,6 +117,7 @@ describe('SoloAdmin', () => {
 
     expect(screen.getByText('Página principal')).toBeInTheDocument()
     expect(screen.queryByText('Administración de usuarios')).not.toBeInTheDocument()
+  })
 /**
  * `usePerfil` se simula en su frontera y no se siembra la caché de Query. Es la
  * única forma determinista de provocar el estado de error: sembrar la caché
