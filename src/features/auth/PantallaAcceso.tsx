@@ -260,6 +260,9 @@ export function PantallaAcceso({ auth = supabase.auth }: { auth?: AuthAcceso }) 
               <Button type="submit" variant="contained" size="large" disabled={isSubmitting}>
                 {isSubmitting ? 'Entrando…' : 'Entrar'}
               </Button>
+              <Button href="/solicitar-recuperacion" variant="text" size="small">
+                ¿Olvidaste tu contraseña?
+              </Button>
             </Stack>
 
             <Divider sx={{ mt: 3, mb: 2 }} />

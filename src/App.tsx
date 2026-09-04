@@ -6,10 +6,14 @@ import { BrowserRouter, Route, Routes } from 'react-router-dom'
 import { Layout } from '@/app/Layout'
 import { PaginaAcademico } from '@/features/academico/PaginaAcademico'
 import { PantallaAcceso } from '@/features/auth/PantallaAcceso'
+import { PantallaNuevaContrasena } from '@/features/auth/PantallaNuevaContrasena'
+import { PantallaRecuperarContrasena } from '@/features/auth/PantallaRecuperarContrasena'
 import { ProveedorSesion } from '@/features/auth/ProveedorSesion'
+import { PaginaInicio } from '@/features/inventario/PaginaInicio'
+import { PaginaInventarioGeneral } from '@/features/inventario/PaginaInventarioGeneral'
+import { PaginaUsuarios } from '@/features/usuarios/PaginaUsuarios'
 import { RutaProtegida, SoloAdmin, SoloInvitados } from '@/features/auth/RutaProtegida'
 import { PaginaDepuracion } from '@/features/inventario/PaginaDepuracion'
-import { PaginaInicio } from '@/features/inventario/PaginaInicio'
 import { PaginaInventario } from '@/features/inventario/PaginaInventario'
 import { tema } from '@/tema'
 
@@ -35,6 +39,8 @@ export default function App() {
               <Route element={<SoloInvitados />}>
                 <Route path="/entrar" element={<PantallaAcceso />} />
               </Route>
+              <Route path="/solicitar-recuperacion" element={<PantallaRecuperarContrasena />} />
+              <Route path="/recuperar-contrasena" element={<PantallaNuevaContrasena />} />
 
               <Route element={<RutaProtegida />}>
                 <Route element={<Layout />}>
@@ -55,6 +61,15 @@ export default function App() {
                       redirección ocurra antes de montar nada. */}
                   <Route element={<SoloAdmin />}>
                     <Route path="/administracion/academico" element={<PaginaAcademico />} />
+                  </Route>
+                </Route>
+              </Route>
+
+              <Route element={<RutaProtegida />}>
+                <Route element={<SoloAdmin />}>
+                  <Route element={<Layout />}>
+                    <Route path="/inventario-general" element={<PaginaInventarioGeneral />} />
+                    <Route path="/usuarios" element={<PaginaUsuarios />} />
                   </Route>
                 </Route>
               </Route>

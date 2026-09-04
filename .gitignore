@@ -46,6 +46,7 @@ etl/Datos-Reales-JD2026/
 *.njsproj
 *.sln
 *.sw?
+.env.remoto
 
 # Salida del cargador: los informes de excepciones se regeneran en cada corrida
 etl/review/*.csv
