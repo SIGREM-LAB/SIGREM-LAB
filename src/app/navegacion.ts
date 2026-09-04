@@ -17,14 +17,17 @@ export type ItemMenu = {
   etiqueta: string
   icono: string
   grupo: GrupoMenu
+
   /** Qué se hace en esa pantalla. La barra lateral no la usa; el menú sí. */
   descripcion: string
+
   /**
    * Color de su placa en el menú principal, como token del tema. Vive aquí
    * junto al icono por lo mismo: es la identidad de la sección, y repartida por
    * los componentes acabaría distinta en cada pantalla.
    */
   color: string
+
   /**
    * false = la pantalla todavia no existe. Se dibuja apagada en vez de
    * esconderse: el menu completo es lo que se aprobo en el prototipo, y quien
@@ -37,7 +40,9 @@ export type ItemMenu = {
  * El menu del prototipo, con las pantallas pendientes marcadas.
  * `rol` llega en `undefined` mientras el perfil todavia se esta cargando.
  */
-export function menuDeNavegacion(rol: Enums<'rol_usuario'> | undefined): ItemMenu[] {
+export function menuDeNavegacion(
+  rol: Enums<'rol_usuario'> | undefined,
+): ItemMenu[] {
   const comunes: ItemMenu[] = [
     {
       ruta: '/',
@@ -94,17 +99,19 @@ export function menuDeNavegacion(rol: Enums<'rol_usuario'> | undefined): ItemMen
       ruta: '/inventario-general',
       etiqueta: 'Inventario general',
       icono: 'mdi:shield-check-outline',
+      grupo: 'administracion',
+      descripcion: 'Consultar el inventario global de todos los laboratorios',
+      color: 'grey.600',
       disponible: true,
     },
     {
       ruta: '/usuarios',
       etiqueta: 'Administración de usuarios',
       icono: 'mdi:account-cog-outline',
-      disponible: true,
       grupo: 'administracion',
-      descripcion: 'Los cuatro almacenes, solo administración',
+      descripcion: 'Gestionar usuarios, roles y accesos del sistema',
       color: 'grey.600',
-      disponible: false,
+      disponible: true,
     },
   ]
 }
