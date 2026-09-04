@@ -3,6 +3,7 @@ import {
   Avatar,
   Box,
   Button,
+  Divider,
   List,
   ListItemButton,
   ListItemIcon,
@@ -17,7 +18,7 @@ import { Link as EnlaceRuta, Outlet, useLocation } from 'react-router-dom'
 import { BotonTema } from '@/app/BotonTema'
 import { LogoUAEH } from '@/app/LogoUAEH'
 import { aspectoDeAlmacen } from '@/app/almacenes'
-import { menuDeNavegacion, type ItemMenu } from '@/app/navegacion'
+import { GRUPOS, menuDeNavegacion, type ItemMenu } from '@/app/navegacion'
 import { usePerfil } from '@/features/auth/usePerfil'
 import { supabase } from '@/lib/supabase'
 
@@ -29,6 +30,12 @@ const SOLO_ANCHO = { xs: 'none', md: 'block' } as const
 
 const BORDE = '1px solid rgba(255,255,255,0.18)'
 
+/**
+ * El item activo se pinta en blanco con el texto en guinda, no con un velo
+ * blanco encima del guinda: sobre un fondo de color, un `rgba` al 18% se lee
+ * desde cerca y desaparece desde la silla de al lado. Invertido no hay duda de
+ * en que pantalla estas.
+ */
 const ESTILO_ITEM = {
   mx: 1,
   my: 0.25,
@@ -36,8 +43,49 @@ const ESTILO_ITEM = {
   minHeight: 44,
   color: 'rgba(255,255,255,0.88)',
   '&:hover': { bgcolor: 'rgba(255,255,255,0.10)' },
-  '&.Mui-selected, &.Mui-selected:hover': { bgcolor: 'rgba(255,255,255,0.18)' },
-  '&.Mui-disabled': { opacity: 0.5 },
+  '&.Mui-selected, &.Mui-selected:hover': {
+    bgcolor: 'common.white',
+    color: 'institucional.main',
+    fontWeight: 600,
+  },
+  '&.Mui-disabled': { opacity: 0.62 },
+}
+
+/** Marca de "esta pantalla llega despues", al final del renglon. */
+function EtiquetaPronto() {
+  return (
+    <Box
+      component="span"
+      sx={{
+        display: SOLO_ANCHO,
+        flexShrink: 0,
+        ml: 1,
+        px: 0.75,
+        py: 0.25,
+        borderRadius: 1.5,
+        bgcolor: 'rgba(255,255,255,0.2)',
+        fontSize: '0.625rem',
+        fontWeight: 700,
+        letterSpacing: '0.06em',
+        lineHeight: 1.6,
+      }}
+    >
+      PRONTO
+    </Box>
+  )
+}
+
+/**
+ * Una pantalla que cuelga de otra deja marcada a la madre. Con la comparacion
+ * exacta que habia antes, estar en `/inventario/depuracion` apagaba la barra
+ * entera y no quedaba ni un item senalado: al volver la vista a la izquierda no
+ * habia forma de saber en que seccion se esta.
+ *
+ * El `/` final del prefijo es lo que impide que `/inventario` marque tambien a
+ * un hipotetico `/inventario-general`, que es otra seccion.
+ */
+function esActivo(pathname: string, ruta: string): boolean {
+  return pathname === ruta || pathname.startsWith(`${ruta}/`)
 }
 
 function ItemNavegacion({ item, activo }: { item: ItemMenu; activo: boolean }) {
@@ -48,9 +96,10 @@ function ItemNavegacion({ item, activo }: { item: ItemMenu; activo: boolean }) {
       </ListItemIcon>
       <ListItemText
         primary={item.etiqueta}
-        slotProps={{ primary: { noWrap: true, sx: { fontWeight: 500 } } }}
+        slotProps={{ primary: { noWrap: true, sx: { fontWeight: activo ? 600 : 500 } } }}
         sx={{ display: SOLO_ANCHO, m: 0 }}
       />
+      {item.disponible ? null : <EtiquetaPronto />}
     </>
   )
 
@@ -69,7 +118,15 @@ function ItemNavegacion({ item, activo }: { item: ItemMenu; activo: boolean }) {
   }
 
   return (
-    <ListItemButton component={EnlaceRuta} to={item.ruta} selected={activo} sx={ESTILO_ITEM}>
+    <ListItemButton
+      component={EnlaceRuta}
+      to={item.ruta}
+      selected={activo}
+      // `selected` pinta, pero no dice nada: sin aria-current un lector de
+      // pantalla anuncia cinco enlaces iguales.
+      aria-current={activo ? 'page' : undefined}
+      sx={ESTILO_ITEM}
+    >
       {contenido}
     </ListItemButton>
   )
@@ -81,6 +138,7 @@ export function Layout() {
   const { pathname } = useLocation()
 
   const almacen = aspectoDeAlmacen(perfil?.almacen?.clave)
+  const menu = menuDeNavegacion(perfil?.rol)
 
   async function salir() {
     await supabase.auth.signOut()
@@ -91,6 +149,29 @@ export function Layout() {
 
   return (
     <Box sx={{ display: 'flex', minHeight: '100dvh', bgcolor: 'background.default' }}>
+      {/* Saltar la navegacion: son cinco enlaces que se repiten en cada
+          pantalla, y quien anda con teclado los recorre completos cada vez. */}
+      <Box
+        component="a"
+        href="#contenido"
+        sx={{
+          position: 'absolute',
+          left: 8,
+          top: -64,
+          zIndex: 'tooltip',
+          px: 2,
+          py: 1,
+          borderRadius: 2,
+          bgcolor: 'background.paper',
+          color: 'primary.main',
+          fontWeight: 600,
+          textDecoration: 'none',
+          '&:focus': { top: 8 },
+        }}
+      >
+        Ir al contenido
+      </Box>
+
       <Box
         component="nav"
         aria-label="Secciones del sistema"
@@ -131,15 +212,57 @@ export function Layout() {
         {/* component="div": los items deshabilitados van envueltos en un span
             para el Tooltip, y un span no es hijo valido de <ul>. */}
         <List component="div" sx={{ py: 1.5 }}>
-          {menuDeNavegacion(perfil?.rol).map((item) => (
-            <ItemNavegacion key={item.ruta} item={item} activo={pathname === item.ruta} />
-          ))}
+          {GRUPOS.map((grupo, i) => {
+            const items = menu.filter((item) => item.grupo === grupo.id)
+            if (items.length === 0) return null
+
+            return (
+              <Box key={grupo.id}>
+                <Typography
+                  component="p"
+                  variant="overline"
+                  sx={{
+                    display: SOLO_ANCHO,
+                    px: 2.5,
+                    mt: i === 0 ? 0.5 : 2,
+                    mb: 0.5,
+                    fontSize: '0.6875rem',
+                    lineHeight: 1.6,
+                    color: 'rgba(255,255,255,0.82)',
+                  }}
+                >
+                  {grupo.etiqueta}
+                </Typography>
+
+                {/* En la barra angosta no cabe el rotulo; la raya hace el mismo
+                    trabajo de separar los dos bloques. */}
+                {i === 0 ? null : (
+                  <Divider
+                    sx={{ display: { xs: 'block', md: 'none' }, mx: 1.5, my: 1, borderColor: 'rgba(255,255,255,0.18)' }}
+                  />
+                )}
+
+                {items.map((item) => (
+                  <ItemNavegacion key={item.ruta} item={item} activo={esActivo(pathname, item.ruta)} />
+                ))}
+              </Box>
+            )
+          })}
         </List>
 
         <Box sx={{ flex: 1 }} />
 
         <Box sx={{ p: 1.5, borderTop: BORDE }}>
-          <Stack direction="row" spacing={1.25} sx={{ alignItems: 'center', px: 0.5, pb: 1 }}>
+          <Stack
+            direction="row"
+            spacing={1.25}
+            sx={{
+              alignItems: 'center',
+              p: { xs: 0.5, md: 0.875 },
+              borderRadius: 2,
+              bgcolor: { xs: 'transparent', md: 'rgba(255,255,255,0.10)' },
+            }}
+          >
             <Avatar
               sx={{ width: 34, height: 34, bgcolor: 'rgba(255,255,255,0.2)', color: 'common.white' }}
             >
@@ -151,7 +274,16 @@ export function Layout() {
               </Typography>
               <Stack direction="row" spacing={0.75} sx={{ alignItems: 'center' }}>
                 <Box
-                  sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: almacen.color, flexShrink: 0 }}
+                  sx={{
+                    width: 8,
+                    height: 8,
+                    borderRadius: '50%',
+                    bgcolor: almacen.color,
+                    // El guinda de N3 es el mismo color de la barra: sin este
+                    // aro, el punto de su propio almacen no se ve.
+                    boxShadow: '0 0 0 1.5px rgba(255,255,255,0.7)',
+                    flexShrink: 0,
+                  }}
                 />
                 <Typography variant="caption" noWrap sx={{ color: 'rgba(255,255,255,0.82)' }}>
                   {perfil?.almacen?.clave ?? '—'} · {perfil?.rol ?? ''}
@@ -160,7 +292,11 @@ export function Layout() {
             </Box>
           </Stack>
 
-          <Stack direction={{ xs: 'column', md: 'row' }} spacing={0.5} sx={{ alignItems: 'center' }}>
+          <Stack
+            direction={{ xs: 'column', md: 'row' }}
+            spacing={0.5}
+            sx={{ alignItems: 'center', mt: 1 }}
+          >
             <Button
               fullWidth
               onClick={salir}
@@ -191,7 +327,10 @@ export function Layout() {
         </Box>
       </Box>
 
-      <Box component="main" sx={{ flex: 1, minWidth: 0, p: { xs: 2, md: 4 } }}>
+      {/* Sin padding: la cabecera de cada pantalla va a sangre contra la barra,
+          y el respiro lo pone `CuerpoPagina`. tabIndex -1 es lo que deja que el
+          enlace de salto aterrice aqui. */}
+      <Box component="main" id="contenido" tabIndex={-1} sx={{ flex: 1, minWidth: 0, outline: 'none' }}>
         <Outlet />
       </Box>
     </Box>

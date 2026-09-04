@@ -4,14 +4,18 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { BrowserRouter, Route, Routes } from 'react-router-dom'
 
 import { Layout } from '@/app/Layout'
+import { PaginaAcademico } from '@/features/academico/PaginaAcademico'
 import { PantallaAcceso } from '@/features/auth/PantallaAcceso'
 import { PantallaNuevaContrasena } from '@/features/auth/PantallaNuevaContrasena'
 import { PantallaRecuperarContrasena } from '@/features/auth/PantallaRecuperarContrasena'
 import { ProveedorSesion } from '@/features/auth/ProveedorSesion'
-import { RutaProtegida, SoloAdministradores, SoloInvitados } from '@/features/auth/RutaProtegida'
 import { PaginaInicio } from '@/features/inventario/PaginaInicio'
 import { PaginaInventarioGeneral } from '@/features/inventario/PaginaInventarioGeneral'
 import { PaginaUsuarios } from '@/features/usuarios/PaginaUsuarios'
+import { RutaProtegida, SoloAdmin, SoloInvitados } from '@/features/auth/RutaProtegida'
+import { PaginaDepuracion } from '@/features/inventario/PaginaDepuracion'
+import { PaginaInicio } from '@/features/inventario/PaginaInicio'
+import { PaginaInventario } from '@/features/inventario/PaginaInventario'
 import { tema } from '@/tema'
 
 const cliente = new QueryClient({
@@ -42,11 +46,28 @@ export default function App() {
               <Route element={<RutaProtegida />}>
                 <Route element={<Layout />}>
                   <Route path="/" element={<PaginaInicio />} />
+                  <Route path="/inventario" element={<PaginaInventario />} />
+                  {/* Ruta propia y no pestaña dentro de /inventario: es otro
+                      trabajo (revisar y corregir, no consultar), sale de otra
+                      tabla, y sobre todo es enlazable —"ve a depurar tus 337"
+                      es un enlace, no una instrucción de dónde hacer clic—.
+                      Cuelga de /inventario para que la migaja diga de dónde
+                      viene y para que la barra lateral siga marcando Inventario. */}
+                  <Route path="/inventario/depuracion" element={<PaginaDepuracion />} />
+
+                  {/* Bajo /administracion y no en la raíz: es el primero de
+                      cinco bloques de catálogo que sólo toca el admin, y el
+                      prefijo es lo que evita que cada uno se invente su sitio.
+                      SoloAdmin va aquí y no dentro de la pantalla para que la
+                      redirección ocurra antes de montar nada. */}
+                  <Route element={<SoloAdmin />}>
+                    <Route path="/administracion/academico" element={<PaginaAcademico />} />
+                  </Route>
                 </Route>
               </Route>
 
               <Route element={<RutaProtegida />}>
-                <Route element={<SoloAdministradores />}>
+                <Route element={<SoloAdmin />}>
                   <Route element={<Layout />}>
                     <Route path="/inventario-general" element={<PaginaInventarioGeneral />} />
                     <Route path="/usuarios" element={<PaginaUsuarios />} />

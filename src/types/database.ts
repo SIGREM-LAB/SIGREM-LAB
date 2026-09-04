@@ -141,6 +141,13 @@ export type Database = {
             referencedRelation: "articulo"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "articulo_alias_articulo_id_fkey"
+            columns: ["articulo_id"]
+            isOneToOne: false
+            referencedRelation: "existencia_listado"
+            referencedColumns: ["articulo_id"]
+          },
         ]
       }
       articulo_biologico: {
@@ -163,6 +170,13 @@ export type Database = {
             isOneToOne: true
             referencedRelation: "articulo"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "articulo_biologico_articulo_id_fkey"
+            columns: ["articulo_id"]
+            isOneToOne: true
+            referencedRelation: "existencia_listado"
+            referencedColumns: ["articulo_id"]
           },
         ]
       }
@@ -223,6 +237,13 @@ export type Database = {
             referencedRelation: "articulo"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "articulo_reactivo_articulo_id_fkey"
+            columns: ["articulo_id"]
+            isOneToOne: true
+            referencedRelation: "existencia_listado"
+            referencedColumns: ["articulo_id"]
+          },
         ]
       }
       asignatura: {
@@ -230,29 +251,18 @@ export type Database = {
           activo: boolean
           id: number
           nombre: string
-          programa_educativo_id: number | null
         }
         Insert: {
           activo?: boolean
           id?: never
           nombre: string
-          programa_educativo_id?: number | null
         }
         Update: {
           activo?: boolean
           id?: never
           nombre?: string
-          programa_educativo_id?: number | null
         }
-        Relationships: [
-          {
-            foreignKeyName: "asignatura_programa_educativo_id_fkey"
-            columns: ["programa_educativo_id"]
-            isOneToOne: false
-            referencedRelation: "programa_educativo"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
       }
       campo_capturable: {
         Row: {
@@ -327,8 +337,129 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "carga_almacen_id_fkey"
+            columns: ["almacen_id"]
+            isOneToOne: false
+            referencedRelation: "almacen_resumen"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "carga_cargado_por_fkey"
             columns: ["cargado_por"]
+            isOneToOne: false
+            referencedRelation: "perfil"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      carga_pendiente: {
+        Row: {
+          almacen_id: number
+          archivo: string
+          carga_id: number | null
+          creado_en: string
+          estado: Database["public"]["Enums"]["estado_pendiente"]
+          existencia_id: number | null
+          existencia_resuelta_id: number | null
+          fila: number
+          hoja: string
+          id: number
+          motivo: Database["public"]["Enums"]["motivo_pendiente"]
+          nota: string | null
+          problemas: Json
+          renglon: Json
+          revisado_en: string | null
+          revisado_por: string | null
+        }
+        Insert: {
+          almacen_id: number
+          archivo: string
+          carga_id?: number | null
+          creado_en?: string
+          estado?: Database["public"]["Enums"]["estado_pendiente"]
+          existencia_id?: number | null
+          existencia_resuelta_id?: number | null
+          fila: number
+          hoja: string
+          id?: never
+          motivo: Database["public"]["Enums"]["motivo_pendiente"]
+          nota?: string | null
+          problemas: Json
+          renglon: Json
+          revisado_en?: string | null
+          revisado_por?: string | null
+        }
+        Update: {
+          almacen_id?: number
+          archivo?: string
+          carga_id?: number | null
+          creado_en?: string
+          estado?: Database["public"]["Enums"]["estado_pendiente"]
+          existencia_id?: number | null
+          existencia_resuelta_id?: number | null
+          fila?: number
+          hoja?: string
+          id?: never
+          motivo?: Database["public"]["Enums"]["motivo_pendiente"]
+          nota?: string | null
+          problemas?: Json
+          renglon?: Json
+          revisado_en?: string | null
+          revisado_por?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "carga_pendiente_almacen_id_fkey"
+            columns: ["almacen_id"]
+            isOneToOne: false
+            referencedRelation: "almacen"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "carga_pendiente_almacen_id_fkey"
+            columns: ["almacen_id"]
+            isOneToOne: false
+            referencedRelation: "almacen_resumen"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "carga_pendiente_carga_id_fkey"
+            columns: ["carga_id"]
+            isOneToOne: false
+            referencedRelation: "carga"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "carga_pendiente_existencia_id_fkey"
+            columns: ["existencia_id"]
+            isOneToOne: false
+            referencedRelation: "existencia"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "carga_pendiente_existencia_id_fkey"
+            columns: ["existencia_id"]
+            isOneToOne: false
+            referencedRelation: "existencia_listado"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "carga_pendiente_existencia_resuelta_id_fkey"
+            columns: ["existencia_resuelta_id"]
+            isOneToOne: false
+            referencedRelation: "existencia"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "carga_pendiente_existencia_resuelta_id_fkey"
+            columns: ["existencia_resuelta_id"]
+            isOneToOne: false
+            referencedRelation: "existencia_listado"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "carga_pendiente_revisado_por_fkey"
+            columns: ["revisado_por"]
             isOneToOne: false
             referencedRelation: "perfil"
             referencedColumns: ["id"]
@@ -444,11 +575,25 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "existencia_almacen_id_fkey"
+            columns: ["almacen_id"]
+            isOneToOne: false
+            referencedRelation: "almacen_resumen"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "existencia_articulo_id_fkey"
             columns: ["articulo_id"]
             isOneToOne: false
             referencedRelation: "articulo"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "existencia_articulo_id_fkey"
+            columns: ["articulo_id"]
+            isOneToOne: false
+            referencedRelation: "existencia_listado"
+            referencedColumns: ["articulo_id"]
           },
           {
             foreignKeyName: "existencia_carga_id_fkey"
@@ -498,6 +643,13 @@ export type Database = {
             columns: ["almacen_id"]
             isOneToOne: false
             referencedRelation: "almacen"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "laboratorio_almacen_id_fkey"
+            columns: ["almacen_id"]
+            isOneToOne: false
+            referencedRelation: "almacen_resumen"
             referencedColumns: ["id"]
           },
         ]
@@ -572,10 +724,24 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "movimiento_almacen_id_fkey"
+            columns: ["almacen_id"]
+            isOneToOne: false
+            referencedRelation: "almacen_resumen"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "movimiento_existencia_id_fkey"
             columns: ["existencia_id"]
             isOneToOne: false
             referencedRelation: "existencia"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "movimiento_existencia_id_fkey"
+            columns: ["existencia_id"]
+            isOneToOne: false
+            referencedRelation: "existencia_listado"
             referencedColumns: ["id"]
           },
           {
@@ -622,6 +788,13 @@ export type Database = {
             columns: ["almacen_id"]
             isOneToOne: false
             referencedRelation: "almacen"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "perfil_almacen_id_fkey"
+            columns: ["almacen_id"]
+            isOneToOne: false
+            referencedRelation: "almacen_resumen"
             referencedColumns: ["id"]
           },
         ]
@@ -695,6 +868,13 @@ export type Database = {
             referencedRelation: "almacen"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "perfil_captura_almacen_id_fkey"
+            columns: ["almacen_id"]
+            isOneToOne: false
+            referencedRelation: "almacen_resumen"
+            referencedColumns: ["id"]
+          },
         ]
       }
       practica: {
@@ -707,6 +887,7 @@ export type Database = {
           id: number
           laboratorio_id: number
           observaciones: string | null
+          practica_catalogo_id: number | null
           programa_educativo_id: number
           registrado_por: string
         }
@@ -719,6 +900,7 @@ export type Database = {
           id?: never
           laboratorio_id: number
           observaciones?: string | null
+          practica_catalogo_id?: number | null
           programa_educativo_id: number
           registrado_por: string
         }
@@ -731,6 +913,7 @@ export type Database = {
           id?: never
           laboratorio_id?: number
           observaciones?: string | null
+          practica_catalogo_id?: number | null
           programa_educativo_id?: number
           registrado_por?: string
         }
@@ -743,6 +926,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "practica_almacen_id_fkey"
+            columns: ["almacen_id"]
+            isOneToOne: false
+            referencedRelation: "almacen_resumen"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "practica_asignatura_id_fkey"
             columns: ["asignatura_id"]
             isOneToOne: false
@@ -750,10 +940,31 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "practica_catalogo_coincide"
+            columns: ["practica_catalogo_id", "asignatura_id"]
+            isOneToOne: false
+            referencedRelation: "practica_catalogo"
+            referencedColumns: ["id", "asignatura_id"]
+          },
+          {
             foreignKeyName: "practica_laboratorio_id_fkey"
             columns: ["laboratorio_id"]
             isOneToOne: false
             referencedRelation: "laboratorio"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "practica_pareja_valida"
+            columns: ["programa_educativo_id", "asignatura_id"]
+            isOneToOne: false
+            referencedRelation: "programa_asignatura"
+            referencedColumns: ["programa_educativo_id", "asignatura_id"]
+          },
+          {
+            foreignKeyName: "practica_practica_catalogo_id_fkey"
+            columns: ["practica_catalogo_id"]
+            isOneToOne: false
+            referencedRelation: "practica_catalogo"
             referencedColumns: ["id"]
           },
           {
@@ -768,6 +979,41 @@ export type Database = {
             columns: ["registrado_por"]
             isOneToOne: false
             referencedRelation: "perfil"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      practica_catalogo: {
+        Row: {
+          activo: boolean
+          asignatura_id: number
+          creado_en: string
+          id: number
+          nombre: string
+          numero: number
+        }
+        Insert: {
+          activo?: boolean
+          asignatura_id: number
+          creado_en?: string
+          id?: never
+          nombre: string
+          numero: number
+        }
+        Update: {
+          activo?: boolean
+          asignatura_id?: number
+          creado_en?: string
+          id?: never
+          nombre?: string
+          numero?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "practica_catalogo_asignatura_id_fkey"
+            columns: ["asignatura_id"]
+            isOneToOne: false
+            referencedRelation: "asignatura"
             referencedColumns: ["id"]
           },
         ]
@@ -848,10 +1094,24 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "practica_elemento_almacen_id_fkey"
+            columns: ["almacen_id"]
+            isOneToOne: false
+            referencedRelation: "almacen_resumen"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "practica_elemento_existencia_id_fkey"
             columns: ["existencia_id"]
             isOneToOne: false
             referencedRelation: "existencia"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "practica_elemento_existencia_id_fkey"
+            columns: ["existencia_id"]
+            isOneToOne: false
+            referencedRelation: "existencia_listado"
             referencedColumns: ["id"]
           },
           {
@@ -889,6 +1149,39 @@ export type Database = {
             columns: ["practica_id"]
             isOneToOne: false
             referencedRelation: "practica"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      programa_asignatura: {
+        Row: {
+          asignatura_id: number
+          programa_educativo_id: number
+          semestre: number | null
+        }
+        Insert: {
+          asignatura_id: number
+          programa_educativo_id: number
+          semestre?: number | null
+        }
+        Update: {
+          asignatura_id?: number
+          programa_educativo_id?: number
+          semestre?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "programa_asignatura_asignatura_id_fkey"
+            columns: ["asignatura_id"]
+            isOneToOne: false
+            referencedRelation: "asignatura"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "programa_asignatura_programa_educativo_id_fkey"
+            columns: ["programa_educativo_id"]
+            isOneToOne: false
+            referencedRelation: "programa_educativo"
             referencedColumns: ["id"]
           },
         ]
@@ -938,11 +1231,80 @@ export type Database = {
             referencedRelation: "almacen"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "ubicacion_almacen_id_fkey"
+            columns: ["almacen_id"]
+            isOneToOne: false
+            referencedRelation: "almacen_resumen"
+            referencedColumns: ["id"]
+          },
         ]
       }
     }
     Views: {
-      [_ in never]: never
+      almacen_resumen: {
+        Row: {
+          activo: boolean | null
+          agotado: number | null
+          baja: number | null
+          clave: string | null
+          contaminado: number | null
+          disponible: number | null
+          id: number | null
+          mantenimiento: number | null
+          nombre: string | null
+          stock_bajo: number | null
+          total: number | null
+        }
+        Relationships: []
+      }
+      existencia_listado: {
+        Row: {
+          almacen_clave: string | null
+          almacen_id: number | null
+          articulo_id: number | null
+          cantidad: number | null
+          clasificacion:
+            | Database["public"]["Enums"]["clasificacion_articulo"]
+            | null
+          codigo: string | null
+          creado_en: string | null
+          descripcion: string | null
+          estado: Database["public"]["Enums"]["estado_existencia"] | null
+          fecha_caducidad: string | null
+          id: number | null
+          marca: string | null
+          marca_norm: string | null
+          nombre_canonico: string | null
+          nombre_norm: string | null
+          ubicacion: string | null
+          ubicacion_id: number | null
+          unidad_base: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "existencia_almacen_id_fkey"
+            columns: ["almacen_id"]
+            isOneToOne: false
+            referencedRelation: "almacen"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "existencia_almacen_id_fkey"
+            columns: ["almacen_id"]
+            isOneToOne: false
+            referencedRelation: "almacen_resumen"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "existencia_ubicacion_id_almacen_id_fkey"
+            columns: ["ubicacion_id", "almacen_id"]
+            isOneToOne: false
+            referencedRelation: "ubicacion"
+            referencedColumns: ["id", "almacen_id"]
+          },
+        ]
+      }
     }
     Functions: {
       buscar_articulo: {
@@ -978,6 +1340,19 @@ export type Database = {
         Returns: undefined
       }
       norm_texto: { Args: { t: string }; Returns: string }
+      resolver_pendiente: {
+        Args: {
+          p_nota?: string
+          p_pendiente: number
+          p_renglon?: Json
+          p_veredicto?: Database["public"]["Enums"]["veredicto_pendiente"]
+        }
+        Returns: number
+      }
+      vincular_asignatura: {
+        Args: { p_nombre: string; p_programa: number; p_semestre?: number }
+        Returns: number
+      }
     }
     Enums: {
       clasificacion_articulo:
@@ -1002,8 +1377,10 @@ export type Database = {
         | "mantenimiento"
         | "baja"
       estado_fisico: "solido" | "liquido" | "gas"
+      estado_pendiente: "pendiente" | "resuelto" | "descartado"
       funcionamiento_equipo: "correcto" | "presenta_fallas"
       metodo_control: "peso" | "cantidad" | "prestamo"
+      motivo_pendiente: "regla" | "posible_duplicado"
       origen_alias: "migracion" | "busqueda" | "fusion"
       rol_usuario: "admin" | "responsable" | "consulta"
       tipo_movimiento:
@@ -1015,6 +1392,7 @@ export type Database = {
         | "prestamo"
         | "devolucion"
         | "baja"
+      veredicto_pendiente: "nueva" | "duplicado"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -1170,8 +1548,10 @@ export const Constants = {
         "baja",
       ],
       estado_fisico: ["solido", "liquido", "gas"],
+      estado_pendiente: ["pendiente", "resuelto", "descartado"],
       funcionamiento_equipo: ["correcto", "presenta_fallas"],
       metodo_control: ["peso", "cantidad", "prestamo"],
+      motivo_pendiente: ["regla", "posible_duplicado"],
       origen_alias: ["migracion", "busqueda", "fusion"],
       rol_usuario: ["admin", "responsable", "consulta"],
       tipo_movimiento: [
@@ -1184,6 +1564,7 @@ export const Constants = {
         "devolucion",
         "baja",
       ],
+      veredicto_pendiente: ["nueva", "duplicado"],
     },
   },
 } as const

@@ -2,7 +2,9 @@ import { render, screen } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { beforeEach, describe, expect, test, vi } from 'vitest'
 
-import { RutaProtegida, SoloAdministradores, SoloInvitados } from './RutaProtegida'
+import { RutaProtegida, SoloAdmin, SoloInvitados } from './RutaProtegida'
+import { describe, expect, test, vi } from 'vitest'
+
 import { ContextoSesion, type EstadoSesion } from './contexto'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 
@@ -91,7 +93,7 @@ function montarAdmin(sesion: EstadoSesion, rol: 'admin' | 'responsable' | 'consu
           <Routes>
             <Route path="/" element={<p>Página principal</p>} />
             <Route path="/entrar" element={<p>Pantalla de acceso</p>} />
-            <Route element={<SoloAdministradores />}>
+            <Route element={<SoloAdmin />}>
               <Route path="/usuarios" element={<p>Administración de usuarios</p>} />
             </Route>
           </Routes>
@@ -101,7 +103,7 @@ function montarAdmin(sesion: EstadoSesion, rol: 'admin' | 'responsable' | 'consu
   )
 }
 
-describe('SoloAdministradores', () => {
+describe('SoloAdmin', () => {
   beforeEach(() => usePerfil.mockReset())
 
   test('permite el acceso al administrador', () => {
@@ -115,5 +117,81 @@ describe('SoloAdministradores', () => {
 
     expect(screen.getByText('Página principal')).toBeInTheDocument()
     expect(screen.queryByText('Administración de usuarios')).not.toBeInTheDocument()
+/**
+ * `usePerfil` se simula en su frontera y no se siembra la caché de Query. Es la
+ * única forma determinista de provocar el estado de error: sembrar la caché
+ * puede fingir "ya llegó", pero no "falló", y ese es justo el caso que dejaba la
+ * pantalla en blanco cuando la base no responde.
+ */
+const { simularPerfil } = vi.hoisted(() => ({ simularPerfil: vi.fn() }))
+vi.mock('./usePerfil', () => ({ usePerfil: simularPerfil }))
+
+function montarAdmin(estado: {
+  data?: { rol: 'admin' | 'responsable' | 'consulta' }
+  isPending?: boolean
+  isError?: boolean
+}) {
+  simularPerfil.mockReturnValue({
+    data: estado.data,
+    isPending: estado.isPending ?? false,
+    isError: estado.isError ?? false,
+  })
+
+  return render(
+    <MemoryRouter initialEntries={['/administracion/academico']}>
+      <Routes>
+        <Route path="/" element={<p>Menu principal</p>} />
+        <Route element={<SoloAdmin />}>
+          <Route path="/administracion/academico" element={<p>Panel academico</p>} />
+        </Route>
+      </Routes>
+    </MemoryRouter>,
+  )
+}
+
+describe('SoloAdmin', () => {
+  test('el admin entra al panel académico', () => {
+    montarAdmin({ data: { rol: 'admin' } })
+
+    expect(screen.getByText('Panel academico')).toBeInTheDocument()
+  })
+
+  // No es seguridad —quien edite el bundle llega igual, y lo que de verdad lo
+  // detiene son las políticas de RLS—. Es para que un responsable no se meta a
+  // una pantalla que le va a fallar en cada botón.
+  test('un responsable rebota al menú principal', () => {
+    montarAdmin({ data: { rol: 'responsable' } })
+
+    expect(screen.getByText('Menu principal')).toBeInTheDocument()
+    expect(screen.queryByText('Panel academico')).not.toBeInTheDocument()
+  })
+
+  test('un usuario de consulta rebota al menú principal', () => {
+    montarAdmin({ data: { rol: 'consulta' } })
+
+    expect(screen.getByText('Menu principal')).toBeInTheDocument()
+    expect(screen.queryByText('Panel academico')).not.toBeInTheDocument()
+  })
+
+  // Mientras no se sabe el rol no se decide, pero tampoco se deja la pantalla
+  // vacía: con la base caída esta consulta no termina, y un hueco mudo es
+  // indistinguible de una pantalla rota.
+  test('mientras el perfil no se conoce avisa, sin decidir', () => {
+    montarAdmin({ isPending: true })
+
+    expect(screen.queryByText('Panel academico')).not.toBeInTheDocument()
+    expect(screen.queryByText('Menu principal')).not.toBeInTheDocument()
+    expect(screen.getByText('Comprobando tus permisos…')).toBeInTheDocument()
+  })
+
+  // La que motivó el arreglo. Con `supabase stop` esta ruta se quedaba en blanco
+  // para siempre: sin cabecera, sin mensaje y sin volver a la portada.
+  test('si el perfil no se puede leer, lo dice en vez de quedarse en blanco', () => {
+    montarAdmin({ isError: true })
+
+    expect(screen.queryByText('Panel academico')).not.toBeInTheDocument()
+    expect(
+      screen.getByText(/No se pudo comprobar tu perfil/),
+    ).toBeInTheDocument()
   })
 })
