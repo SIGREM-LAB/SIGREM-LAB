@@ -7,7 +7,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 
-select plan(60);
+select plan(71);
 
 -- Las pruebas corren como postgres, que se salta la RLS. Es lo correcto aqui:
 -- este archivo prueba la forma del esquema, no quien puede ver que. Eso es
@@ -668,6 +668,64 @@ select throws_ok(
   'No hay dos practicas con el mismo numero en una asignatura'
 );
 
+-- ---------------------------------------------------------------------------
+-- Metodo de control: el mapa que antes decidia el cliente
+-- ---------------------------------------------------------------------------
+-- Sale de lo que cada clasificacion ya declara que captura en perfil_campo:
+-- reactivo es la unica con los dos pesos, equipo la unica sin cantidad y con
+-- funcionamiento, y el resto se cuenta.
+select is(public.metodo_de_control('reactivo'),          'peso'::public.metodo_control,
+          'Un reactivo se pesa');
+select is(public.metodo_de_control('equipo'),            'prestamo'::public.metodo_control,
+          'Un equipo se presta');
+select is(public.metodo_de_control('material'),          'cantidad'::public.metodo_control,
+          'El material se cuenta');
+select is(public.metodo_de_control('insumo'),            'cantidad'::public.metodo_control,
+          'Los insumos se cuentan');
+select is(public.metodo_de_control('componente'),        'cantidad'::public.metodo_control,
+          'Los componentes de electronica se cuentan');
+select is(public.metodo_de_control('materia_biologica'), 'cantidad'::public.metodo_control,
+          'La materia biologica se cuenta: su perfil pide cantidad y no pide pesos');
+
+-- ---------------------------------------------------------------------------
+-- La vista: lo que falla en silencio si alguien la recrea mal
+-- ---------------------------------------------------------------------------
+-- Sin security_invoker la vista corre como su dueno y publica el inventario
+-- entero a anon, y todo lo demas sigue funcionando igual. Esta prueba existe
+-- desde el 21 de agosto; se repite aqui porque este plan hace un
+-- create or replace sobre la vista.
+select is(
+  (select reloptions::text[] @> array['security_invoker=on']
+     from pg_class where relname = 'existencia_listado'),
+  true,
+  'existencia_listado sigue con security_invoker despues del create or replace'
+);
+
+select has_column('public', 'existencia_listado', 'metodo_control',
+  'existencia_listado expone metodo_control, que es lo que elige el panel');
+
+-- ---------------------------------------------------------------------------
+-- motivo_observacion.metodos
+-- ---------------------------------------------------------------------------
+select throws_ok(
+  $$ update public.motivo_observacion
+        set metodos = '{}'::public.metodo_control[] where clave = 'otro' $$,
+  '23514', null,
+  'Un motivo que no aplica a ningun metodo no se veria nunca: es un error, no un dato'
+);
+
+select is(
+  (select metodos from public.motivo_observacion where clave = 'equipo_daniado'),
+  array['prestamo']::public.metodo_control[],
+  'Equipo daniado solo sale en el panel de prestamo'
+);
+
+select is(
+  (select count(*)::int from public.motivo_observacion
+    where metodos @> array['cantidad']::public.metodo_control[] and activo),
+  8,
+  'El panel de cantidad ofrece ocho motivos: los cinco del diseno mas los tres consumibles'
+);
 
 select * from finish();
 rollback;

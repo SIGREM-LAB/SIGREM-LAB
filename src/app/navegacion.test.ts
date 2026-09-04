@@ -28,11 +28,11 @@ describe('menuDeNavegacion', () => {
   // Un item disponible sin ruta registrada en App.tsx es un enlace roto, y una
   // ruta sin item es una pantalla a la que nadie llega. Esta prueba ancla el
   // unico de los cuatro que ya esta construido.
-  test('inventario ya esta disponible y el resto sigue apagado', () => {
+  test('inventario y practicas ya estan disponibles; reportes sigue apagado', () => {
     const items = menuDeNavegacion('responsable')
 
     expect(items.find((i) => i.ruta === '/inventario')?.disponible).toBe(true)
-    expect(items.find((i) => i.ruta === '/practicas')?.disponible).toBe(false)
+    expect(items.find((i) => i.ruta === '/practicas')?.disponible).toBe(true)
     expect(items.find((i) => i.ruta === '/reportes')?.disponible).toBe(false)
   })
 

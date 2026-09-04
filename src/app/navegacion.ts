@@ -64,7 +64,7 @@ export function menuDeNavegacion(rol: Enums<'rol_usuario'> | undefined): ItemMen
       grupo: 'operacion',
       descripcion: 'Registrar el consumo de cada práctica',
       color: 'secondary.main',
-      disponible: false,
+      disponible: true,
     },
     {
       ruta: '/reportes',

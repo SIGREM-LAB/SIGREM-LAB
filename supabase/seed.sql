@@ -135,16 +135,22 @@ insert into public.programa_educativo (nombre) values
 -- Los nueve motivos son las casillas del prototipo. Como catalogo y no como
 -- nueve columnas booleanas: agregar el decimo es un insert, no una migracion
 -- mas un redespliegue del frontend.
-insert into public.motivo_observacion (clave, etiqueta, orden) values
-  ('no_tenemos',      'No tenemos',        1),
-  ('prestamo_n4',     'Préstamo N4',       2),
-  ('prestamo_n3',     'Préstamo N3',       3),
-  ('prestamo_lum',    'Préstamo LUM',      4),
-  ('contaminado',     'Contaminado',       5),
-  ('se_termino',      'Se terminó',        6),
-  ('material_daniado','Material dañado',  7),
-  ('equipo_daniado',  'Equipo dañado',    8),
-  ('otro',            'Otro',              9);
+--
+-- `metodos` dice en que panel se ofrece cada uno. Los tres consumibles
+-- -no tenemos, contaminado, se termino- salen tanto en peso como en cantidad:
+-- una caja de pipetas se termina y un lote de cajas Petri se contamina igual
+-- que un frasco. Los dos "daniado" van cada uno a su metodo, donde el nombre
+-- ya dice a que se refiere.
+insert into public.motivo_observacion (clave, etiqueta, orden, metodos) values
+  ('no_tenemos',      'No tenemos',       1, array['peso','cantidad']::public.metodo_control[]),
+  ('contaminado',     'Contaminado',      2, array['peso','cantidad']::public.metodo_control[]),
+  ('se_termino',      'Se terminó',       3, array['peso','cantidad']::public.metodo_control[]),
+  ('material_daniado','Material dañado',  4, array['cantidad']::public.metodo_control[]),
+  ('equipo_daniado',  'Equipo dañado',    5, array['prestamo']::public.metodo_control[]),
+  ('prestamo_n4',     'Préstamo N4',      6, array['peso','cantidad','prestamo']::public.metodo_control[]),
+  ('prestamo_n3',     'Préstamo N3',      7, array['peso','cantidad','prestamo']::public.metodo_control[]),
+  ('prestamo_lum',    'Préstamo LUM',     8, array['peso','cantidad','prestamo']::public.metodo_control[]),
+  ('otro',            'Otro',             9, array['peso','cantidad','prestamo']::public.metodo_control[]);
 
 
 -- ---------------------------------------------------------------------------

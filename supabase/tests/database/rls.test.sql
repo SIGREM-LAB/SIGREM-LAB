@@ -14,7 +14,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 
-select plan(73);
+select plan(97);
 
 
 -- ---------------------------------------------------------------------------
@@ -864,6 +864,333 @@ select throws_ok(
   $$ select count(*) from public.practica_catalogo $$,
   '42501', null,
   'anon no lee el catalogo de practicas'
+);
+
+-- Las dos tablas del modulo de practicas llevan su propio revoke. Se afirma
+-- aparte de la RLS a proposito: el revoke y la politica son dos candados
+-- distintos, y una tabla nueva es justo donde se olvida el primero.
+select throws_ok(
+  $$ select count(*) from public.practica_elemento_observacion $$,
+  '42501', null,
+  'anon no lee las observaciones por producto'
+);
+
+select throws_ok(
+  $$ select count(*) from public.practica_borrador $$,
+  '42501', null,
+  'anon no lee los borradores'
+);
+
+
+-- ---------------------------------------------------------------------------
+-- Datos de trabajo para practicas (como postgres, sin RLS)
+-- ---------------------------------------------------------------------------
+select pg_temp.como_postgres();
+
+-- Una practica por almacen, cada una con un elemento, para poder probar que un
+-- responsable escribe en la suya y no en la ajena.
+insert into public.practica (id, programa_educativo_id, laboratorio_id, registrado_por)
+overriding system value
+select 900801,
+       (select id from public.programa_educativo limit 1),
+       l.id,
+       (select id from public.perfil where nombre = 'Responsable N3')
+  from public.laboratorio l
+  join public.almacen a on a.id = l.almacen_id
+ where a.clave = 'N3' limit 1;
+
+insert into public.practica (id, programa_educativo_id, laboratorio_id, registrado_por)
+overriding system value
+select 900802,
+       (select id from public.programa_educativo limit 1),
+       l.id,
+       (select id from public.perfil where nombre = 'Responsable N4')
+  from public.laboratorio l
+  join public.almacen a on a.id = l.almacen_id
+ where a.clave = 'N4' limit 1;
+
+-- Un elemento en cada una, sobre una existencia del almacen que le toca.
+-- Los fixtures 900001 (N3) y 900401 (N4) y no un `limit 1` generico sobre
+-- almacen_id: a esta altura del archivo ya hay existencias auto-numeradas con
+-- saldo en 0 -la N3-TEST2 de la linea 100-, y sin ORDER BY el plan puede
+-- devolver cualquiera de las dos. Consumir 1 de una con saldo 0 revienta el
+-- trigger de saldo (private.aplicar_movimiento) antes de llegar a la prueba de
+-- RLS que este bloque quiere probar.
+insert into public.practica_elemento (id, practica_id, existencia_id, metodo_control,
+                                      cantidad_entregada)
+overriding system value
+values (900811, 900801, 900001, 'cantidad', 1);
+
+insert into public.practica_elemento (id, practica_id, existencia_id, metodo_control,
+                                      cantidad_entregada)
+overriding system value
+values (900812, 900802, 900401, 'cantidad', 1);
+
+-- Sembrada desde postgres, no desde n3@: la prueba de lectura de abajo tiene
+-- que leer una observacion de OTRO almacen, que es lo unico que distingue a la
+-- politica de lectura abierta de no tener politica.
+insert into public.practica_elemento_observacion (practica_elemento_id, motivo)
+values (900812, 'se_termino');
+
+
+-- ---------------------------------------------------------------------------
+-- practica_elemento_observacion
+-- ---------------------------------------------------------------------------
+select pg_temp.como('n3@uaeh.local');
+
+select lives_ok(
+  $$ insert into public.practica_elemento_observacion (practica_elemento_id, motivo)
+     values (900811, 'material_daniado') $$,
+  'Un responsable observa un elemento de su propio almacen'
+);
+
+select throws_ok(
+  $$ insert into public.practica_elemento_observacion (practica_elemento_id, motivo)
+     values (900812, 'material_daniado') $$,
+  '42501', null,
+  'Un responsable de N3 NO observa un elemento de N4'
+);
+
+-- La lectura es abierta: la practica es el documento que respalda un consumo, y
+-- N3 tiene que poder ver por que N4 descontó lo que descontó. Se lee el
+-- elemento 900812, que es DE N4: leer el propio pasaria igual sin politica.
+select is(
+  (select count(*)::int from public.practica_elemento_observacion
+    where practica_elemento_id = 900812),
+  1,
+  'Las observaciones de cualquier almacen se leen'
+);
+
+-- El escenario del hueco A del 21 de agosto, ahora sobre la tabla nueva: un
+-- usuario de rol `consulta` AL QUE SE LE ASIGNO un almacen. Sin el almacen esta
+-- prueba pasa por el motivo equivocado -`NULL = 1` es falso- y no afirma nada
+-- del rol, que es justo lo que hay que afirmar.
+select pg_temp.como_postgres();
+update public.perfil set almacen_id = pg_temp.id_almacen('N3')
+ where id = (select id from auth.users where email = 'lectura@uaeh.local');
+
+select pg_temp.como('lectura@uaeh.local');
+
+select throws_ok(
+  $$ insert into public.practica_elemento_observacion (practica_elemento_id, motivo)
+     values (900811, 'otro') $$,
+  '42501', null,
+  'Un consulta con el almacen del elemento asignado tampoco observa'
+);
+
+select pg_temp.como_postgres();
+update public.perfil set almacen_id = null
+ where id = (select id from auth.users where email = 'lectura@uaeh.local');
+
+select pg_temp.como('admin@uaeh.local');
+
+select lives_ok(
+  $$ insert into public.practica_elemento_observacion (practica_elemento_id, motivo)
+     values (900812, 'otro') $$,
+  'El admin observa en cualquier almacen'
+);
+
+
+-- ---------------------------------------------------------------------------
+-- practica_borrador: la hoja de trabajo de cada quien
+-- ---------------------------------------------------------------------------
+select pg_temp.como('n3@uaeh.local');
+
+select lives_ok(
+  $$ insert into public.practica_borrador (usuario_id, contenido)
+     values ((select auth.uid()), '{"version":1}'::jsonb) $$,
+  'Cada quien guarda su propio borrador'
+);
+
+select is(
+  (select count(*)::int from public.practica_borrador),
+  1,
+  'Un responsable ve su borrador'
+);
+
+-- El trigger reescribe usuario_id al del que llama. Sin eso, el WITH CHECK lo
+-- rechazaria igual, pero con un 42501 en vez de guardando lo correcto.
+select pg_temp.como('n4@uaeh.local');
+
+select lives_ok(
+  $$ insert into public.practica_borrador (usuario_id, contenido)
+     values ((select id from public.perfil where nombre = 'Responsable N3'),
+             '{"version":1}'::jsonb) $$,
+  'Mandar el usuario_id de otro no falla: el trigger lo reescribe al propio'
+);
+
+select is(
+  (select count(*)::int from public.practica_borrador),
+  1,
+  'N4 sigue viendo solo el suyo, no el que intento suplantar'
+);
+
+-- El trigger es BEFORE INSERT OR UPDATE, y el camino del update importa tanto
+-- como el del insert: guardar el borrador es un upsert, asi que a partir del
+-- segundo guardado SIEMPRE pasa por aqui.
+select lives_ok(
+  $$ update public.practica_borrador
+        set usuario_id = (select id from public.perfil where nombre = 'Responsable N3'),
+            contenido  = '{"version":1,"regalado":true}'::jsonb
+      where usuario_id = (select auth.uid()) $$,
+  'Regalarle el borrador a otro por update no falla: el trigger lo devuelve a su dueno'
+);
+
+select is(
+  (select contenido->>'regalado' from public.practica_borrador),
+  'true',
+  'Y el borrador sigue siendo suyo despues del update'
+);
+
+select pg_temp.como('admin@uaeh.local');
+
+select is(
+  (select count(*)::int from public.practica_borrador),
+  0,
+  'Ni el admin lee el borrador de otro: no es un dato del sistema, es una hoja de trabajo'
+);
+
+
+-- ---------------------------------------------------------------------------
+-- registrar_practica
+-- ---------------------------------------------------------------------------
+select pg_temp.como('lectura@uaeh.local');
+
+select throws_ok(
+  $$ select public.registrar_practica(
+       (select id from public.programa_educativo limit 1),
+       (select l.id from public.laboratorio l
+          join public.almacen a on a.id = l.almacen_id
+         where a.clave = 'N3' limit 1),
+       null, null, current_date,
+       jsonb_build_array(jsonb_build_object(
+         'existencia_id', (select id from public.existencia
+                            where almacen_id = pg_temp.id_almacen('N3') limit 1),
+         'cantidad_entregada', 1))) $$,
+  '42501', null,
+  'El rol consulta no registra practicas'
+);
+
+select pg_temp.como('n3@uaeh.local');
+
+select throws_ok(
+  $$ select public.registrar_practica(
+       (select id from public.programa_educativo limit 1),
+       (select l.id from public.laboratorio l
+          join public.almacen a on a.id = l.almacen_id
+         where a.clave = 'N4' limit 1),
+       null, null, current_date,
+       jsonb_build_array(jsonb_build_object(
+         'existencia_id', (select id from public.existencia
+                            where almacen_id = pg_temp.id_almacen('N4') limit 1),
+         'cantidad_entregada', 1))) $$,
+  '42501', null,
+  'Un responsable de N3 no registra una practica en un laboratorio de N4'
+);
+
+-- El camino feliz, y es el que importa: la promesa del modulo es que el metodo
+-- de control lo decide la base leyendo QUE ES la cosa, no lo que mande el
+-- cliente. El json de abajo miente a proposito -declara 'cantidad' y manda
+-- cantidad_entregada sobre un articulo `reactivo`- y ademas trae los pesos.
+-- Si la RPC le hiciera caso, el elemento saldria con metodo 'cantidad'.
+select pg_temp.como('n3@uaeh.local');
+
+select matches(
+  public.registrar_practica(
+    (select id from public.programa_educativo limit 1),
+    (select l.id from public.laboratorio l
+       join public.almacen a on a.id = l.almacen_id
+      where a.clave = 'N3' limit 1),
+    -- asignatura y practica del catalogo van nulas: la prueba del plan
+    -- academico, mas arriba en este archivo, borra la pareja 900801/900811 de
+    -- programa_asignatura, y practica_pareja_valida la exige presente. Lo que
+    -- se afirma aqui es la derivacion del metodo, no la cascada academica.
+    null, null, current_date,
+    jsonb_build_array(jsonb_build_object(
+      'existencia_id',      900001,
+      'metodo_control',     'cantidad',
+      'cantidad_entregada', 99,
+      'peso_inicial',       10,
+      'peso_final',         8,
+      'motivos',            jsonb_build_array('contaminado'))),
+    'Marca de la prueba feliz'),
+  '^PRA-[0-9]{4}$',
+  'registrar_practica devuelve el folio de la practica que acaba de crear'
+);
+
+select is(
+  (select pe.metodo_control from public.practica_elemento pe
+     join public.practica p on p.id = pe.practica_id
+    where p.observaciones = 'Marca de la prueba feliz'),
+  'peso'::public.metodo_control,
+  'El metodo lo deriva la base de la clasificacion: el cliente dijo cantidad y se ignoro'
+);
+
+-- La otra mitad de lo mismo: los campos que no son del metodo derivado no se
+-- cuelan. Sin los `case` de la RPC esto chocaria contra
+-- practica_elemento_campos_por_metodo con un mensaje que nadie entiende.
+select is(
+  (select pe.cantidad_entregada from public.practica_elemento pe
+     join public.practica p on p.id = pe.practica_id
+    where p.observaciones = 'Marca de la prueba feliz'),
+  null::numeric(14,4),
+  'La cantidad que mando el cliente sobre un reactivo se descarta'
+);
+
+select is(
+  (select pe.consumo from public.practica_elemento pe
+     join public.practica p on p.id = pe.practica_id
+    where p.observaciones = 'Marca de la prueba feliz'),
+  2::numeric(14,4),
+  'El consumo sale de los pesos, que si son del metodo derivado'
+);
+
+select is(
+  (select count(*)::int from public.practica_elemento_observacion o
+     join public.practica_elemento pe on pe.id = o.practica_elemento_id
+     join public.practica p on p.id = pe.practica_id
+    where p.observaciones = 'Marca de la prueba feliz'),
+  1,
+  'Las observaciones del producto se guardan en la misma llamada'
+);
+
+select throws_ok(
+  $$ select public.registrar_practica(
+       (select id from public.programa_educativo limit 1),
+       (select l.id from public.laboratorio l
+          join public.almacen a on a.id = l.almacen_id
+         where a.clave = 'N3' limit 1),
+       null, null, current_date, '[]'::jsonb, 'Marca de la practica vacia') $$,
+  'P0001', 'Una practica necesita al menos un producto',
+  'Una practica sin productos no se registra'
+);
+
+-- Atomicidad. El segundo elemento apunta a una existencia que no existe. Sin la
+-- transaccion quedaria la cabecera con su folio ya consumido y el primer
+-- elemento aplicado, con su movimiento -que es de solo insercion- colgando de
+-- una practica que el responsable no puede corregir.
+select throws_ok(
+  $$ select public.registrar_practica(
+       (select id from public.programa_educativo limit 1),
+       (select l.id from public.laboratorio l
+          join public.almacen a on a.id = l.almacen_id
+         where a.clave = 'N3' limit 1),
+       null, null, current_date,
+       jsonb_build_array(
+         jsonb_build_object('existencia_id', 900001,
+                            'peso_inicial', 10, 'peso_final', 9),
+         jsonb_build_object('existencia_id', 999999,
+                            'peso_inicial', 10, 'peso_final', 9)),
+       'Marca de la practica atomica') $$,
+  'P0001', null,
+  'Un elemento que apunta a la nada aborta la practica entera'
+);
+
+select is(
+  (select count(*)::int from public.practica
+    where observaciones = 'Marca de la practica atomica'),
+  0,
+  'La practica abortada no dejo cabecera: la RPC es atomica'
 );
 
 select pg_temp.como_postgres();

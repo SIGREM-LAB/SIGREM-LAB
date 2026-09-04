@@ -11,6 +11,7 @@ import { RutaProtegida, SoloAdmin, SoloInvitados } from '@/features/auth/RutaPro
 import { PaginaDepuracion } from '@/features/inventario/PaginaDepuracion'
 import { PaginaInicio } from '@/features/inventario/PaginaInicio'
 import { PaginaInventario } from '@/features/inventario/PaginaInventario'
+import { PaginaPracticas } from '@/features/practicas/PaginaPracticas'
 import { tema } from '@/tema'
 
 const cliente = new QueryClient({
@@ -47,6 +48,11 @@ export default function App() {
                       Cuelga de /inventario para que la migaja diga de dónde
                       viene y para que la barra lateral siga marcando Inventario. */}
                   <Route path="/inventario/depuracion" element={<PaginaDepuracion />} />
+
+                  {/* Sin guardia de rol: los tres roles la abren. Lo que impide
+                      que un usuario de consulta registre algo es la RLS, no
+                      esconderle la pantalla. */}
+                  <Route path="/practicas" element={<PaginaPracticas />} />
 
                   {/* Bajo /administracion y no en la raíz: es el primero de
                       cinco bloques de catálogo que sólo toca el admin, y el

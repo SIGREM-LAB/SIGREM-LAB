@@ -10,9 +10,17 @@ describe('AtajosPendientes', () => {
   test('dibuja una tarjeta por pantalla pendiente', () => {
     render(<AtajosPendientes items={PENDIENTES} />)
 
-    expect(screen.getByText('Prácticas')).toBeInTheDocument()
     expect(screen.getByText('Reportes')).toBeInTheDocument()
     expect(screen.getByText('Inventario general')).toBeInTheDocument()
+  })
+
+  // Practicas se entrego el 3 de septiembre. Aqui no hubo que borrar una
+  // tarjeta: basta con que `menuDeNavegacion` la marque disponible y sale sola
+  // de esta lista, que es justo lo que promete el comentario del componente.
+  test('lo ya entregado desaparece de la fila sin tocar este componente', () => {
+    render(<AtajosPendientes items={PENDIENTES} />)
+
+    expect(screen.queryByText('Prácticas')).not.toBeInTheDocument()
   })
 
   test('cada una cuenta que se va a hacer ahi', () => {
