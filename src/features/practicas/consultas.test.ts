@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest'
 
-import { mensajeDeError, motivosDeMetodo, type Motivo } from './consultas'
+import { debeReintentar, mensajeDeError, motivosDeMetodo, type Motivo } from './consultas'
 
 const MOTIVOS: Motivo[] = [
   { clave: 'no_tenemos', etiqueta: 'No tenemos', metodos: ['peso', 'cantidad'] },
@@ -80,5 +80,32 @@ describe('mensajeDeError', () => {
   test('lo que ni siquiera es un objeto tiene su propio mensaje', () => {
     expect(mensajeDeError('vaya')).toBe('No se pudo completar la operación')
     expect(mensajeDeError(null)).toBe('No se pudo completar la operación')
+  })
+})
+
+// El bug que motivó todo esto: la vista del remoto no tenía `metodo_control`,
+// así que cada búsqueda moría con 42703. Con los reintentos por omisión eso son
+// cuatro viajes y unos siete segundos de barra de progreso antes de rendirse,
+// que es como se vio desde la pantalla: "tarda mucho y no encuentra nada".
+describe('debeReintentar', () => {
+  test('una columna que no existe no mejora por repetir la consulta', () => {
+    expect(debeReintentar(0, { code: '42703', message: 'column ... does not exist' })).toBe(false)
+  })
+
+  test('un permiso denegado tampoco', () => {
+    expect(debeReintentar(0, { code: '42501', message: 'permission denied' })).toBe(false)
+  })
+
+  test('una tabla que falta en el esquema tampoco', () => {
+    expect(debeReintentar(0, { code: 'PGRST205', message: 'Could not find the table' })).toBe(false)
+  })
+
+  // supabase-js entrega los fallos de red con `code` vacío: eso sí es pasajero.
+  test('quedarse sin red sí se reintenta', () => {
+    expect(debeReintentar(0, { code: '', message: 'TypeError: Failed to fetch' })).toBe(true)
+  })
+
+  test('pero no para siempre', () => {
+    expect(debeReintentar(2, { code: '', message: 'TypeError: Failed to fetch' })).toBe(false)
   })
 })

@@ -1,5 +1,6 @@
 import { Icon } from '@iconify/react'
 import {
+  Alert,
   Box,
   Chip,
   Dialog,
@@ -15,6 +16,7 @@ import {
   Typography,
 } from '@mui/material'
 
+import { mensajeDeError } from './consultas'
 import type { FilaUtilizable } from './esquemas'
 import { ETIQUETA_CLASIFICACION } from './metodos'
 
@@ -28,6 +30,13 @@ type Props = {
    */
   filas: FilaUtilizable[]
   cargando: boolean
+  /**
+   * Lo que falló al consultar, si algo falló. Va explícito porque el modo de
+   * fallo natural aquí es el peor: sin él una consulta rota llega como cero
+   * filas y se anuncia como "no hay productos que coincidan", que es una
+   * afirmación sobre el inventario y no sobre la consulta.
+   */
+  error: unknown
   /** Los que ya están en la captura: no se ofrecen dos veces. */
   yaAgregados: number[]
   onAgregar: (fila: FilaUtilizable) => void
@@ -40,12 +49,14 @@ export function DialogoBuscar({
   onTermino,
   filas,
   cargando,
+  error,
   yaAgregados,
   onAgregar,
   onCerrar,
 }: Props) {
   const agregados = new Set(yaAgregados)
-  const vacio = !cargando && filas.length === 0
+  const fallo = error !== null && error !== undefined
+  const vacio = !cargando && !fallo && filas.length === 0
 
   return (
     <Dialog open={abierto} onClose={onCerrar} fullWidth maxWidth="sm">
@@ -74,6 +85,16 @@ export function DialogoBuscar({
         />
 
         {cargando ? <LinearProgress sx={{ mt: 2 }} /> : null}
+
+        {/* El mensaje crudo de PostgREST va incluido a propósito, igual que en
+            `mensajeDeError`: quien capture no sabrá qué es un 42703, pero es lo
+            único que permite distinguir "falta la migración en el proyecto"
+            de "no hay etanol", que desde aquí se veían idénticos. */}
+        {fallo ? (
+          <Alert severity="error" sx={{ mt: 2 }}>
+            No se pudo buscar. {mensajeDeError(error)}
+          </Alert>
+        ) : null}
 
         {vacio ? (
           <Stack spacing={1} sx={{ alignItems: 'center', py: 6 }}>

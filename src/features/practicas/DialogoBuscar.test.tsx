@@ -36,6 +36,7 @@ function montar(extra = {}) {
     onTermino: vi.fn(),
     filas: FILAS,
     cargando: false,
+    error: null,
     yaAgregados: [] as number[],
     onAgregar: vi.fn(),
     onCerrar: vi.fn(),
@@ -90,6 +91,23 @@ describe('DialogoBuscar', () => {
   test('mientras carga no dice que no hay nada', () => {
     montar({ filas: [], termino: 'zzz', cargando: true })
 
+    expect(screen.queryByText(/no hay productos que coincidan/i)).not.toBeInTheDocument()
+  })
+
+  // Antes, cualquier fallo de la consulta —una columna que no existe, un
+  // permiso denegado— llegaba aquí como `filas: []` y se anunciaba como "no hay
+  // productos que coincidan". Quien buscaba concluía que su almacén estaba
+  // vacío, y el error de verdad no se veía en ninguna parte.
+  test('un fallo de la consulta se ve, en vez de pasar por "no hay resultados"', () => {
+    montar({
+      filas: [],
+      termino: 'etanol',
+      error: { code: '42703', message: 'column existencia_listado.metodo_control does not exist' },
+    })
+
+    const alerta = screen.getByRole('alert')
+    expect(alerta).toHaveTextContent(/no se pudo buscar/i)
+    expect(alerta).toHaveTextContent(/metodo_control/)
     expect(screen.queryByText(/no hay productos que coincidan/i)).not.toBeInTheDocument()
   })
 })

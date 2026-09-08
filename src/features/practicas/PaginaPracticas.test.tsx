@@ -1,55 +1,55 @@
-import { render, screen, waitForElementToBeRemoved } from '@testing-library/react'
+import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import { beforeEach, describe, expect, test, vi } from 'vitest'
 
-const registrar = vi.fn()
-const guardarBorrador = vi.fn()
-const borrarBorrador = vi.fn()
+import { serializarBorrador } from './borrador'
 
-// El doble reemplaza la capa de datos entera. Lo que se prueba aquí son las
-// reglas de estado de la pantalla, no las consultas: ésas se ejercitan en el
-// guion manual, contra la base de verdad y con usuarios de verdad.
+const borrarBorrador = vi.fn()
+const navegar = vi.fn()
+
+let borradorGuardado: { contenido: unknown } | null = null
+
+vi.mock('react-router-dom', async () => {
+  const real = await vi.importActual<typeof import('react-router-dom')>('react-router-dom')
+  return { ...real, useNavigate: () => navegar }
+})
+
+// El doble reemplaza la capa de datos entera, igual que en el resto del módulo:
+// lo que se prueba aquí son las reglas de la pantalla, no las consultas.
 vi.mock('./consultas', async () => {
   const real = await vi.importActual<typeof import('./consultas')>('./consultas')
   return {
     ...real,
-    useProgramas: () => ({ data: [{ id: 1, nombre: 'Química en Alimentos' }] }),
-    useSemestresDePrograma: () => ({ data: [3] }),
-    useAsignaturasDeSemestre: () => ({ data: [{ id: 10, nombre: 'Bioquímica' }] }),
-    usePracticasDeAsignatura: () => ({
-      data: [{ id: 100, numero: 2, nombre: 'Actividad enzimática' }],
+    useHistorialPracticas: () => ({
+      data: {
+        filas: [
+          {
+            clave: 'practica-7',
+            estado: 'finalizada',
+            practicaId: 7,
+            folio: 'PRA-0001',
+            fecha: '2026-09-05',
+            asignatura: 'Bioquímica',
+            laboratorio: 'Laboratorio de docencia N3',
+            productos: 3,
+          },
+        ],
+        total: 1,
+      },
+      isFetching: false,
+      error: null,
     }),
-    useLaboratorios: () => ({
-      data: [{ id: 5, nombre: 'Laboratorio de docencia N3', almacenClave: 'N3' }],
-    }),
-    useMotivos: () => ({
-      data: [{ clave: 'otro', etiqueta: 'Otro', metodos: ['peso', 'cantidad', 'prestamo'] }],
-    }),
-    useBuscarExistencias: () => ({
-      data: [
-        {
-          id: 12,
-          codigo: 'N3-00042',
-          nombre_canonico: 'Etanol 96%',
-          clasificacion: 'reactivo',
-          unidad_base: 'ml',
-          almacen_clave: 'N3',
-          cantidad: 2000,
-          ubicacion: 'Lab 2',
-          metodo_control: 'peso',
-        },
-      ],
-      isPending: false,
-    }),
-    useBorrador: () => ({ data: null, isPending: false }),
-    useGuardarBorrador: () => ({ mutate: guardarBorrador, isPending: false }),
+    useBorrador: () => ({ data: borradorGuardado }),
+    useDetallePractica: () => ({ data: undefined, isFetching: false, error: null }),
     useBorrarBorrador: () => ({ mutate: borrarBorrador, isPending: false }),
-    useRegistrarPractica: () => ({ mutate: registrar, isPending: false }),
   }
 })
 
 const { PaginaPracticas } = await import('./PaginaPracticas')
+
+const CABECERA = { programaId: 1, asignaturaId: 2, laboratorioId: 5, fecha: '2026-09-08' }
+const NOMBRES = { asignatura: 'Química Analítica', laboratorio: 'Laboratorio de docencia N4' }
 
 function montar() {
   render(
@@ -59,131 +59,102 @@ function montar() {
   )
 }
 
-/** Llena la cascada completa: es el prerrequisito de casi todo lo demás. */
-async function llenarCabecera() {
-  await userEvent.click(screen.getByLabelText('Programa educativo'))
-  await userEvent.click(screen.getByRole('option', { name: 'Química en Alimentos' }))
-  await userEvent.click(screen.getByLabelText('Semestre'))
-  await userEvent.click(screen.getByRole('option', { name: '3°' }))
-  await userEvent.click(screen.getByLabelText('Asignatura'))
-  await userEvent.click(screen.getByRole('option', { name: 'Bioquímica' }))
-  await userEvent.click(screen.getByLabelText('Número de práctica'))
-  await userEvent.click(screen.getByRole('option', { name: /Práctica 2/ }))
-  await userEvent.click(screen.getByLabelText('Laboratorio'))
-  await userEvent.click(screen.getByRole('option', { name: /Laboratorio de docencia N3/ }))
-}
-
-async function agregarEtanol() {
-  await userEvent.click(screen.getByRole('button', { name: /buscar producto/i }))
-  await userEvent.click(screen.getByRole('button', { name: /agregar etanol 96%/i }))
-  await userEvent.click(screen.getByRole('button', { name: 'Cerrar' }))
-
-  // Hay que esperar a que el diálogo se desmonte. Mientras se va cerrando, MUI
-  // deja el resto de la página con `aria-hidden`, y las consultas por rol -que
-  // es como lo ve un lector de pantalla- no encuentran nada detrás.
-  await waitForElementToBeRemoved(() => screen.queryByRole('dialog'))
-}
-
 beforeEach(() => {
-  registrar.mockClear()
-  guardarBorrador.mockClear()
-  borrarBorrador.mockClear()
+  vi.clearAllMocks()
+  borradorGuardado = null
 })
 
 describe('PaginaPracticas', () => {
-  test('arranca con el panel vacío y sin productos', () => {
+  test('lista lo registrado', () => {
     montar()
 
-    expect(screen.getByText('Seleccione un producto')).toBeInTheDocument()
-    expect(screen.getByText('Sin productos')).toBeInTheDocument()
+    expect(screen.getByText('PRA-0001')).toBeInTheDocument()
+    expect(screen.getByText('Bioquímica')).toBeInTheDocument()
   })
 
-  // Sin laboratorio no hay almacén, y sin almacén no hay sobre qué buscar.
-  test('no se pueden agregar productos antes de elegir laboratorio', () => {
+  // El botón nombra lo que hay. Con un borrador vivo no se puede empezar otra
+  // captura sin descartarlo, porque el borrador es uno por persona: ofrecer
+  // "Registrar" ahí sería ofrecer pisarlo en silencio.
+  test('sin borrador el botón invita a registrar', () => {
     montar()
 
-    expect(screen.getByRole('button', { name: /buscar producto/i })).toBeDisabled()
+    expect(screen.getByRole('button', { name: /registrar práctica/i })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /^continuar/i })).toBeNull()
   })
 
-  test('agregar un producto lo pone en la tabla y lo selecciona', async () => {
+  test('con borrador el botón invita a continuar', () => {
+    borradorGuardado = { contenido: serializarBorrador(CABECERA, NOMBRES, []) }
     montar()
-    await llenarCabecera()
-    await agregarEtanol()
 
-    expect(screen.getByRole('row', { name: /etanol 96%/i })).toBeInTheDocument()
-    expect(screen.getByText('Control por Peso')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /continuar práctica/i })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /registrar práctica/i })).toBeNull()
   })
 
-  test('quitar un producto lo saca de la tabla y vacía el panel', async () => {
+  test('registrar lleva al formulario', async () => {
     montar()
-    await llenarCabecera()
-    await agregarEtanol()
-    await userEvent.click(screen.getByRole('button', { name: /quitar etanol 96%/i }))
 
-    expect(screen.getByText('Sin productos')).toBeInTheDocument()
-    expect(screen.getByText('Seleccione un producto')).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: /registrar práctica/i }))
+
+    expect(navegar).toHaveBeenCalledWith('/practicas/nueva')
   })
 
-  test('finalizar está apagado sin productos', async () => {
+  test('el borrador aparece como renglón en curso, con sus nombres', () => {
+    borradorGuardado = { contenido: serializarBorrador(CABECERA, NOMBRES, []) }
     montar()
-    await llenarCabecera()
 
-    expect(screen.getByRole('button', { name: /finalizar práctica/i })).toBeDisabled()
+    expect(screen.getByText('Química Analítica')).toBeInTheDocument()
+    // Exacto y no /en curso/i: la descripción de la pantalla también lleva esas
+    // palabras, y lo que se afirma aquí es que el chip del estado está.
+    expect(screen.getByText('En curso')).toBeInTheDocument()
   })
 
-  // El mismo criterio que el chip de la tabla y que los checks de la base. Si
-  // discreparan, alguien finalizaría creyendo que está completo.
-  test('finalizar está apagado con un producto pendiente', async () => {
+  // Descartar borra trabajo y no se puede deshacer: pedir confirmación es lo
+  // que separa un clic mal dado de una captura perdida.
+  test('descartar el borrador pide confirmación antes de borrar', async () => {
+    borradorGuardado = { contenido: serializarBorrador(CABECERA, NOMBRES, []) }
     montar()
-    await llenarCabecera()
-    await agregarEtanol()
 
-    expect(screen.getByRole('button', { name: /finalizar práctica/i })).toBeDisabled()
+    await userEvent.click(screen.getByRole('button', { name: /descartar la práctica en curso/i }))
+    expect(borrarBorrador).not.toHaveBeenCalled()
+
+    await userEvent.click(screen.getByRole('button', { name: /^descartar$/i }))
+    expect(borrarBorrador).toHaveBeenCalled()
   })
 
-  test('con todo capturado, finalizar manda el payload sin metodo_control', async () => {
+  test('cancelar la confirmación no borra nada', async () => {
+    borradorGuardado = { contenido: serializarBorrador(CABECERA, NOMBRES, []) }
     montar()
-    await llenarCabecera()
-    await agregarEtanol()
 
-    await userEvent.type(screen.getByLabelText(/peso inicial/i), '526')
-    await userEvent.type(screen.getByLabelText(/peso final/i), '520')
-    await userEvent.click(screen.getByRole('button', { name: /finalizar práctica/i }))
+    await userEvent.click(screen.getByRole('button', { name: /descartar la práctica en curso/i }))
+    await userEvent.click(screen.getByRole('button', { name: /conservar/i }))
 
-    expect(registrar).toHaveBeenCalledOnce()
-    const [{ cabecera, elementos }] = registrar.mock.calls[0]
-
-    expect(cabecera.laboratorioId).toBe(5)
-    expect(cabecera.practicaCatalogoId).toBe(100)
-    expect(elementos).toEqual([
-      {
-        existencia_id: 12,
-        peso_inicial: 526,
-        peso_final: 520,
-        observaciones: null,
-        motivos: [],
-      },
-    ])
+    expect(borrarBorrador).not.toHaveBeenCalled()
   })
 
-  test('guardar borrador manda la captura tal como va, a medias', async () => {
+  test('ver una práctica abre el panel de detalle', async () => {
     montar()
-    await llenarCabecera()
-    await agregarEtanol()
 
-    await userEvent.click(screen.getByRole('button', { name: /guardar borrador/i }))
+    await userEvent.click(screen.getByRole('button', { name: /ver práctica pra-0001/i }))
 
-    expect(guardarBorrador).toHaveBeenCalledOnce()
-    const [contenido] = guardarBorrador.mock.calls[0]
-
-    expect(contenido.version).toBe(1)
-    expect(contenido.elementos).toHaveLength(1)
-    expect(contenido.elementos[0].pesoInicial).toBeNull()
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
   })
 
-  test('guardar borrador está apagado si no hay nada que guardar', () => {
+  // Un borrador que ya no se puede leer no pinta renglón —filaDeBorrador
+  // devuelve null— así que sin este aviso desaparecería sin dejar rastro: el
+  // botón diría "Registrar" y el trabajo viejo seguiría ahí, invisible.
+  test('un borrador que ya no se entiende se avisa y se puede descartar', async () => {
+    borradorGuardado = { contenido: { version: 1, cabecera: {}, elementos: [] } }
     montar()
 
-    expect(screen.getByRole('button', { name: /guardar borrador/i })).toBeDisabled()
+    expect(screen.getByRole('alert')).toHaveTextContent(/versión anterior/i)
+
+    await userEvent.click(screen.getByRole('button', { name: /descartarlo/i }))
+    expect(borrarBorrador).toHaveBeenCalled()
+  })
+
+  test('sin borrador ilegible no hay aviso', () => {
+    montar()
+
+    expect(screen.queryByRole('alert')).toBeNull()
   })
 })

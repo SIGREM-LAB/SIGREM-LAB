@@ -147,8 +147,13 @@ Hoy no, y crearla "por si acaso" es una migración que mantener a cambio de nada
 
 `ContenidoBorrador.cabecera` es un `Partial<Cabecera>`, y `Cabecera` guarda
 **ids**: `programaId`, `asignaturaId`, `practicaCatalogoId`, `laboratorioId`.
-El renglón "En curso" tendría entonces tres de sus columnas en "—", o pagaría
-tres consultas de resolución para pintar un solo renglón.
+El renglón "En curso" tendría entonces sus dos columnas de nombre —asignatura y
+laboratorio— en "—", o pagaría dos consultas de resolución para pintar un solo
+renglón.
+
+Se guardan sólo esos dos, que son los que la tabla muestra. El programa y la
+práctica del catálogo no son columnas del historial, y guardarlos "por si acaso"
+es forma que mantener a cambio de nada.
 
 Se agregan los nombres al borrador, que es exactamente lo que `ElementoCaptura`
 ya hace con el producto —guarda junto lo que se muestra y lo que se captura,
@@ -209,11 +214,18 @@ src/features/practicas/
   PaginaPracticas.tsx      NUEVO   el listado y su estado
   TablaPracticas.tsx       NUEVO   la tabla, incluido el renglón en curso
   PanelPractica.tsx        NUEVO   el Drawer de detalle, de solo lectura
+  historial.ts             NUEVO   los dos estados y sus conversores (puro)
   PaginaNuevaPractica.tsx  RENOMBRADO desde PaginaPracticas.tsx
   consultas.ts             + useHistorialPracticas, + useDetallePractica
   borrador.ts              + los nombres en la cabecera, VERSION_BORRADOR = 2
   …el resto sin cambios
 ```
+
+`historial.ts` es donde vive la decisión de la D1. `filaDeBorrador` y
+`filaDePractica` llevan las dos fuentes a una sola forma, y `componerHistorial`
+las une con el borrador al frente. Puro y sin React, como `borrador.ts` y
+`metodos.ts`: es lo que hace que los estados se puedan probar sin montar una
+pantalla.
 
 Ojo con el cruce de nombres, porque en git se ve raro: el contenido de hoy de
 `PaginaPracticas.tsx` pasa a llamarse `PaginaNuevaPractica.tsx`, y el nombre
@@ -221,8 +233,16 @@ Ojo con el cruce de nombres, porque en git se ve raro: el contenido de hoy de
 propósito: el nombre del archivo sigue a la ruta, y `/practicas` ahora es el
 listado.
 
-El formulario no cambia por dentro. Se mueve, pierde el diálogo de restaurar
-(D3) y gana el retorno al listado al finalizar.
+El formulario conserva su lógica. Se mueve, pierde el diálogo de restaurar (D3)
+y gana el retorno al listado al finalizar.
+
+Lo único que sí cambia de forma: se parte en un envoltorio que espera a saber si
+hay borrador y un `Captura` que recibe el contenido restaurado como valor
+**inicial**. Restaurar «después» de montar obligaba a un `setState` dentro de un
+efecto —renders en cascada, que el lint del repo rechaza, y un parpadeo de
+formulario vacío antes de que llegara el borrador—. `useState` sólo lee su valor
+inicial al montar, así que la forma correcta de restaurar es no montar hasta
+tenerlo.
 
 ### La tabla
 
@@ -250,8 +270,14 @@ como la §10 del 3 de septiembre dejó dicho.
 ### El renglón en curso
 
 Se arma con `restaurarBorrador()`, la misma función que ya valida la versión. Un
-borrador que no se entiende no pinta un renglón roto: no pinta renglón, y el
-aviso de "es de una versión anterior" sale al continuar, que es donde hoy sale.
+borrador que no se entiende no pinta un renglón roto: no pinta renglón.
+
+Y justo por eso el aviso de "es de una versión anterior" va **aquí, en el
+listado**, y no en el formulario como estaba antes. Si no pinta renglón no hay
+nada que continuar, así que el aviso nunca se alcanzaría: el botón diría
+"Registrar práctica" y el trabajo viejo seguiría ocupando en silencio la única
+ranura de borrador que hay. Es un `Alert` con un botón de descartar, encima de
+la tabla.
 
 Dos acciones: **Continuar** —navega a `/practicas/nueva`— y **Descartar**, con
 confirmación, que es `useBorrarBorrador` tal cual existe.
@@ -278,11 +304,24 @@ proteger.
 
 ## 8 · Riesgos
 
-**El `count` embebido de PostgREST no está verificado.** La columna *Productos*
-usa `practica_elemento (count)`. No se pudo probar: anon no tiene lectura sobre
-esas tablas y el CLI no está enlazado al proyecto. Si no responde como se
-espera, el respaldo es traer los elementos y contarlos en el cliente — más
-tráfico, misma pantalla. Es la primera cosa a comprobar al implementar.
+**El `count` embebido está verificado en tipos, no contra el servidor.** La
+columna *Productos* usa `practica_elemento (count)`. supabase-js resuelve el
+`select` en el sistema de tipos, y contra los tipos generados de la base local
+—que sí tiene la migración— infiere `practica_elemento: { count: number }[]`.
+Eso prueba que la sintaxis es válida y que la relación existe; no prueba que el
+servidor responda. Contra el remoto no se pudo probar: anon no lee esas tablas.
+Si al empujar no responde, el respaldo es traer los elementos y contarlos en el
+cliente — más tráfico, misma pantalla.
+
+Lo mismo vale para el `select` del detalle, que anida hasta
+`existencia → articulo`.
+
+**Un `select` armado por concatenación pierde el tipo.** `'a' + 'b'` le llega a
+supabase-js como `string`, no como literal, y entonces no puede resolver los
+recursos embebidos: devuelve `GenericStringError` y el `map` de más abajo deja
+de compilar. Los dos `select` de este módulo van en una sola cadena literal, por
+larga que quede. Cuesta decirlo porque el error que produce no menciona la
+causa.
 
 **La pantalla no tendrá datos hasta el `db push`.** `20260903120000_practicas.sql`
 sigue sin aplicarse en el remoto. Mientras eso no pase no hay `practica_borrador`

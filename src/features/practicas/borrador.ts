@@ -11,22 +11,41 @@ import type { Cabecera, ElementoCaptura } from './esquemas'
  * medias en su tabla real. Perder un borrador es una molestia; un
  * `practica_elemento` incompleto que se cuela a Reportes es un dato malo.
  */
-export const VERSION_BORRADOR = 1
+export const VERSION_BORRADOR = 2
 
 /** La cabecera a medias: para eso es un borrador. */
 export type CabeceraParcial = Partial<Cabecera>
 
+/**
+ * Los nombres que el renglón "En curso" del historial necesita mostrar.
+ *
+ * Van guardados y no se resuelven contra los catálogos al pintar la tabla, por
+ * la misma razón por la que `ElementoCaptura` guarda el nombre del producto
+ * junto al id: el listado se dibuja sin depender de cuatro consultas en
+ * cascada, y un borrador de una asignatura que después se desactivó sigue
+ * siendo legible.
+ *
+ * Anulables porque la cabecera de un borrador es parcial por definición: se
+ * puede guardar antes de elegir asignatura.
+ */
+export type NombresBorrador = {
+  asignatura: string | null
+  laboratorio: string | null
+}
+
 export type ContenidoBorrador = {
   version: number
   cabecera: CabeceraParcial
+  nombres: NombresBorrador
   elementos: ElementoCaptura[]
 }
 
 export function serializarBorrador(
   cabecera: CabeceraParcial,
+  nombres: NombresBorrador,
   elementos: ElementoCaptura[],
 ): ContenidoBorrador {
-  return { version: VERSION_BORRADOR, cabecera, elementos }
+  return { version: VERSION_BORRADOR, cabecera, nombres, elementos }
 }
 
 function esObjeto(valor: unknown): valor is Record<string, unknown> {
@@ -55,15 +74,17 @@ function elementoUtilizable(valor: unknown): valor is ElementoCaptura {
  */
 export function restaurarBorrador(
   crudo: unknown,
-): { cabecera: CabeceraParcial; elementos: ElementoCaptura[] } | null {
+): { cabecera: CabeceraParcial; nombres: NombresBorrador; elementos: ElementoCaptura[] } | null {
   if (!esObjeto(crudo)) return null
   if (crudo.version !== VERSION_BORRADOR) return null
   if (!esObjeto(crudo.cabecera)) return null
+  if (!esObjeto(crudo.nombres)) return null
   if (!Array.isArray(crudo.elementos)) return null
   if (!crudo.elementos.every(elementoUtilizable)) return null
 
   return {
     cabecera: crudo.cabecera as CabeceraParcial,
+    nombres: crudo.nombres as NombresBorrador,
     elementos: crudo.elementos,
   }
 }

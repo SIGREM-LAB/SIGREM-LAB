@@ -1,291 +1,156 @@
 import { Icon } from '@iconify/react'
-import { Alert, Button, Card, CardContent, Grid, Snackbar, Stack, Typography } from '@mui/material'
+import {
+  Alert,
+  Button,
+  Card,
+  CardContent,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogContentText,
+  DialogTitle,
+  Snackbar,
+  TablePagination,
+} from '@mui/material'
 import { useState } from 'react'
+import { useLocation, useNavigate } from 'react-router-dom'
 
 import { CuerpoPagina, EncabezadoPagina } from '@/app/EncabezadoPagina'
-import { AgregarProductos } from './AgregarProductos'
-import { restaurarBorrador, serializarBorrador, type CabeceraParcial } from './borrador'
-import {
-  mensajeDeError,
-  useAsignaturasDeSemestre,
-  useBorrador,
-  useBorrarBorrador,
-  useBuscarExistencias,
-  useGuardarBorrador,
-  useLaboratorios,
-  useMotivos,
-  usePracticasDeAsignatura,
-  useProgramas,
-  useRegistrarPractica,
-  useSemestresDePrograma,
-} from './consultas'
-import { DatosPractica } from './DatosPractica'
-import { DialogoBuscar } from './DialogoBuscar'
-import {
-  aPayloadElementos,
-  elementoDesdeExistencia,
-  esquemaCabecera,
-  estaCompleto,
-  type ElementoCaptura,
-  type FilaUtilizable,
-} from './esquemas'
-import { PanelControl } from './PanelControl'
-import { TablaProductos } from './TablaProductos'
+import { useBorrador, useBorrarBorrador, useDetallePractica, useHistorialPracticas } from './consultas'
+import { componerHistorial, filaDeBorrador } from './historial'
+import { PanelPractica } from './PanelPractica'
+import { TablaPracticas } from './TablaPracticas'
 
-/** La fecha de hoy en el formato que espera un `<input type="date">`. */
-function hoy(): string {
-  return new Date().toISOString().slice(0, 10)
-}
-
-type Aviso = { tipo: 'success' | 'error' | 'info'; texto: string }
+/** El mismo tamaño de página que Inventario: una pantalla llena, sin desbordar. */
+const POR_PAGINA = 25
 
 export function PaginaPracticas() {
-  const [cabecera, setCabecera] = useState<CabeceraParcial>({ fecha: hoy() })
-  const [elementos, setElementos] = useState<ElementoCaptura[]>([])
-  const [seleccionado, setSeleccionado] = useState<number | null>(null)
-  const [buscando, setBuscando] = useState(false)
-  const [termino, setTermino] = useState('')
-  const [aviso, setAviso] = useState<Aviso | null>(null)
-  const [borradorAtendido, setBorradorAtendido] = useState(false)
+  const navegar = useNavigate()
+  const ubicacion = useLocation()
+  const [pagina, setPagina] = useState(0)
+  const [viendo, setViendo] = useState<number | null>(null)
+  const [confirmandoDescarte, setConfirmandoDescarte] = useState(false)
 
-  const programas = useProgramas()
-  const semestres = useSemestresDePrograma(cabecera.programaId ?? null)
-  const asignaturas = useAsignaturasDeSemestre(
-    cabecera.programaId ?? null,
-    cabecera.semestre ?? null,
-  )
-  const practicas = usePracticasDeAsignatura(cabecera.asignaturaId ?? null)
-  const laboratorios = useLaboratorios()
-  const motivos = useMotivos()
-  const existencias = useBuscarExistencias(termino)
+  // El folio de la práctica recién registrada llega en el estado de la
+  // navegación: es lo único que el formulario sabía y esta pantalla no.
+  const folioRecien = (ubicacion.state as { folio?: string } | null)?.folio ?? null
+  const [avisoCerrado, setAvisoCerrado] = useState(false)
+
+  const historial = useHistorialPracticas(pagina, POR_PAGINA)
   const borrador = useBorrador()
-
-  const guardar = useGuardarBorrador()
+  const detalle = useDetallePractica(viendo)
   const borrar = useBorrarBorrador()
-  const registrar = useRegistrarPractica()
 
-  const elemento = elementos.find((e) => e.existenciaId === seleccionado) ?? null
-  const hayAlgo = elementos.length > 0 || cabecera.programaId !== undefined
-  const todosCompletos = elementos.length > 0 && elementos.every(estaCompleto)
-  const cabeceraValida = esquemaCabecera.safeParse(cabecera).success
+  const filas = componerHistorial(borrador.data?.contenido, historial.data?.filas ?? [])
+  const hayBorrador = filaDeBorrador(borrador.data?.contenido) !== null
 
-  // Restaurar el borrador guardado. Se ofrece una vez y no se aplica solo: pisar
-  // en silencio lo que alguien acaba de empezar a capturar sería peor que no
-  // tener borrador.
-  const hayBorrador = borrador.data !== null && borrador.data !== undefined
-  const mostrarRestaurar = hayBorrador && !borradorAtendido && elementos.length === 0
+  // Hay un borrador guardado, pero de una forma que esta versión ya no sabe
+  // leer. No pinta renglón —`filaDeBorrador` devuelve null— así que sin este
+  // aviso desaparecería sin dejar rastro: el botón diría "Registrar" y el
+  // trabajo viejo seguiría ocupando la única ranura de borrador que hay.
+  const borradorIlegible =
+    borrador.data !== null && borrador.data !== undefined && !hayBorrador
 
-  function restaurar() {
-    setBorradorAtendido(true)
-    const contenido = restaurarBorrador(borrador.data?.contenido)
-
-    if (contenido === null) {
-      // Un borrador de otra versión se descarta entero: media captura
-      // restaurada es peor que ninguna, porque quien la ve no sabe qué falta.
-      setAviso({
-        tipo: 'info',
-        texto: 'El borrador guardado es de una versión anterior y no se pudo recuperar',
-      })
-      borrar.mutate()
-      return
-    }
-
-    setCabecera(contenido.cabecera)
-    setElementos(contenido.elementos)
-    setSeleccionado(contenido.elementos[0]?.existenciaId ?? null)
-  }
-
-  function agregar(fila: FilaUtilizable) {
-    if (elementos.some((e) => e.existenciaId === fila.id)) return
-    const nuevo = elementoDesdeExistencia(fila)
-    setElementos([...elementos, nuevo])
-    setSeleccionado(nuevo.existenciaId)
-  }
-
-  function quitar(existenciaId: number) {
-    setElementos(elementos.filter((e) => e.existenciaId !== existenciaId))
-    if (seleccionado === existenciaId) setSeleccionado(null)
-  }
-
-  function cambiarElemento(parcial: Partial<ElementoCaptura>) {
-    setElementos(elementos.map((e) => (e.existenciaId === seleccionado ? { ...e, ...parcial } : e)))
-  }
-
-  function alGuardarBorrador() {
-    setBorradorAtendido(true)
-    guardar.mutate(serializarBorrador(cabecera, elementos), {
-      onSuccess: () => setAviso({ tipo: 'success', texto: 'Borrador guardado' }),
-      onError: (error) => setAviso({ tipo: 'error', texto: mensajeDeError(error) }),
-    })
-  }
-
-  function finalizar() {
-    const validada = esquemaCabecera.safeParse(cabecera)
-    if (!validada.success) {
-      setAviso({ tipo: 'error', texto: validada.error.issues[0].message })
-      return
-    }
-
-    registrar.mutate(
-      { cabecera: validada.data, elementos: aPayloadElementos(elementos) },
-      {
-        onSuccess: (folio) => {
-          // El folio es lo único que la pantalla no podía saber antes de
-          // guardar: lo asigna el trigger.
-          setAviso({ tipo: 'success', texto: `Práctica ${folio} registrada` })
-          setCabecera({ fecha: hoy() })
-          setElementos([])
-          setSeleccionado(null)
-          // El borrador ya cumplió. Si esto falla no importa: la práctica ya está.
-          borrar.mutate()
-        },
-        // Si falla, la captura NO se limpia: el trabajo no se pierde por un
-        // error de red ni por un 42501.
-        onError: (error) => setAviso({ tipo: 'error', texto: mensajeDeError(error) }),
-      },
-    )
+  function descartar() {
+    setConfirmandoDescarte(false)
+    borrar.mutate()
   }
 
   return (
     <>
       <EncabezadoPagina
-        titulo="Registro de práctica"
-        descripcion="Captura de uso de reactivos, materiales y equipos"
+        titulo="Prácticas"
+        descripcion="Lo registrado en tu almacén, y la captura en curso"
         acciones={
-          <>
-            <Button
-              variant="outlined"
-              color="secondary"
-              startIcon={<Icon icon="mdi:content-save-outline" />}
-              onClick={alGuardarBorrador}
-              disabled={!hayAlgo || guardar.isPending}
-            >
-              Guardar borrador
-            </Button>
-            <Button
-              variant="contained"
-              startIcon={<Icon icon="mdi:send-outline" />}
-              onClick={finalizar}
-              disabled={!todosCompletos || !cabeceraValida || registrar.isPending}
-            >
-              Finalizar práctica
-            </Button>
-          </>
+          // El botón nombra lo que hay. Con un borrador vivo no se ofrece
+          // empezar otra: el borrador es uno por persona, así que "Registrar"
+          // sería ofrecer pisarlo en silencio. Para empezar otra hay que
+          // descartar la de en curso, desde su renglón y a propósito.
+          <Button
+            variant="contained"
+            startIcon={<Icon icon={hayBorrador ? 'mdi:pencil' : 'mdi:plus'} />}
+            onClick={() => navegar('/practicas/nueva')}
+          >
+            {hayBorrador ? 'Continuar práctica' : 'Registrar práctica'}
+          </Button>
         }
       />
 
       <CuerpoPagina>
-        {mostrarRestaurar ? (
+        {borradorIlegible ? (
           <Alert
             severity="info"
             sx={{ mb: 2 }}
             action={
-              <>
-                <Button size="small" onClick={restaurar}>
-                  Recuperar
-                </Button>
-                <Button
-                  size="small"
-                  onClick={() => {
-                    setBorradorAtendido(true)
-                    borrar.mutate()
-                  }}
-                >
-                  Descartar
-                </Button>
-              </>
+              <Button size="small" onClick={() => borrar.mutate()}>
+                Descartarlo
+              </Button>
             }
           >
-            Tienes una práctica a medio capturar
+            Tienes un borrador de una versión anterior y ya no se puede recuperar.
           </Alert>
         ) : null}
 
-        <Grid container spacing={2} sx={{ alignItems: 'flex-start' }}>
-          <Grid size={{ xs: 12, lg: 8 }}>
-            <Stack spacing={2}>
-              <Card>
-                <CardContent>
-                  <Typography variant="h2" sx={{ color: 'institucional.main', mb: 2 }}>
-                    Datos de la práctica
-                  </Typography>
-                  <DatosPractica
-                    valores={cabecera}
-                    onCambiar={(parcial) => setCabecera({ ...cabecera, ...parcial })}
-                    programas={programas.data ?? []}
-                    semestres={semestres.data ?? []}
-                    asignaturas={asignaturas.data ?? []}
-                    practicas={practicas.data ?? []}
-                    laboratorios={laboratorios.data ?? []}
-                    deshabilitado={registrar.isPending}
-                  />
-                </CardContent>
-              </Card>
+        <Card>
+          <CardContent>
+            <TablaPracticas
+              filas={filas}
+              cargando={historial.isFetching}
+              error={historial.error}
+              onVer={setViendo}
+              onContinuar={() => navegar('/practicas/nueva')}
+              onDescartar={() => setConfirmandoDescarte(true)}
+            />
 
-              <Card>
-                <CardContent>
-                  <Typography variant="h2" sx={{ color: 'institucional.main', mb: 2 }}>
-                    Agregar productos
-                  </Typography>
-                  <AgregarProductos
-                    onBuscar={() => setBuscando(true)}
-                    // Sin laboratorio no hay almacén, y la búsqueda sale
-                    // filtrada por almacén.
-                    deshabilitado={cabecera.laboratorioId === undefined || registrar.isPending}
-                  />
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardContent>
-                  <TablaProductos
-                    elementos={elementos}
-                    seleccionado={seleccionado}
-                    onElegir={setSeleccionado}
-                    onQuitar={quitar}
-                  />
-                </CardContent>
-              </Card>
-            </Stack>
-          </Grid>
-
-          {/* sticky para que el panel siga a la vista mientras se recorre una
-              tabla larga: capturar obliga a mirar los dos lados. */}
-          <Grid size={{ xs: 12, lg: 4 }}>
-            <Card sx={{ position: { lg: 'sticky' }, top: { lg: 16 } }}>
-              <CardContent>
-                <Typography variant="h2" sx={{ color: 'institucional.main', mb: 2 }}>
-                  Panel de control
-                </Typography>
-                <PanelControl
-                  elemento={elemento}
-                  motivos={motivos.data ?? []}
-                  onCambiar={cambiarElemento}
-                />
-              </CardContent>
-            </Card>
-          </Grid>
-        </Grid>
+            <TablePagination
+              component="div"
+              // El renglón en curso no entra en la cuenta: no es una de las
+              // filas que la consulta trajo, y sumarlo desalinearía el total.
+              count={historial.data?.total ?? 0}
+              page={pagina}
+              onPageChange={(_e, n) => setPagina(n)}
+              rowsPerPage={POR_PAGINA}
+              rowsPerPageOptions={[POR_PAGINA]}
+              labelRowsPerPage="Por página"
+              labelDisplayedRows={({ from, to, count }) => `${from}–${to} de ${count}`}
+            />
+          </CardContent>
+        </Card>
       </CuerpoPagina>
 
-      <DialogoBuscar
-        abierto={buscando}
-        termino={termino}
-        onTermino={setTermino}
-        filas={existencias.data ?? []}
-        cargando={existencias.isPending}
-        yaAgregados={elementos.map((e) => e.existenciaId)}
-        onAgregar={agregar}
-        onCerrar={() => setBuscando(false)}
-      />
+      {viendo === null ? null : (
+        <PanelPractica
+          detalle={detalle.data}
+          cargando={detalle.isFetching}
+          error={detalle.error}
+          onCerrar={() => setViendo(null)}
+        />
+      )}
+
+      <Dialog open={confirmandoDescarte} onClose={() => setConfirmandoDescarte(false)}>
+        <DialogTitle>¿Descartar la práctica en curso?</DialogTitle>
+        <DialogContent>
+          <DialogContentText>
+            Se pierde lo capturado hasta ahora y no se puede recuperar. Lo ya registrado no se
+            toca.
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setConfirmandoDescarte(false)}>Conservar</Button>
+          <Button onClick={descartar} color="error">
+            Descartar
+          </Button>
+        </DialogActions>
+      </Dialog>
 
       <Snackbar
-        open={aviso !== null}
+        open={folioRecien !== null && !avisoCerrado}
         autoHideDuration={6000}
-        onClose={() => setAviso(null)}
+        onClose={() => setAvisoCerrado(true)}
         anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
       >
-        <Alert severity={aviso?.tipo ?? 'info'} onClose={() => setAviso(null)}>
-          {aviso?.texto}
+        <Alert severity="success" onClose={() => setAvisoCerrado(true)}>
+          {`Práctica ${folioRecien} registrada`}
         </Alert>
       </Snackbar>
     </>

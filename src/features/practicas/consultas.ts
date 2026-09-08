@@ -1,4 +1,5 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useEffect, useState } from 'react'
 
 import { usePerfil } from '@/features/auth/usePerfil'
 import { normalizarTermino } from '@/features/inventario/presentacion'
@@ -6,6 +7,7 @@ import { supabase } from '@/lib/supabase'
 import type { Json } from '@/types/database'
 import type { ContenidoBorrador } from './borrador'
 import { esFilaUtilizable, type Cabecera, type FilaUtilizable, type PayloadElemento } from './esquemas'
+import { filaDePractica } from './historial'
 import type { Metodo } from './metodos'
 
 // ---------------------------------------------------------------------------
@@ -56,6 +58,28 @@ export function mensajeDeError(error: unknown): string {
   }
 
   return message ?? 'No se pudo completar la operación'
+}
+
+/**
+ * Qué vale la pena reintentar.
+ *
+ * Por omisión TanStack reintenta tres veces con espera creciente, y eso está
+ * pensado para una red que se cae, no para una respuesta que siempre va a ser
+ * la misma. Un `42703` —columna que no existe— o un `42501` —permiso denegado—
+ * son deterministas: repetirlos cuatro veces solo convierte un fallo inmediato
+ * en unos siete segundos de barra de progreso.
+ *
+ * Así se vio este bug desde la pantalla, y por eso parecía lentitud: la vista
+ * del proyecto remoto no tenía todavía `metodo_control`, cada búsqueda moría en
+ * el primer viaje, y los otros tres solo alargaban la espera antes de rendirse.
+ *
+ * supabase-js entrega los fallos de red con `code` vacío; los de PostgREST y
+ * los de Postgres siempre traen uno. Esa es la frontera.
+ */
+export function debeReintentar(intentos: number, error: unknown): boolean {
+  const { code } = (error ?? {}) as { code?: string }
+  const pasajero = code === undefined || code === ''
+  return pasajero && intentos < 2
 }
 
 // ---------------------------------------------------------------------------
@@ -224,23 +248,53 @@ export function motivosDeMetodo(motivos: Motivo[], metodo: Metodo): Motivo[] {
 // Búsqueda de productos
 // ---------------------------------------------------------------------------
 /**
+ * Espera a que dejen de teclear antes de salir a la red.
+ *
+ * Sin esto "etanol" son seis viajes, uno por tecla, y los cinco primeros se
+ * tiran en cuanto llega la siguiente letra. Cada uno arrastra su propia entrada
+ * de caché y su propio `order by codigo` sobre la vista, así que lo que se
+ * siente al escribir no es la latencia de una consulta sino la de todas.
+ */
+function useTerminoDiferido(termino: string, espera = 300): string {
+  const [diferido, setDiferido] = useState(termino)
+
+  useEffect(() => {
+    const id = setTimeout(() => setDiferido(termino), espera)
+    return () => clearTimeout(id)
+  }, [termino, espera])
+
+  return diferido
+}
+
+/**
  * Filtrada al almacén de quien busca, por lo mismo que `useLaboratorios`:
  * `practica_elemento_escritura` rechaza una existencia de otro almacén. Dejar
  * buscar en los cuatro significa capturar los pesos de un producto de N4 y
  * comerse un 42501 al final de todo el trabajo.
  *
  * Lo dado de baja no se ofrece: no se puede consumir de un frasco dado de baja.
+ *
+ * `abierto` no es un detalle de presentación: sin él la consulta sale a la red
+ * al montar la pantalla, para llenar un diálogo que nadie ha abierto todavía.
+ *
+ * Devuelve `cargando` en vez de dejar que la pantalla elija entre `isPending` e
+ * `isFetching`. Con `keepPreviousData` el primero es falso en cuanto hay una
+ * primera respuesta, así que la barra de progreso no volvería a aparecer nunca;
+ * y la ventana del debounce tampoco cuenta como carga para TanStack, aunque
+ * desde la pantalla sea exactamente eso.
  */
-export function useBuscarExistencias(termino: string) {
+export function useBuscarExistencias(termino: string, abierto: boolean) {
   const { data: perfil } = usePerfil()
   const almacenId = perfil?.almacen?.id ?? null
   const esAdmin = perfil?.rol === 'admin'
-  const normalizado = normalizarTermino(termino)
+  const diferido = useTerminoDiferido(termino)
+  const normalizado = normalizarTermino(diferido)
 
-  return useQuery({
+  const consulta = useQuery({
     queryKey: ['practicas', 'existencias', normalizado, esAdmin ? 'todos' : almacenId],
-    enabled: perfil !== undefined,
+    enabled: abierto && perfil !== undefined,
     placeholderData: keepPreviousData,
+    retry: debeReintentar,
     queryFn: async (): Promise<FilaUtilizable[]> => {
       let consulta = supabase
         .from('existencia_listado')
@@ -272,7 +326,99 @@ export function useBuscarExistencias(termino: string) {
       return data.filter(esFilaUtilizable)
     },
   })
+
+  return {
+    filas: consulta.data ?? [],
+    // La ventana del debounce cuenta como carga: si no, entre la tecla y la
+    // consulta hay 300 ms en los que la pantalla anuncia que no hay resultados.
+    cargando: consulta.isFetching || diferido !== termino,
+    error: consulta.error,
+  }
 }
+
+// ---------------------------------------------------------------------------
+// El historial
+// ---------------------------------------------------------------------------
+/**
+ * Las prácticas ya registradas, las más recientes primero.
+ *
+ * Filtrada al almacén del perfil por lo mismo que `useLaboratorios` y la
+ * búsqueda de productos: es el almacén sobre el que la persona opera. Aquí, a
+ * diferencia de aquéllas, el filtro NO es una defensa —`practica_lectura` es
+ * abierta a todo `authenticated`, y está bien que lo sea— sino una decisión de
+ * qué es útil por omisión.
+ *
+ * No hace falta una vista como `existencia_listado`: lo que forzó aquélla fue
+ * buscar y ordenar por columnas embebidas, y aquí se filtra por `almacen_id` y
+ * se ordena por `fecha`, las dos propias de `practica`. Los nombres sólo se
+ * muestran.
+ *
+ * `practica_elemento (count)` deja que PostgREST resuelva el conteo en la misma
+ * consulta, en vez de traer los elementos para contarlos.
+ */
+export function useHistorialPracticas(pagina: number, porPagina: number) {
+  const { data: perfil } = usePerfil()
+  const almacenId = perfil?.almacen?.id ?? null
+  const esAdmin = perfil?.rol === 'admin'
+
+  return useQuery({
+    queryKey: ['practicas', 'historial', pagina, porPagina, esAdmin ? 'todos' : almacenId],
+    enabled: perfil !== undefined,
+    placeholderData: keepPreviousData,
+    retry: debeReintentar,
+    queryFn: async () => {
+      let consulta = supabase
+        .from('practica')
+        // Una sola cadena literal y no una concatenación: supabase-js resuelve
+        // los recursos embebidos en el tipo, y para eso necesita el literal. Un
+        // `'a' + 'b'` le llega como `string` y devuelve GenericStringError.
+        .select(
+          'id, folio, fecha, asignatura:asignatura_id (nombre), laboratorio:laboratorio_id (nombre), practica_elemento (count)',
+          { count: 'exact' },
+        )
+        .order('fecha', { ascending: false })
+        .order('id', { ascending: false })
+
+      if (!esAdmin) consulta = consulta.eq('almacen_id', almacenId ?? -1)
+
+      const desde = pagina * porPagina
+      const { data, error, count } = await consulta.range(desde, desde + porPagina - 1)
+      if (error) throw error
+
+      return { filas: data.map(filaDePractica), total: count ?? 0 }
+    },
+  })
+}
+
+/**
+ * El detalle de una práctica registrada, para el panel lateral.
+ *
+ * `consumo` y `perdidas` se piden aunque sean derivadas: son columnas generadas
+ * y almacenadas, así que salen sin costo y evitan recalcular en el cliente una
+ * resta que la base ya definió.
+ */
+export function useDetallePractica(practicaId: number | null) {
+  return useQuery({
+    queryKey: ['practicas', 'detalle', practicaId],
+    enabled: practicaId !== null,
+    retry: debeReintentar,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('practica')
+        // Una sola cadena literal, por lo mismo que en el historial.
+        .select(
+          'id, folio, fecha, observaciones, programa:programa_educativo_id (nombre), asignatura:asignatura_id (nombre), catalogo:practica_catalogo_id (numero, nombre), laboratorio:laboratorio_id (nombre), responsable:registrado_por (nombre), practica_elemento (id, metodo_control, peso_inicial, peso_final, consumo, cantidad_entregada, cantidad_devuelta, cantidad_danada, perdidas, estado_salida, estado_devolucion, observaciones, existencia:existencia_id (codigo, articulo:articulo_id (nombre_canonico, unidad_base)))',
+        )
+        .eq('id', practicaId as number)
+        .single()
+      if (error) throw error
+      return data
+    },
+  })
+}
+
+export type DetallePractica = NonNullable<ReturnType<typeof useDetallePractica>['data']>
+export type ElementoDetalle = DetallePractica['practica_elemento'][number]
 
 // ---------------------------------------------------------------------------
 // El borrador
