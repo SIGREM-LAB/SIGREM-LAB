@@ -83,7 +83,7 @@ export function PaginaAcademico() {
   return (
     <>
       <EncabezadoPagina
-        titulo="Plan académico"
+        titulo="Programa Educativo"
         descripcion="Programas, asignaturas y prácticas del plan de estudios"
         acciones={
           <FormControlLabel

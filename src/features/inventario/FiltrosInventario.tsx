@@ -12,7 +12,7 @@ import {
 } from '@mui/material'
 
 import { ESTADO } from './presentacion'
-import { CLASIFICACIONES, type Filtros } from './filtros'
+import { CLASIFICACIONES, ORDENES, type Filtros } from './filtros'
 
 type Props = {
   filtros: Filtros
@@ -102,6 +102,22 @@ export function FiltrosInventario({ filtros, almacenes, onCambio }: Props) {
           {Object.entries(ESTADO).map(([valor, aspecto]) => (
             <MenuItem key={valor} value={valor}>
               {aspecto.etiqueta}
+            </MenuItem>
+          ))}
+        </Select>
+      </FormControl>
+
+      <FormControl size="small" sx={{ minWidth: 170 }}>
+        <InputLabel id="filtro-orden">Ordenar por</InputLabel>
+        <Select
+          labelId="filtro-orden"
+          label="Ordenar por"
+          value={filtros.orden}
+          onChange={(e) => cambiar({ orden: e.target.value as Filtros['orden'] })}
+        >
+          {ORDENES.map((o) => (
+            <MenuItem key={o.valor} value={o.valor}>
+              {o.etiqueta}
             </MenuItem>
           ))}
         </Select>

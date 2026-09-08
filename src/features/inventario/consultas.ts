@@ -20,10 +20,19 @@ export function useExistencias(filtros: Filtros, pagina: number, porPagina: numb
     queryKey: ['existencias', filtros, pagina, porPagina],
     placeholderData: keepPreviousData,
     queryFn: async () => {
-      let consulta = supabase
-        .from('existencia_listado')
-        .select('*', { count: 'exact' })
-        .order('codigo')
+      let consulta = supabase.from('existencia_listado').select('*', { count: 'exact' })
+
+      // El alfabético va sobre `nombre_norm` y no sobre `nombre_canonico`: es
+      // la misma columna ya en minúsculas y sin acentos, así que «Zinc» no se
+      // adelanta a «ácido acético», que es lo que hace la colación en crudo.
+      // `codigo` desempata siempre: sin un criterio único, dos páginas
+      // seguidas pueden repetir o saltarse un renglón con nombres iguales.
+      consulta =
+        filtros.orden === 'codigo'
+          ? consulta.order('codigo')
+          : consulta
+              .order('nombre_norm', { ascending: filtros.orden === 'nombre_asc' })
+              .order('codigo')
 
       if (filtros.almacenId !== 'todos') consulta = consulta.eq('almacen_id', filtros.almacenId)
       if (filtros.clasificacion !== 'todas') {

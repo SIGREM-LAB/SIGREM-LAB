@@ -42,6 +42,18 @@ describe('FiltrosActivos', () => {
     expect(screen.queryByText(/stock_bajo/)).not.toBeInTheDocument()
   })
 
+  // El orden enciende el boton de limpiar, asi que tiene que verse por que.
+  test('el orden alfabetico se anuncia con su propio chip', async () => {
+    const { onCambio } = pintar({ orden: 'nombre_asc' })
+
+    expect(screen.getByText('Orden: Nombre (A–Z)')).toBeInTheDocument()
+
+    screen.getByLabelText(/Quitar filtro\. Orden: Nombre/).focus()
+    await userEvent.keyboard('{Backspace}')
+
+    expect(onCambio).toHaveBeenCalledWith(expect.objectContaining({ orden: 'codigo' }))
+  })
+
   // Cada chip publica el estado COMPLETO. Si alguno se olvidara del resto,
   // quitar el almacen borraria de paso el termino ya tecleado.
   test('quitar un filtro conserva los demas', async () => {

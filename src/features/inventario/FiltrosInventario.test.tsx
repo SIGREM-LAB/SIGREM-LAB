@@ -34,6 +34,7 @@ describe('FiltrosInventario', () => {
     expect(screen.getByLabelText(/tipo/i)).toBeInTheDocument()
     expect(screen.getByLabelText(/almacén/i)).toBeInTheDocument()
     expect(screen.getByLabelText(/estado/i)).toBeInTheDocument()
+    expect(screen.getByLabelText(/ordenar por/i)).toBeInTheDocument()
   })
 
   test('escribir en el buscador propaga el termino', async () => {
@@ -80,6 +81,28 @@ describe('FiltrosInventario', () => {
     await userEvent.click(screen.getByRole('option', { name: 'LUM' }))
 
     expect(onCambio).toHaveBeenCalledWith(expect.objectContaining({ almacenId: 3 }))
+  })
+
+  // Ordenar por nombre es lo que se pide para encontrar algo cuyo codigo no se
+  // sabe; ambas direcciones se ofrecen porque volver de la Z a la A sin poder
+  // deshacerlo obligaria a recargar.
+  test('ofrece el orden por codigo y las dos direcciones del nombre', async () => {
+    pintar()
+
+    await userEvent.click(screen.getByLabelText(/ordenar por/i))
+
+    for (const etiqueta of ['Código', 'Nombre (A–Z)', 'Nombre (Z–A)']) {
+      expect(screen.getByRole('option', { name: etiqueta })).toBeInTheDocument()
+    }
+  })
+
+  test('elegir el alfabetico propaga el orden', async () => {
+    const { onCambio } = pintar()
+
+    await userEvent.click(screen.getByLabelText(/ordenar por/i))
+    await userEvent.click(screen.getByRole('option', { name: 'Nombre (A–Z)' }))
+
+    expect(onCambio).toHaveBeenCalledWith(expect.objectContaining({ orden: 'nombre_asc' }))
   })
 
   test('la casilla de bajas arranca apagada y propaga el cambio', async () => {

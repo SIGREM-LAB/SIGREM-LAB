@@ -6,7 +6,26 @@ export type Filtros = {
   almacenId: number | 'todos'
   estado: Enums<'estado_existencia'> | 'todos'
   incluirBaja: boolean
+  orden: Orden
 }
+
+/**
+ * Por qué columna se ordena el listado. El orden se resuelve en la base y no en
+ * el cliente: la tabla está paginada, así que ordenar solo los 25 renglones que
+ * ya llegaron daría 25 nombres en orden dentro de un listado que no lo está.
+ */
+export type Orden = 'codigo' | 'nombre_asc' | 'nombre_desc'
+
+/**
+ * `codigo` es el orden de siempre y sigue siendo el de arranque: es como está
+ * numerado el inventario en papel. El alfabético es para cuando se busca algo
+ * por su nombre y no se sabe su código.
+ */
+export const ORDENES: { valor: Orden; etiqueta: string }[] = [
+  { valor: 'codigo', etiqueta: 'Código' },
+  { valor: 'nombre_asc', etiqueta: 'Nombre (A–Z)' },
+  { valor: 'nombre_desc', etiqueta: 'Nombre (Z–A)' },
+]
 
 /**
  * Las seis clasificaciones del enum. El prototipo lista cinco: se le olvida
@@ -54,5 +73,6 @@ export function filtrosIniciales(
     almacenId: propio ? (perfil.almacenId as number) : 'todos',
     estado: 'todos',
     incluirBaja: false,
+    orden: 'codigo',
   }
 }

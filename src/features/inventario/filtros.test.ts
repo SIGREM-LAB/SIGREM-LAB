@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest'
 
-import { CLASIFICACIONES, filtrosIniciales, hayFiltrosActivos } from './filtros'
+import { CLASIFICACIONES, filtrosIniciales, hayFiltrosActivos, ORDENES } from './filtros'
 
 describe('filtrosIniciales', () => {
   test('un responsable arranca en su propio almacen', () => {
@@ -37,6 +37,23 @@ describe('filtrosIniciales', () => {
 
   test('los agotados NO se esconden: son justo lo que hay que reponer', () => {
     expect(filtrosIniciales(undefined).estado).toBe('todos')
+  })
+
+  // El inventario en papel esta numerado por codigo, y ese sigue siendo el
+  // orden de arranque: el alfabetico se pide, no se impone.
+  test('arranca ordenado por codigo', () => {
+    expect(filtrosIniciales(undefined).orden).toBe('codigo')
+  })
+})
+
+describe('ORDENES', () => {
+  test('ofrece el codigo y las dos direcciones del nombre', () => {
+    expect(ORDENES.map((o) => o.valor)).toEqual(['codigo', 'nombre_asc', 'nombre_desc'])
+  })
+
+  test('ninguna etiqueta se repite', () => {
+    const etiquetas = ORDENES.map((o) => o.etiqueta)
+    expect(new Set(etiquetas).size).toBe(etiquetas.length)
   })
 })
 
@@ -80,5 +97,11 @@ describe('hayFiltrosActivos', () => {
 
   test('detecta la casilla de bajas', () => {
     expect(hayFiltrosActivos({ ...iniciales, incluirBaja: true }, iniciales)).toBe(true)
+  })
+
+  // El orden tambien se limpia: si no contara, "Limpiar filtros" devolveria los
+  // filtros al arranque pero dejaria la tabla ordenada por nombre.
+  test('detecta el orden alfabetico', () => {
+    expect(hayFiltrosActivos({ ...iniciales, orden: 'nombre_asc' }, iniciales)).toBe(true)
   })
 })

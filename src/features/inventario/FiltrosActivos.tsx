@@ -2,7 +2,7 @@ import { Icon } from '@iconify/react'
 import { Button, Chip, Stack } from '@mui/material'
 
 import { ESTADO } from './presentacion'
-import { CLASIFICACIONES, type Filtros } from './filtros'
+import { CLASIFICACIONES, ORDENES, type Filtros } from './filtros'
 
 type Props = {
   filtros: Filtros
@@ -65,6 +65,18 @@ export function FiltrosActivos({ filtros, almacenes, onCambio, onLimpiar }: Prop
       clave: 'bajas',
       etiqueta: 'Incluye bajas',
       quitar: () => quitar({ incluirBaja: false }),
+    })
+  }
+
+  // El orden no filtra nada, pero cuenta para `hayFiltrosActivos` y por tanto
+  // enciende el boton de limpiar: sin su chip, ese boton aparece sin que se vea
+  // que hay algo puesto.
+  if (filtros.orden !== 'codigo') {
+    const orden = ORDENES.find((o) => o.valor === filtros.orden)
+    chips.push({
+      clave: 'orden',
+      etiqueta: `Orden: ${orden?.etiqueta ?? filtros.orden}`,
+      quitar: () => quitar({ orden: 'codigo' }),
     })
   }
 

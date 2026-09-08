@@ -88,7 +88,7 @@ export function menuDeNavegacion(
     ...comunes,
     {
       ruta: '/administracion/academico',
-      etiqueta: 'Plan académico',
+      etiqueta: 'Programa educativo',
       icono: 'mdi:school-outline',
       grupo: 'administracion',
       descripcion: 'Programas, asignaturas y prácticas del plan de estudios',
