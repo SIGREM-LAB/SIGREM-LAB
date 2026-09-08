@@ -53,9 +53,9 @@ describe('menuDeNavegacion', () => {
   })
 })
 
-describe('el panel académico', () => {
+describe('el panel del programa educativo', () => {
   test('solo lo ve el admin, y ya está disponible', () => {
-    const panel = menuDeNavegacion('admin').find((i) => i.ruta === '/administracion/academico')
+    const panel = menuDeNavegacion('admin').find((i) => i.ruta === '/administracion/educativo')
 
     expect(panel?.disponible).toBe(true)
   })
@@ -63,12 +63,12 @@ describe('el panel académico', () => {
   test('un responsable no lo ve', () => {
     const rutas = menuDeNavegacion('responsable').map((i) => i.ruta)
 
-    expect(rutas).not.toContain('/administracion/academico')
+    expect(rutas).not.toContain('/administracion/educativo')
   })
 
   test('sin perfil todavía, tampoco', () => {
     const rutas = menuDeNavegacion(undefined).map((i) => i.ruta)
 
-    expect(rutas).not.toContain('/administracion/academico')
+    expect(rutas).not.toContain('/administracion/educativo')
   })
 })

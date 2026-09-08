@@ -62,7 +62,7 @@ export function SoloInvitados() {
 }
 
 /**
- * Las pantallas de administración: el plan académico, y las que vengan.
+ * Las pantallas de administración: el programa educativo, y las que vengan.
  *
  * Esto es comodidad, no seguridad. Quien edite el bundle llega a la ruta igual;
  * lo que de verdad protege los datos son las políticas de RLS, que le niegan la

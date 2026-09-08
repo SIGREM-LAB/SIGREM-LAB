@@ -60,7 +60,7 @@ export default function App() {
                       SoloAdmin va aquí y no dentro de la pantalla para que la
                       redirección ocurra antes de montar nada. */}
                   <Route element={<SoloAdmin />}>
-                    <Route path="/administracion/academico" element={<PaginaAcademico />} />
+                    <Route path="/administracion/educativo" element={<PaginaAcademico />} />
                   </Route>
                 </Route>
               </Route>

@@ -338,7 +338,7 @@ select p.id, c.campo, c.obligatorio, c.orden
 -- Plan academico de PRUEBA
 -- ---------------------------------------------------------------------------
 -- Datos desechables, solo para poder recorrer la pantalla a mano. El plan real
--- se captura desde /administracion/academico, desde cero: los catalogos que hay
+-- se captura desde /administracion/educativo, desde cero: los catalogos que hay
 -- en el repo no sirven de semilla, porque los 8 programas de aqui arriba y los
 -- 11 del prototipo coinciden en uno solo de 88 combinaciones.
 --

@@ -234,7 +234,7 @@ function montarAdminAcademico(estado: {
   })
 
   return render(
-    <MemoryRouter initialEntries={['/administracion/academico']}>
+    <MemoryRouter initialEntries={['/administracion/educativo']}>
       <Routes>
         <Route
           path="/"
@@ -243,8 +243,8 @@ function montarAdminAcademico(estado: {
 
         <Route element={<SoloAdmin />}>
           <Route
-            path="/administracion/academico"
-            element={<p>Panel academico</p>}
+            path="/administracion/educativo"
+            element={<p>Panel educativo</p>}
           />
         </Route>
       </Routes>
@@ -252,12 +252,12 @@ function montarAdminAcademico(estado: {
   )
 }
 
-describe('SoloAdmin - Panel académico', () => {
+describe('SoloAdmin - Panel educativo', () => {
   beforeEach(() => {
     usePerfil.mockReset()
   })
 
-  test('el admin entra al panel académico', () => {
+  test('el admin entra al panel educativo', () => {
     montarAdminAcademico({
       data: {
         rol: 'admin',
@@ -265,7 +265,7 @@ describe('SoloAdmin - Panel académico', () => {
     })
 
     expect(
-      screen.getByText('Panel academico'),
+      screen.getByText('Panel educativo'),
     ).toBeInTheDocument()
   })
 
@@ -281,7 +281,7 @@ describe('SoloAdmin - Panel académico', () => {
     ).toBeInTheDocument()
 
     expect(
-      screen.queryByText('Panel academico'),
+      screen.queryByText('Panel educativo'),
     ).not.toBeInTheDocument()
   })
 
@@ -297,7 +297,7 @@ describe('SoloAdmin - Panel académico', () => {
     ).toBeInTheDocument()
 
     expect(
-      screen.queryByText('Panel academico'),
+      screen.queryByText('Panel educativo'),
     ).not.toBeInTheDocument()
   })
 
@@ -307,7 +307,7 @@ describe('SoloAdmin - Panel académico', () => {
     })
 
     expect(
-      screen.queryByText('Panel academico'),
+      screen.queryByText('Panel educativo'),
     ).not.toBeInTheDocument()
 
     expect(
@@ -325,7 +325,7 @@ describe('SoloAdmin - Panel académico', () => {
     })
 
     expect(
-      screen.queryByText('Panel academico'),
+      screen.queryByText('Panel educativo'),
     ).not.toBeInTheDocument()
 
     expect(

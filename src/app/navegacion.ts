@@ -87,7 +87,7 @@ export function menuDeNavegacion(
   return [
     ...comunes,
     {
-      ruta: '/administracion/academico',
+      ruta: '/administracion/educativo',
       etiqueta: 'Programa educativo',
       icono: 'mdi:school-outline',
       grupo: 'administracion',
