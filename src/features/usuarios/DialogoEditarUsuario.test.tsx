@@ -5,9 +5,12 @@ import { describe, expect, test, vi } from 'vitest'
 import type { Usuario } from './administracion'
 import { DialogoEditarUsuario } from './DialogoEditarUsuario'
 
-// El campo de almacén consulta la base; aquí sólo importa que no reviente.
 vi.mock('./consultas', () => ({
-  useAlmacenesActivos: () => ({ data: [], error: null, isPending: false }),
+  useAlmacenesActivos: () => ({
+    data: [{ id: 3, clave: 'N3', nombre: 'Química', activo: true }],
+    error: null,
+    isPending: false,
+  }),
 }))
 
 function usuario(cambios: Partial<Usuario> = {}): Usuario {
@@ -71,6 +74,24 @@ describe('DialogoEditarUsuario', () => {
     pintar({ esMiCuenta: true })
 
     expect(screen.getByLabelText('Nombre completo')).toBeEnabled()
+  })
+
+  /**
+   * Tener almacén y ser responsable son lo mismo desde
+   * `perfil_almacen_solo_responsable`. Ofrecerle el campo a un admin sería
+   * ofrecerle un error de la base.
+   */
+  test('el almacén no se ofrece cuando el rol no es responsable', () => {
+    pintar()
+
+    expect(screen.queryByLabelText('Laboratorio / Área asignada')).not.toBeInTheDocument()
+    expect(screen.getByText(/El almacén es exclusivo de los responsables/)).toBeInTheDocument()
+  })
+
+  test('a un responsable sí se le pide el almacén', () => {
+    pintar({ usuario: usuario({ rol: 'responsable', almacen_id: 3 }) })
+
+    expect(screen.getByLabelText('Laboratorio / Área asignada')).toBeInTheDocument()
   })
 
   test('un fallo al guardar se ve, en vez de dejar el diálogo mudo', () => {

@@ -14,7 +14,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 
-select plan(102);
+select plan(105);
 
 
 -- ---------------------------------------------------------------------------
@@ -387,6 +387,14 @@ select throws_ok(
 -- almacen. Es un estado alcanzable -nada lo prohibe- y hasta ahora le daba
 -- permiso de escritura, porque las politicas solo comparaban el almacen.
 select pg_temp.como_postgres();
+-- Ojo: este estado ya no es alcanzable. `perfil_almacen_solo_responsable`
+-- (migracion del 9 de septiembre) prohibe que alguien que no es responsable
+-- tenga almacen, asi que el constraint se quita un momento a proposito. La
+-- prueba se queda porque afirma otra cosa: que la POLITICA niega la escritura
+-- mirando el rol y no solo el almacen. Eso tiene que seguir siendo cierto
+-- aunque el dato llegara torcido por otro camino, y si algun dia se afloja el
+-- constraint, esta prueba es la que avisa.
+alter table public.perfil drop constraint perfil_almacen_solo_responsable;
 update public.perfil set almacen_id = pg_temp.id_almacen('N3')
  where id = (select id from auth.users where email = 'lectura@uaeh.local');
 
@@ -418,6 +426,10 @@ select throws_ok(
 select pg_temp.como_postgres();
 update public.perfil set almacen_id = null
  where id = (select id from auth.users where email = 'lectura@uaeh.local');
+
+alter table public.perfil add constraint perfil_almacen_solo_responsable
+  check (rol = 'responsable' or almacen_id is null);
+
 
 -- El hueco B: el saldo, el codigo del QR y el ancla de permisos no se escriben
 -- desde el cliente. La bitacora es el unico camino.
@@ -966,6 +978,14 @@ select is(
 -- prueba pasa por el motivo equivocado -`NULL = 1` es falso- y no afirma nada
 -- del rol, que es justo lo que hay que afirmar.
 select pg_temp.como_postgres();
+-- Ojo: este estado ya no es alcanzable. `perfil_almacen_solo_responsable`
+-- (migracion del 9 de septiembre) prohibe que alguien que no es responsable
+-- tenga almacen, asi que el constraint se quita un momento a proposito. La
+-- prueba se queda porque afirma otra cosa: que la POLITICA niega la escritura
+-- mirando el rol y no solo el almacen. Eso tiene que seguir siendo cierto
+-- aunque el dato llegara torcido por otro camino, y si algun dia se afloja el
+-- constraint, esta prueba es la que avisa.
+alter table public.perfil drop constraint perfil_almacen_solo_responsable;
 update public.perfil set almacen_id = pg_temp.id_almacen('N3')
  where id = (select id from auth.users where email = 'lectura@uaeh.local');
 
@@ -981,6 +1001,9 @@ select throws_ok(
 select pg_temp.como_postgres();
 update public.perfil set almacen_id = null
  where id = (select id from auth.users where email = 'lectura@uaeh.local');
+
+alter table public.perfil add constraint perfil_almacen_solo_responsable
+  check (rol = 'responsable' or almacen_id is null);
 
 select pg_temp.como('admin@uaeh.local');
 
@@ -1250,6 +1273,44 @@ select is(
     where id = (select id from auth.users where email = 'admin@uaeh.local')),
   'consulta',
   'El cambio se aplico de verdad: el candado no bloquea de mas'
+);
+
+select pg_temp.como_postgres();
+
+update public.perfil set rol = 'admin'
+ where id = (select id from auth.users where email = 'admin@uaeh.local');
+
+
+-- ---------------------------------------------------------------------------
+-- El almacen es exclusivo del responsable
+-- ---------------------------------------------------------------------------
+-- Las dos mitades de la equivalencia, cada una con su constraint. Importan
+-- juntas: ConAlmacenPropio manda a Inventario a quien tenga almacen, y ese
+-- reparto solo es correcto si tener almacen y ser responsable son lo mismo.
+select throws_ok(
+  $$ update public.perfil set almacen_id = pg_temp.id_almacen('N3')
+      where id = (select id from auth.users where email = 'admin@uaeh.local') $$,
+  '23514',
+  null,
+  'Un admin no puede quedarse con un almacen asignado'
+);
+
+select throws_ok(
+  $$ update public.perfil set almacen_id = pg_temp.id_almacen('N3')
+      where id = (select id from auth.users where email = 'lectura@uaeh.local') $$,
+  '23514',
+  null,
+  'Un usuario de consulta tampoco'
+);
+
+-- Y la mitad que ya existia desde el baseline, aqui por simetria: sin ella la
+-- restriccion nueva por si sola dejaria pasar un responsable sin bodega.
+select throws_ok(
+  $$ update public.perfil set almacen_id = null
+      where id = (select id from auth.users where email = 'n3@uaeh.local') $$,
+  '23514',
+  null,
+  'Un responsable no puede quedarse sin almacen'
 );
 
 select pg_temp.como_postgres();

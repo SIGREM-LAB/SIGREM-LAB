@@ -17,7 +17,7 @@ import {
 import { DialogoContrasena } from './DialogoContrasena'
 import { DialogoEditarUsuario } from './DialogoEditarUsuario'
 import { DialogoNuevoUsuario } from './DialogoNuevoUsuario'
-import type { ValoresEdicion, ValoresNuevo } from './esquemas'
+import { almacenDe, type ValoresEdicion, type ValoresNuevo } from './esquemas'
 import { TablaUsuarios } from './TablaUsuarios'
 
 export function PaginaUsuarios() {
@@ -50,7 +50,7 @@ export function PaginaUsuarios() {
         .update({
           nombre: valores.nombre,
           rol: valores.rol,
-          almacen_id: valores.almacenId ? Number(valores.almacenId) : null,
+          almacen_id: almacenDe(valores),
         })
         .eq('id', id)
       if (error) throw new Error(motivoDelErrorDePerfil(error))
@@ -69,7 +69,7 @@ export function PaginaUsuarios() {
         nombre: valores.nombre,
         correo: valores.correo,
         rol: valores.rol,
-        almacen_id: valores.almacenId ? Number(valores.almacenId) : null,
+        almacen_id: almacenDe(valores),
         password: valores.contrasena,
       })
     },

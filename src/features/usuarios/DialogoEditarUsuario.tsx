@@ -16,7 +16,7 @@ import { useEffect } from 'react'
 import { Controller, useForm } from 'react-hook-form'
 
 import type { Usuario } from './administracion'
-import { CampoAlmacen, CampoRol } from './CamposUsuario'
+import { CampoAlmacenSiAplica, CampoRol } from './CamposUsuario'
 import { esquemaEdicion, type ValoresEdicion } from './esquemas'
 
 export function DialogoEditarUsuario({
@@ -95,7 +95,12 @@ export function DialogoEditarUsuario({
               bloqueado={esMiCuenta}
               ayuda={esMiCuenta ? 'Es tu cuenta: tu propio rol lo cambia otro administrador' : undefined}
             />
-            <CampoAlmacen control={control} nombre="almacenId" id="editar-almacen" />
+            <CampoAlmacenSiAplica
+              control={control}
+              nombre="almacenId"
+              campoRol="rol"
+              id="editar-almacen"
+            />
 
             <Stack spacing={1}>
               <Typography variant="h3">Seguridad</Typography>

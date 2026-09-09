@@ -207,6 +207,9 @@ Deno.serve(async (solicitud) => {
   if (!['admin', 'responsable', 'consulta'].includes(rol)) return errorCliente('El rol no es válido')
   if (almacenId !== null && (!Number.isInteger(almacenId) || almacenId <= 0)) return errorCliente('El almacén no es válido')
   if (rol === 'responsable' && almacenId === null) return errorCliente('Un responsable debe tener un almacén asignado')
+  // La otra mitad de perfil_almacen_solo_responsable. Sin esto, la fila la
+  // rechaza el constraint y el admin recibe el texto de Postgres.
+  if (rol !== 'responsable' && almacenId !== null) return errorCliente('Solo un responsable lleva almacén asignado')
 
   if (almacenId !== null) {
     const { data: almacen, error } = await admin.from('almacen').select('id').eq('id', almacenId).eq('activo', true).maybeSingle()

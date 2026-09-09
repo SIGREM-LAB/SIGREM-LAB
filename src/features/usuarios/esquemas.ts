@@ -40,6 +40,20 @@ function exigirConfirmacion(
   }
 }
 
+/**
+ * El almacén que se guarda, a partir de lo que trae el formulario.
+ *
+ * El campo se esconde cuando el rol no es responsable, pero react-hook-form
+ * conserva lo que ya se hubiera elegido: quien pone «Responsable · N3» y
+ * después cambia a «Administrador» dejaría ese N3 pegado en el estado del
+ * formulario. La base lo rechaza —`perfil_almacen_solo_responsable`—, así que
+ * mejor no mandarlo.
+ */
+export function almacenDe(valores: { rol: string; almacenId: string }): number | null {
+  if (valores.rol !== 'responsable' || !valores.almacenId) return null
+  return Number(valores.almacenId)
+}
+
 export const esquemaEdicion = z
   .object({
     nombre: z.string().trim().min(1, 'Escribe el nombre completo'),

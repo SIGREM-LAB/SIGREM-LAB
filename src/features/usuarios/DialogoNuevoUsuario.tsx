@@ -18,7 +18,7 @@ import { useState } from 'react'
 import { Controller, useForm } from 'react-hook-form'
 
 import { REGLA_CONTRASENA } from './administracion'
-import { CampoAlmacen, CampoRol } from './CamposUsuario'
+import { CampoAlmacenSiAplica, CampoRol } from './CamposUsuario'
 import { esquemaNuevo, type ValoresNuevo } from './esquemas'
 
 const VACIO: ValoresNuevo = {
@@ -107,7 +107,12 @@ export function DialogoNuevoUsuario({
             />
 
             <CampoRol control={control} nombre="rol" id="nuevo-rol" />
-            <CampoAlmacen control={control} nombre="almacenId" id="nuevo-almacen" />
+            <CampoAlmacenSiAplica
+              control={control}
+              nombre="almacenId"
+              campoRol="rol"
+              id="nuevo-almacen"
+            />
 
             <Controller
               name="contrasena"
