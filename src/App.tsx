@@ -8,6 +8,7 @@ import { PaginaAcademico } from '@/features/academico/PaginaAcademico'
 import { PantallaAcceso } from '@/features/auth/PantallaAcceso'
 import { PantallaNuevaContrasena } from '@/features/auth/PantallaNuevaContrasena'
 import { PantallaRecuperarContrasena } from '@/features/auth/PantallaRecuperarContrasena'
+import { capturarEnlaceFallido } from '@/features/auth/enlaceDeCorreo'
 import { ProveedorSesion } from '@/features/auth/ProveedorSesion'
 import { PaginaInicio } from '@/features/inventario/PaginaInicio'
 import { PaginaInventarioGeneral } from '@/features/inventario/PaginaInventarioGeneral'
@@ -34,6 +35,11 @@ const cliente = new QueryClient({
     },
   },
 })
+
+// A la carga del módulo y no dentro de un componente: es el único momento
+// garantizado antes de que react-router reescriba la URL y se lleve por delante
+// el motivo por el que falló el enlace del correo.
+capturarEnlaceFallido()
 
 export default function App() {
   return (

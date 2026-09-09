@@ -2,11 +2,12 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { Alert, Button, Stack, Typography, TextField } from '@mui/material'
 import { useState } from 'react'
 import { Controller, useForm } from 'react-hook-form'
-import { Navigate } from 'react-router-dom'
+import { Link as EnlaceRuta, Navigate } from 'react-router-dom'
 import { z } from 'zod'
 
 import { supabase } from '@/lib/supabase'
 import { useSesion } from './contexto'
+import { enlaceFallido } from './enlaceDeCorreo'
 
 const esquema = z
   .object({
@@ -35,8 +36,26 @@ export function PantallaNuevaContrasena() {
   })
 
   if (sesion.estado === 'cargando') return null
+
   if (sesion.estado === 'sin-sesion') {
-    return <Navigate to="/entrar" replace />
+    // Llegar aquí sin sesión y con un enlace roto detrás es el caso normal de
+    // un correo caducado. Mandar a /entrar sin decir nada dejaba a la persona
+    // frente a un formulario de acceso que no explicaba por qué está ahí.
+    const enlaceMuerto = enlaceFallido()
+    if (enlaceMuerto === null) return <Navigate to="/entrar" replace />
+
+    return (
+      <Stack spacing={2.5} sx={{ maxWidth: 440, mx: 'auto', mt: 8, px: 2 }}>
+        <Typography variant="h1">Este enlace ya no sirve</Typography>
+        <Alert severity="warning">{enlaceMuerto}</Alert>
+        <Button component={EnlaceRuta} to="/solicitar-recuperacion">
+          Pedir otro enlace
+        </Button>
+        <Button component={EnlaceRuta} to="/entrar" variant="text">
+          Volver a iniciar sesión
+        </Button>
+      </Stack>
+    )
   }
 
   const enviar = handleSubmit(async ({ contrasena }) => {
