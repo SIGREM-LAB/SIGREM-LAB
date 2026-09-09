@@ -14,7 +14,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 
-select plan(97);
+select plan(102);
 
 
 -- ---------------------------------------------------------------------------
@@ -1191,6 +1191,65 @@ select is(
     where observaciones = 'Marca de la practica atomica'),
   0,
   'La practica abortada no dejo cabecera: la RPC es atomica'
+);
+
+select pg_temp.como_postgres();
+
+
+-- ---------------------------------------------------------------------------
+-- El candado del ultimo administrador
+-- ---------------------------------------------------------------------------
+-- No es una politica de RLS sino un trigger, y va aqui porque protege lo mismo
+-- que las politicas: que nadie pueda dejar el sistema en un estado del que no
+-- se sale desde dentro. Un admin sin otro admin detras no puede bajarse el rol
+-- ni borrarse, porque despues nadie podria devolverselo.
+--
+-- El seed trae dos admins, asi que primero hay que quedarse con uno.
+update public.perfil set rol = 'consulta'
+ where id = (select id from auth.users where email = 'carga@uaeh.local');
+
+select pg_temp.como('admin@uaeh.local');
+
+select throws_ok(
+  $$ update public.perfil set rol = 'consulta' where id = (select auth.uid()) $$,
+  'P0001',
+  'El sistema se quedaria sin administradores',
+  'El ultimo admin no puede quitarse el rol'
+);
+
+select throws_ok(
+  $$ delete from public.perfil where id = (select auth.uid()) $$,
+  'P0001',
+  'El sistema se quedaria sin administradores',
+  'El ultimo admin tampoco puede borrarse'
+);
+
+-- Lo que el candado NO hace: estorbar al resto de la edicion. Cambiar el
+-- nombre del ultimo admin no toca el rol y tiene que seguir pasando.
+select lives_ok(
+  $$ update public.perfil set nombre = 'Administrador UCL, renombrado'
+      where id = (select auth.uid()) $$,
+  'El ultimo admin sigue pudiendo cambiar su nombre'
+);
+
+-- Con otro admin en pie el candado se abre: la regla es "que quede alguno", no
+-- "que nadie se baje nunca".
+select pg_temp.como_postgres();
+update public.perfil set rol = 'admin'
+ where id = (select id from auth.users where email = 'carga@uaeh.local');
+
+select pg_temp.como('admin@uaeh.local');
+
+select lives_ok(
+  $$ update public.perfil set rol = 'consulta' where id = (select auth.uid()) $$,
+  'Con otro admin en pie, un admin si puede bajarse el rol'
+);
+
+select is(
+  (select rol::text from public.perfil
+    where id = (select id from auth.users where email = 'admin@uaeh.local')),
+  'consulta',
+  'El cambio se aplico de verdad: el candado no bloquea de mas'
 );
 
 select pg_temp.como_postgres();

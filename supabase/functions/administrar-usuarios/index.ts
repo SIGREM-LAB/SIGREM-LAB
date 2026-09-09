@@ -6,7 +6,7 @@ const corsHeaders = {
 }
 
 type Rol = 'admin' | 'responsable' | 'consulta'
-type Accion = 'listar' | 'crear' | 'restablecer'
+type Accion = 'listar' | 'crear' | 'restablecer' | 'establecer_password'
 
 type Solicitud = {
   accion?: unknown
@@ -29,9 +29,37 @@ function errorCliente(mensaje: string, status = 400) {
   return respuesta({ error: mensaje }, status)
 }
 
-function urlRedireccion() {
-  const appUrl = Deno.env.get('APP_URL')?.replace(/\/$/, '')
-  return appUrl ? `${appUrl}/recuperar-contrasena` : undefined
+/**
+ * A donde lleva el enlace del correo de recuperacion.
+ *
+ * Sin `redirectTo`, Supabase usa el `Site URL` del proyecto, que de fabrica es
+ * `http://localhost:3000` y se queda asi hasta que alguien lo cambie en el
+ * dashboard: por eso el correo mandaba a localhost desde produccion.
+ *
+ * `APP_URL` manda cuando esta configurada. Cuando no, se usa el `Origin` de
+ * quien llama, que es la propia app y por tanto sabe donde esta desplegada.
+ * Que esa cabecera sea falsificable no abre nada: GoTrue solo acepta un
+ * `redirectTo` que ya este en la lista blanca del proyecto (`Site URL` y
+ * `Redirect URLs`); cualquier otro lo ignora y cae al `Site URL`.
+ */
+function urlRedireccion(solicitud: Request) {
+  const base = (Deno.env.get('APP_URL') ?? solicitud.headers.get('Origin') ?? '').replace(/\/$/, '')
+  return base ? `${base}/recuperar-contrasena` : undefined
+}
+
+/**
+ * La misma regla que valida el formulario del navegador. Se repite aqui a
+ * proposito: el cliente puede saltarse su propia validacion, esta es la que
+ * cuenta.
+ */
+function contrasenaInsegura(password: string) {
+  return (
+    password.length < 8 ||
+    !/[A-Z]/.test(password) ||
+    !/[a-z]/.test(password) ||
+    !/[0-9]/.test(password) ||
+    !/[^A-Za-z0-9]/.test(password)
+  )
 }
 
 function estadoUsuario(usuario: { email_confirmed_at: string | null; banned_until?: string | null; deleted_at?: string | null }) {
@@ -124,8 +152,9 @@ Deno.serve(async (solicitud) => {
     const { data: usuario, error: errorUsuario } = await admin.auth.admin.getUserById(datos.usuario_id)
     if (errorUsuario || !usuario.user?.email) return errorCliente('No se encontró el correo del usuario', 404)
 
+    const destino = urlRedireccion(solicitud)
     const { error } = await cliente.auth.resetPasswordForEmail(usuario.user.email, {
-      ...(urlRedireccion() ? { redirectTo: urlRedireccion() } : {}),
+      ...(destino ? { redirectTo: destino } : {}),
     })
     if (error) {
       const detalle = error.message.toLowerCase()
@@ -134,6 +163,32 @@ Deno.serve(async (solicitud) => {
       }
       console.error('Error al enviar recuperación:', error.message)
       return errorCliente('No se pudo enviar el correo de recuperación', 500)
+    }
+    return respuesta({ ok: true })
+  }
+
+  /**
+   * El admin define la contraseña en el momento y se la entrega al usuario por
+   * el canal que ya usa con el. Existe porque el correo no siempre esta a mano:
+   * hay cuentas con correo institucional que nadie revisa, y el envio depende
+   * de una cuota de correos que se agota. Esta via no toca el correo.
+   *
+   * Lo que NO hace: cerrar las sesiones que ese usuario tenga abiertas. GoTrue
+   * no expone revocarlas desde el lado admin, asi que una sesion viva sigue
+   * viva hasta que su refresh token caduque.
+   */
+  if (accion === 'establecer_password') {
+    if (typeof datos.usuario_id !== 'string' || !datos.usuario_id) return errorCliente('El usuario no es válido')
+    const nueva = typeof datos.password === 'string' ? datos.password : ''
+    if (contrasenaInsegura(nueva)) return errorCliente('La contraseña no cumple los requisitos de seguridad')
+
+    const { error } = await admin.auth.admin.updateUserById(datos.usuario_id, { password: nueva })
+    if (error) {
+      // 404 tiene su propio mensaje: "no se pudo" no dice que el usuario ya no
+      // existe, que es lo unico que el admin puede resolver desde la pantalla.
+      if (error.status === 404) return errorCliente('El usuario ya no existe', 404)
+      console.error('Error al establecer la contraseña:', error.message)
+      return errorCliente('No se pudo cambiar la contraseña', 500)
     }
     return respuesta({ ok: true })
   }
@@ -148,9 +203,7 @@ Deno.serve(async (solicitud) => {
 
   if (!nombre) return errorCliente('El nombre completo es obligatorio')
   if (!correo || !correo.includes('@')) return errorCliente('El correo electrónico no es válido')
-  if (!password || password.length < 8 || !/[A-Z]/.test(password) || !/[a-z]/.test(password) || !/[0-9]/.test(password) || !/[^A-Za-z0-9]/.test(password)) {
-    return errorCliente('La contraseña no cumple los requisitos de seguridad')
-  }
+  if (contrasenaInsegura(password)) return errorCliente('La contraseña no cumple los requisitos de seguridad')
   if (!['admin', 'responsable', 'consulta'].includes(rol)) return errorCliente('El rol no es válido')
   if (almacenId !== null && (!Number.isInteger(almacenId) || almacenId <= 0)) return errorCliente('El almacén no es válido')
   if (rol === 'responsable' && almacenId === null) return errorCliente('Un responsable debe tener un almacén asignado')
