@@ -22,9 +22,14 @@ type Props = {
 /**
  * La lista de al lado del bloque grande.
  *
- * Cada renglón lleva al inventario ya filtrado por ese almacén: es un enlace de
- * verdad, así que se abre en pestaña nueva con el clic de en medio y se recorre
- * con Tab, cosa que un `div` con `onClick` no hace.
+ * Cada renglón lleva a Inventario general ya filtrado por ese almacén: es un
+ * enlace de verdad, así que se abre en pestaña nueva con el clic de en medio y
+ * se recorre con Tab, cosa que un `div` con `onClick` no hace.
+ *
+ * A la general y no a Inventario, sin excepciones por rol: Inventario es la
+ * bodega de quien entra, y ninguno de estos renglones lo es —para un responsable
+ * son las OTRAS tres, y admin y consulta no tienen ninguna—. La regla queda en
+ * una línea en vez de en cuatro casos.
  */
 export function OtrosAlmacenes({ almacenes, titulo, subtitulo }: Props) {
   return (
@@ -47,7 +52,7 @@ export function OtrosAlmacenes({ almacenes, titulo, subtitulo }: Props) {
               <ListItemButton
                 key={almacen.id}
                 component={EnlaceRuta}
-                to="/inventario"
+                to="/inventario-general"
                 state={{ almacenId: almacen.id }}
                 sx={{ px: 1, py: 1.25, gap: 1.25 }}
               >

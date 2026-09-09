@@ -12,12 +12,13 @@ const ALMACENES = [
   { id: 4, clave: 'LE' },
 ]
 
-function pintar(filtros: Partial<Filtros> = {}, onLimpiar?: () => void) {
+function pintar(filtros: Partial<Filtros> = {}, onLimpiar?: () => void, mostrarAlmacen = true) {
   const onCambio = vi.fn()
   const resultado = render(
     <FiltrosActivos
-      filtros={{ ...filtrosIniciales(undefined), ...filtros }}
+      filtros={{ ...filtrosIniciales(), ...filtros }}
       almacenes={ALMACENES}
+      mostrarAlmacen={mostrarAlmacen}
       onCambio={onCambio}
       onLimpiar={onLimpiar}
     />,
@@ -34,6 +35,16 @@ describe('FiltrosActivos', () => {
   test('el almacen se nombra por su clave, no por su id', () => {
     pintar({ almacenId: 3 })
     expect(screen.getByText('Almacén: LUM')).toBeInTheDocument()
+  })
+
+  // En Inventario el almacen esta puesto SIEMPRE, porque es el ancla de la
+  // pantalla. Su chip trae una X que lo pondria en "todos", que es justo lo que
+  // esa pantalla no puede hacer: seria un boton para romperla.
+  test('anclada a un almacen, su chip no aparece', () => {
+    pintar({ almacenId: 3, termino: 'acetona' }, undefined, false)
+
+    expect(screen.queryByText('Almacén: LUM')).not.toBeInTheDocument()
+    expect(screen.getByText('Buscar: acetona')).toBeInTheDocument()
   })
 
   test('el estado se nombra en palabras, no con el valor del enum', () => {

@@ -42,18 +42,6 @@ export const CLASIFICACIONES: { valor: Enums<'clasificacion_articulo'>; etiqueta
 ]
 
 /**
- * Un responsable arranca en su propio almacén, que es donde trabaja. Admin y
- * consulta arrancan viendo los cuatro, porque su trabajo es el conjunto —y eso
- * vale también para un usuario de consulta con almacén asignado, que sigue
- * siendo de solo lectura.
- *
- * `baja` se esconde: algo dado de baja ya no es inventario. `agotado` NO se
- * esconde —el prototipo lo hace—, porque es justo lo que hay que reponer.
- *
- * `perfil` llega en `undefined` mientras su consulta está en vuelo, y para
- * entonces la pantalla ya se está pintando.
- */
-/**
  * Si lo vigente es lo de arranque no hay nada que limpiar, y el boton de
  * limpiar no tiene por que aparecer.
  */
@@ -62,15 +50,23 @@ export function hayFiltrosActivos(filtros: Filtros, iniciales: Filtros): boolean
   return campos.some((campo) => filtros[campo] !== iniciales[campo])
 }
 
-export function filtrosIniciales(
-  perfil: { rol: Enums<'rol_usuario'>; almacenId: number | null } | undefined,
-): Filtros {
-  const propio = perfil?.rol === 'responsable' && perfil.almacenId !== null
-
+/**
+ * Los valores de arranque, los mismos para todo el mundo.
+ *
+ * Ya no dependen del rol. Qué almacén se mira lo decide la pantalla —Inventario
+ * queda anclado al del perfil, Inventario general arranca en los cuatro—, no los
+ * filtros. Mientras esto miraba el rol, la pantalla tenía que reajustarse sola
+ * cuando el perfil aterrizaba, con un `setState` durante el render y una bandera
+ * para que ocurriera una sola vez.
+ *
+ * `baja` se esconde: algo dado de baja ya no es inventario. `agotado` NO se
+ * esconde —el prototipo lo hace—, porque es justo lo que hay que reponer.
+ */
+export function filtrosIniciales(): Filtros {
   return {
     termino: '',
     clasificacion: 'todas',
-    almacenId: propio ? (perfil.almacenId as number) : 'todos',
+    almacenId: 'todos',
     estado: 'todos',
     incluirBaja: false,
     orden: 'codigo',

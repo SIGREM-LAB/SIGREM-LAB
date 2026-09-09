@@ -15,9 +15,11 @@ import { menuDeNavegacion } from '@/app/navegacion'
 // blanco, sin error en consola.
 const app = readFileSync(path.join(process.cwd(), 'src', 'App.tsx'), 'utf8')
 
-// El menu de admin es el que mas entradas trae; los demas roles son un
-// subconjunto.
-const DISPONIBLES = menuDeNavegacion('admin').filter((item) => item.disponible)
+// Un admin CON almacen asignado es el menu mas grande que existe, y los demas
+// casos son un subconjunto suyo. El almacen importa desde que Inventario dejo de
+// ser universal: sin el, un admin no lo ve, y esta prueba dejaria de comprobar
+// que su ruta existe.
+const DISPONIBLES = menuDeNavegacion('admin', true).filter((item) => item.disponible)
 
 describe('App.tsx', () => {
   test.each(DISPONIBLES.map((item) => [item.etiqueta, item.ruta]))(
@@ -30,7 +32,7 @@ describe('App.tsx', () => {
   // Al reves: una entrada apagada que ya tuviera ruta esta mal marcada, y el
   // menu la dibujaria muerta teniendo pantalla.
   test('las pantallas pendientes no tienen ruta todavia', () => {
-    for (const item of menuDeNavegacion('admin').filter((i) => !i.disponible)) {
+    for (const item of menuDeNavegacion('admin', true).filter((i) => !i.disponible)) {
       expect(app).not.toContain(`path="${item.ruta}"`)
     }
   })

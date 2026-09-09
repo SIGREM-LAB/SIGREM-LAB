@@ -38,6 +38,7 @@ function pintar(props: Partial<Parameters<typeof TablaExistencias>[0]> = {}) {
       pagina={0}
       porPagina={25}
       almacenPropio={1}
+      mostrarAlmacen
       onPagina={vi.fn()}
       onPorPagina={vi.fn()}
       onAbrir={onAbrir}
@@ -118,6 +119,27 @@ describe('TablaExistencias', () => {
   test('las columnas llevan ancho fijo', () => {
     const { container } = pintar()
     expect(container.querySelectorAll('colgroup col')).toHaveLength(6)
+  })
+
+  // En Inventario, anclado a una bodega, esa columna diria lo mismo en los 300
+  // renglones.
+  test('sin cruzar almacenes, la columna de almacen no se dibuja', () => {
+    const { container } = pintar({ mostrarAlmacen: false })
+
+    expect(screen.queryByRole('columnheader', { name: 'Almacén' })).not.toBeInTheDocument()
+    expect(container.querySelectorAll('colgroup col')).toHaveLength(5)
+  })
+
+  // El colgroup, la cabecera y este colSpan salen del mismo arreglo. Con un 6
+  // escrito a mano, quitar la columna deja el aviso desbordando la tabla, y es
+  // de las cosas que no se ven hasta que el filtro no devuelve nada.
+  test('el aviso de sin resultados abarca las columnas que quedan', () => {
+    pintar({ mostrarAlmacen: false, filas: [], total: 0 })
+
+    expect(screen.getByText(/no se encontraron existencias/i).closest('td')).toHaveAttribute(
+      'colspan',
+      '5',
+    )
   })
 
   // Mientras llega la primera pagina se dibujan renglones vacios con su medida

@@ -4,23 +4,24 @@ import { describe, expect, test } from 'vitest'
 import { AtajosPendientes } from './AtajosPendientes'
 import { menuDeNavegacion } from '@/app/navegacion'
 
-const PENDIENTES = menuDeNavegacion('admin').filter((item) => !item.disponible)
+const PENDIENTES = menuDeNavegacion('admin', true).filter((item) => !item.disponible)
 
 describe('AtajosPendientes', () => {
   test('dibuja una tarjeta por pantalla pendiente', () => {
     render(<AtajosPendientes items={PENDIENTES} />)
 
     expect(screen.getByText('Reportes')).toBeInTheDocument()
-    expect(screen.getByText('Inventario general')).toBeInTheDocument()
   })
 
-  // Practicas se entrego el 3 de septiembre. Aqui no hubo que borrar una
-  // tarjeta: basta con que `menuDeNavegacion` la marque disponible y sale sola
-  // de esta lista, que es justo lo que promete el comentario del componente.
+  // Practicas se entrego el 3 de septiembre y el inventario general el 9. En
+  // ninguna de las dos hubo que borrar una tarjeta: basta con que
+  // `menuDeNavegacion` las marque disponibles y salen solas de esta lista, que
+  // es justo lo que promete el comentario del componente.
   test('lo ya entregado desaparece de la fila sin tocar este componente', () => {
     render(<AtajosPendientes items={PENDIENTES} />)
 
     expect(screen.queryByText('Prácticas')).not.toBeInTheDocument()
+    expect(screen.queryByText('Inventario general')).not.toBeInTheDocument()
   })
 
   test('cada una cuenta que se va a hacer ahi', () => {

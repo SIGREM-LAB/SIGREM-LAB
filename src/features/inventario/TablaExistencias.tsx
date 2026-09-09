@@ -28,25 +28,38 @@ export type Fila = Tables<'existencia_listado'>
  */
 const ALTO_FILA = 56
 
+const ANCHO_ALMACEN = 104
+
 /**
  * Los anchos van aqui y se aplican con `<colgroup>` sobre una tabla
  * `table-layout: fixed`. Es la otra mitad del mismo problema: con el reparto
  * automatico, el ancho de cada columna sale del contenido, asi que al cambiar
- * de almacen las seis columnas se recolocan. Fijos, no se mueven nunca.
+ * de pagina las columnas se recolocan. Fijos, no se mueven nunca.
  *
  * `Nombre` va sin ancho: se queda con lo que sobra.
+ *
+ * La columna de almacen solo aparece donde significa algo. En Inventario, que
+ * esta anclado a una bodega, todos los renglones dirian lo mismo.
  */
-const COLUMNAS: { etiqueta: string; ancho?: number }[] = [
-  { etiqueta: 'Código', ancho: 116 },
-  { etiqueta: 'Nombre' },
-  { etiqueta: 'Existencia', ancho: 116 },
-  { etiqueta: 'Estado', ancho: 140 },
-  { etiqueta: 'Almacén', ancho: 104 },
-  { etiqueta: 'Ubicación', ancho: 168 },
-]
+function columnasDe(mostrarAlmacen: boolean): { etiqueta: string; ancho?: number }[] {
+  return [
+    { etiqueta: 'Código', ancho: 116 },
+    { etiqueta: 'Nombre' },
+    { etiqueta: 'Existencia', ancho: 116 },
+    { etiqueta: 'Estado', ancho: 140 },
+    ...(mostrarAlmacen ? [{ etiqueta: 'Almacén', ancho: ANCHO_ALMACEN }] : []),
+    { etiqueta: 'Ubicación', ancho: 168 },
+  ]
+}
 
-/** Suma de los anchos fijos mas el minimo que se le deja al nombre. */
-const ANCHO_MINIMO = 884
+/**
+ * Suma de los anchos fijos mas el minimo que se le deja al nombre. Se descuenta
+ * la columna de almacen cuando no se dibuja: si no, la tabla reservaria un hueco
+ * de 104 px que nadie ocupa y desplazaria en horizontal antes de tiempo.
+ */
+function anchoMinimo(mostrarAlmacen: boolean): number {
+  return mostrarAlmacen ? 884 : 884 - ANCHO_ALMACEN
+}
 
 const ESTILO_CABECERA = {
   fontSize: '0.6875rem',
@@ -64,6 +77,8 @@ type Props = {
   porPagina: number
   /** `null` para admin y consulta: no hay almacén propio contra el que contrastar. */
   almacenPropio: number | null
+  /** Si la tabla cruza almacenes. En Inventario, anclado a uno, no. */
+  mostrarAlmacen: boolean
   /** Primera carga: se dibujan renglones vacíos con la medida final. */
   cargando?: boolean
   onPagina: (pagina: number) => void
@@ -84,12 +99,18 @@ function PuntoEstado({ estado }: { estado: Fila['estado'] }) {
 }
 
 /** El hueco de la primera carga, con el mismo alto que un renglón de verdad. */
-function FilasCargando({ cuantas }: { cuantas: number }) {
+function FilasCargando({
+  cuantas,
+  columnas,
+}: {
+  cuantas: number
+  columnas: { etiqueta: string }[]
+}) {
   return (
     <>
       {Array.from({ length: cuantas }, (_, i) => (
         <TableRow key={i} sx={{ height: ALTO_FILA }}>
-          {COLUMNAS.map((columna) => (
+          {columnas.map((columna) => (
             <TableCell key={columna.etiqueta}>
               <Skeleton variant="text" />
             </TableCell>
@@ -106,11 +127,14 @@ export function TablaExistencias({
   pagina,
   porPagina,
   almacenPropio,
+  mostrarAlmacen,
   cargando = false,
   onPagina,
   onPorPagina,
   onAbrir,
 }: Props) {
+  const columnas = columnasDe(mostrarAlmacen)
+
   return (
     <>
       {/* El contenedor desplaza en horizontal por su cuenta: a 1024 px, que es
@@ -121,17 +145,17 @@ export function TablaExistencias({
         <Table
           aria-label="Existencias de los almacenes"
           size="small"
-          sx={{ tableLayout: 'fixed', minWidth: ANCHO_MINIMO }}
+          sx={{ tableLayout: 'fixed', minWidth: anchoMinimo(mostrarAlmacen) }}
         >
           <colgroup>
-            {COLUMNAS.map((columna) => (
+            {columnas.map((columna) => (
               <col key={columna.etiqueta} style={{ width: columna.ancho }} />
             ))}
           </colgroup>
 
           <TableHead>
             <TableRow>
-              {COLUMNAS.map((columna) => (
+              {columnas.map((columna) => (
                 <TableCell key={columna.etiqueta} sx={ESTILO_CABECERA}>
                   {columna.etiqueta}
                 </TableCell>
@@ -140,11 +164,16 @@ export function TablaExistencias({
           </TableHead>
 
           <TableBody>
-            {cargando ? <FilasCargando cuantas={Math.min(porPagina, 8)} /> : null}
+            {cargando ? (
+              <FilasCargando cuantas={Math.min(porPagina, 8)} columnas={columnas} />
+            ) : null}
 
             {!cargando && filas.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={COLUMNAS.length} sx={{ py: 6, textAlign: 'center' }}>
+                {/* El colSpan sale del largo del arreglo y no de un 6 escrito a
+                    mano: con la columna de almacén fuera, un número fijo deja el
+                    aviso de "sin resultados" descuadrado respecto a la cabecera. */}
+                <TableCell colSpan={columnas.length} sx={{ py: 6, textAlign: 'center' }}>
                   <Typography sx={{ color: 'text.secondary' }}>
                     No se encontraron existencias con esos filtros
                   </Typography>
@@ -217,35 +246,37 @@ export function TablaExistencias({
                         <PuntoEstado estado={f.estado} />
                       </TableCell>
 
-                      <TableCell>
-                        <Stack direction="row" spacing={0.75} sx={{ alignItems: 'center' }}>
-                          <Box
-                            sx={{
-                              px: 1,
-                              py: 0.25,
-                              borderRadius: 1,
-                              bgcolor: aspecto.color,
-                              color: 'common.white',
-                              fontSize: '0.75rem',
-                              fontWeight: 600,
-                            }}
-                          >
-                            {f.almacen_clave}
-                          </Box>
-                          {ajeno ? (
-                            // El `title` va en el span y no en el <Icon>: Iconify lo
-                            // pintaría como <title> dentro del SVG, y ahí queda a
-                            // merced de cómo trate cada lector de pantalla los SVG.
+                      {mostrarAlmacen ? (
+                        <TableCell>
+                          <Stack direction="row" spacing={0.75} sx={{ alignItems: 'center' }}>
                             <Box
-                              component="span"
-                              title="De otro almacén: solo consulta"
-                              sx={{ display: 'inline-flex', color: 'text.secondary' }}
+                              sx={{
+                                px: 1,
+                                py: 0.25,
+                                borderRadius: 1,
+                                bgcolor: aspecto.color,
+                                color: 'common.white',
+                                fontSize: '0.75rem',
+                                fontWeight: 600,
+                              }}
                             >
-                              <Icon icon="mdi:eye-outline" width={16} aria-hidden />
+                              {f.almacen_clave}
                             </Box>
-                          ) : null}
-                        </Stack>
-                      </TableCell>
+                            {ajeno ? (
+                              // El `title` va en el span y no en el <Icon>: Iconify lo
+                              // pintaría como <title> dentro del SVG, y ahí queda a
+                              // merced de cómo trate cada lector de pantalla los SVG.
+                              <Box
+                                component="span"
+                                title="De otro almacén: solo consulta"
+                                sx={{ display: 'inline-flex', color: 'text.secondary' }}
+                              >
+                                <Icon icon="mdi:eye-outline" width={16} aria-hidden />
+                              </Box>
+                            ) : null}
+                          </Stack>
+                        </TableCell>
+                      ) : null}
 
                       <TableCell>
                         <Typography

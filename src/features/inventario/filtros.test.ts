@@ -3,46 +3,26 @@ import { describe, expect, test } from 'vitest'
 import { CLASIFICACIONES, filtrosIniciales, hayFiltrosActivos, ORDENES } from './filtros'
 
 describe('filtrosIniciales', () => {
-  test('un responsable arranca en su propio almacen', () => {
-    expect(filtrosIniciales({ rol: 'responsable', almacenId: 3 }).almacenId).toBe(3)
-  })
-
-  test('un admin arranca viendo los cuatro', () => {
-    expect(filtrosIniciales({ rol: 'admin', almacenId: null }).almacenId).toBe('todos')
-  })
-
-  // Un admin con almacen asignado sigue viendo todo: su trabajo es el conjunto.
-  test('un admin con almacen asignado tambien arranca en todos', () => {
-    expect(filtrosIniciales({ rol: 'admin', almacenId: 1 }).almacenId).toBe('todos')
-  })
-
-  test('un consulta arranca viendo los cuatro', () => {
-    expect(filtrosIniciales({ rol: 'consulta', almacenId: null }).almacenId).toBe('todos')
-  })
-
-  // El esquema permite un consulta con almacen -solo `responsable` lo tiene
-  // prohibido por restriccion-, y ese usuario no deja de ser de solo lectura.
-  test('un consulta con almacen asignado tambien arranca en todos', () => {
-    expect(filtrosIniciales({ rol: 'consulta', almacenId: 2 }).almacenId).toBe('todos')
-  })
-
-  // Mientras carga el perfil no hay rol, y la pantalla ya se esta pintando.
-  test('sin perfil todavia, arranca en todos y no revienta', () => {
-    expect(filtrosIniciales(undefined).almacenId).toBe('todos')
+  // Ya no mira el rol. Que almacen se ve lo decide la pantalla: Inventario
+  // sobrescribe esto con la bodega del perfil, e Inventario general arranca
+  // justo aqui. Mientras dependia del rol, la pantalla tenia que reajustarse
+  // sola cuando el perfil aterrizaba.
+  test('arranca en todos los almacenes', () => {
+    expect(filtrosIniciales().almacenId).toBe('todos')
   })
 
   test('las bajas se esconden por omision', () => {
-    expect(filtrosIniciales(undefined).incluirBaja).toBe(false)
+    expect(filtrosIniciales().incluirBaja).toBe(false)
   })
 
   test('los agotados NO se esconden: son justo lo que hay que reponer', () => {
-    expect(filtrosIniciales(undefined).estado).toBe('todos')
+    expect(filtrosIniciales().estado).toBe('todos')
   })
 
   // El inventario en papel esta numerado por codigo, y ese sigue siendo el
   // orden de arranque: el alfabetico se pide, no se impone.
   test('arranca ordenado por codigo', () => {
-    expect(filtrosIniciales(undefined).orden).toBe('codigo')
+    expect(filtrosIniciales().orden).toBe('codigo')
   })
 })
 
@@ -78,12 +58,14 @@ describe('CLASIFICACIONES', () => {
 })
 
 describe('hayFiltrosActivos', () => {
-  const iniciales = filtrosIniciales({ rol: 'responsable', almacenId: 3 })
+  // El arranque de Inventario, tal como lo arma la pantalla: los valores
+  // neutros con el almacen anclado encima.
+  const iniciales = { ...filtrosIniciales(), almacenId: 3 }
 
-  // Para un responsable, arrancar viendo solo su almacen NO es tener un filtro
-  // puesto: es su punto de partida. Si contara, el boton de limpiar aparecería
-  // nada mas entrar y "limpiar" no cambiaria nada.
-  test('el arranque de cada rol no cuenta como filtro', () => {
+  // Estar anclado a una bodega NO es tener un filtro puesto: es el punto de
+  // partida. Si contara, el boton de limpiar aparecería nada mas entrar y
+  // "limpiar" no cambiaria nada.
+  test('el arranque de la pantalla no cuenta como filtro', () => {
     expect(hayFiltrosActivos(iniciales, iniciales)).toBe(false)
   })
 

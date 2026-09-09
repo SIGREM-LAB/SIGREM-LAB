@@ -16,8 +16,9 @@ function pintar(props: Partial<Parameters<typeof FiltrosInventario>[0]> = {}) {
   const onCambio = vi.fn()
   render(
     <FiltrosInventario
-      filtros={filtrosIniciales(undefined)}
+      filtros={filtrosIniciales()}
       almacenes={ALMACENES}
+      mostrarAlmacen
       onCambio={onCambio}
       {...props}
     />,
@@ -74,6 +75,18 @@ describe('FiltrosInventario', () => {
     }
   })
 
+  // En Inventario el almacen es el ancla de la pantalla, no una eleccion:
+  // ofrecer el selector seria ofrecer salirse de ella.
+  test('anclada a un almacen, el selector no se dibuja', () => {
+    pintar({ mostrarAlmacen: false })
+
+    expect(screen.queryByLabelText(/almacén/i)).not.toBeInTheDocument()
+    // Los demas siguen ahi: lo unico que se va es el almacen.
+    expect(screen.getByLabelText(/buscar/i)).toBeInTheDocument()
+    expect(screen.getByLabelText(/tipo/i)).toBeInTheDocument()
+    expect(screen.getByLabelText(/estado/i)).toBeInTheDocument()
+  })
+
   test('cambiar el almacen propaga su id como numero, no como texto', async () => {
     const { onCambio } = pintar()
 
@@ -119,7 +132,7 @@ describe('FiltrosInventario', () => {
   // olvidara del resto, cambiar el tipo borraria el termino ya tecleado.
   test('cambiar un filtro conserva los demas', async () => {
     const { onCambio } = pintar({
-      filtros: { ...filtrosIniciales(undefined), termino: 'acetona', almacenId: 2 },
+      filtros: { ...filtrosIniciales(), termino: 'acetona', almacenId: 2 },
     })
 
     await userEvent.click(screen.getByRole('checkbox', { name: /bajas/i }))

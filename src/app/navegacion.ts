@@ -38,10 +38,18 @@ export type ItemMenu = {
 
 /**
  * El menu del prototipo, con las pantallas pendientes marcadas.
+ *
  * `rol` llega en `undefined` mientras el perfil todavia se esta cargando.
+ *
+ * `tieneAlmacen` decide si aparece Inventario, que es la pantalla de UNA bodega:
+ * la de quien entra. Admin y consulta no tienen ninguna asignada -su ambito es
+ * la Unidad entera-, asi que su inventario es Inventario general y ese es el que
+ * ven. No es una restriccion de permisos: es que la otra pantalla no tendria
+ * ningun almacen que ensenarles.
  */
 export function menuDeNavegacion(
   rol: Enums<'rol_usuario'> | undefined,
+  tieneAlmacen: boolean,
 ): ItemMenu[] {
   const comunes: ItemMenu[] = [
     {
@@ -53,12 +61,28 @@ export function menuDeNavegacion(
       color: 'institucional.main',
       disponible: true,
     },
+    ...(tieneAlmacen
+      ? [
+          {
+            ruta: '/inventario',
+            etiqueta: 'Inventario',
+            icono: 'mdi:package-variant-closed',
+            grupo: 'operacion' as const,
+            descripcion: 'Consultar y capturar lo de tu almacén',
+            color: 'institucional.main',
+            disponible: true,
+          },
+        ]
+      : []),
     {
-      ruta: '/inventario',
-      etiqueta: 'Inventario',
-      icono: 'mdi:package-variant-closed',
+      // Junto a Inventario y no en administración: son hermanas y se leen
+      // juntas. La ven los tres roles porque la RLS abre la lectura de las
+      // cuatro bodegas a propósito, para el préstamo entre almacenes.
+      ruta: '/inventario-general',
+      etiqueta: 'Inventario general',
+      icono: 'mdi:warehouse',
       grupo: 'operacion',
-      descripcion: 'Consultar y capturar reactivos, materiales y equipos',
+      descripcion: 'Buscar en los cuatro almacenes de la Unidad',
       color: 'institucional.main',
       disponible: true,
     },
@@ -92,15 +116,6 @@ export function menuDeNavegacion(
       icono: 'mdi:school-outline',
       grupo: 'administracion',
       descripcion: 'Programas, asignaturas y prácticas del plan de estudios',
-      color: 'grey.600',
-      disponible: true,
-    },
-    {
-      ruta: '/inventario-general',
-      etiqueta: 'Inventario general',
-      icono: 'mdi:shield-check-outline',
-      grupo: 'administracion',
-      descripcion: 'Consultar el inventario global de todos los laboratorios',
       color: 'grey.600',
       disponible: true,
     },
