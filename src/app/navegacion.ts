@@ -69,7 +69,7 @@ export function menuDeNavegacion(
       grupo: 'operacion',
       descripcion: 'Registrar el consumo de cada práctica',
       color: 'secondary.main',
-      disponible: false,
+      disponible: true,
     },
     {
       ruta: '/reportes',

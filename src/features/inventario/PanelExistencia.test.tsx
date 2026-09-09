@@ -19,6 +19,7 @@ const FILA: Fila = {
   nombre_canonico: 'Acetona, líquido, pureza 99.5%, CAS: 67-64-1',
   descripcion: null,
   clasificacion: 'reactivo',
+  metodo_control: 'peso',
   unidad_base: 'mL',
   almacen_clave: 'N3',
   ubicacion: 'N3 · Anaquel 2 · Repisa 3',

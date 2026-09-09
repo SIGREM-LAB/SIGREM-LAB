@@ -659,18 +659,21 @@ export type Database = {
           activo: boolean
           clave: string
           etiqueta: string
+          metodos: Database["public"]["Enums"]["metodo_control"][]
           orden: number
         }
         Insert: {
           activo?: boolean
           clave: string
           etiqueta: string
+          metodos?: Database["public"]["Enums"]["metodo_control"][]
           orden: number
         }
         Update: {
           activo?: boolean
           clave?: string
           etiqueta?: string
+          metodos?: Database["public"]["Enums"]["metodo_control"][]
           orden?: number
         }
         Relationships: []
@@ -983,6 +986,32 @@ export type Database = {
           },
         ]
       }
+      practica_borrador: {
+        Row: {
+          actualizado_en: string
+          contenido: Json
+          usuario_id: string
+        }
+        Insert: {
+          actualizado_en?: string
+          contenido: Json
+          usuario_id: string
+        }
+        Update: {
+          actualizado_en?: string
+          contenido?: Json
+          usuario_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "practica_borrador_usuario_id_fkey"
+            columns: ["usuario_id"]
+            isOneToOne: true
+            referencedRelation: "perfil"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       practica_catalogo: {
         Row: {
           activo: boolean
@@ -1119,6 +1148,36 @@ export type Database = {
             columns: ["practica_id"]
             isOneToOne: false
             referencedRelation: "practica"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      practica_elemento_observacion: {
+        Row: {
+          motivo: string
+          practica_elemento_id: number
+        }
+        Insert: {
+          motivo: string
+          practica_elemento_id: number
+        }
+        Update: {
+          motivo?: string
+          practica_elemento_id?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "practica_elemento_observacion_motivo_fkey"
+            columns: ["motivo"]
+            isOneToOne: false
+            referencedRelation: "motivo_observacion"
+            referencedColumns: ["clave"]
+          },
+          {
+            foreignKeyName: "practica_elemento_observacion_practica_elemento_id_fkey"
+            columns: ["practica_elemento_id"]
+            isOneToOne: false
+            referencedRelation: "practica_elemento"
             referencedColumns: ["id"]
           },
         ]
@@ -1275,6 +1334,7 @@ export type Database = {
           id: number | null
           marca: string | null
           marca_norm: string | null
+          metodo_control: Database["public"]["Enums"]["metodo_control"] | null
           nombre_canonico: string | null
           nombre_norm: string | null
           ubicacion: string | null
@@ -1339,7 +1399,25 @@ export type Database = {
         Args: { destino: number; origen: number }
         Returns: undefined
       }
+      metodo_de_control: {
+        Args: {
+          p_clasificacion: Database["public"]["Enums"]["clasificacion_articulo"]
+        }
+        Returns: Database["public"]["Enums"]["metodo_control"]
+      }
       norm_texto: { Args: { t: string }; Returns: string }
+      registrar_practica: {
+        Args: {
+          p_asignatura: number
+          p_elementos: Json
+          p_fecha: string
+          p_laboratorio: number
+          p_observaciones?: string
+          p_practica_catalogo: number
+          p_programa: number
+        }
+        Returns: string
+      }
       resolver_pendiente: {
         Args: {
           p_nota?: string

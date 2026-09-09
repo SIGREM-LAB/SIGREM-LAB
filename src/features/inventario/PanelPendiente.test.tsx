@@ -58,6 +58,7 @@ function existencia(cambios: Partial<Fila> = {}): Fila {
     nombre_canonico: 'Ergosterol, sólido, pureza 95%',
     descripcion: null,
     clasificacion: 'reactivo',
+    metodo_control: 'peso',
     unidad_base: 'g',
     almacen_clave: 'N3',
     ubicacion: 'N3 · Gaveta 4',
