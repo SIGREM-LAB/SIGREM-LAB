@@ -20,6 +20,7 @@ import { z } from 'zod'
 import { BotonTema } from '@/app/BotonTema'
 import { LogoUAEH } from '@/app/LogoUAEH'
 import { supabase } from '@/lib/supabase'
+import { enlaceFallido } from './enlaceDeCorreo'
 
 export type AuthAcceso = {
   signInWithPassword(credenciales: { email: string; password: string }): Promise<{
@@ -126,6 +127,8 @@ function FiguraFondo({
 
 export function PantallaAcceso({ auth = supabase.auth }: { auth?: AuthAcceso }) {
   const [fallo, setFallo] = useState<string | null>(null)
+  // No es estado: se capturó al arrancar y no cambia mientras la pantalla vive.
+  const enlaceMuerto = enlaceFallido()
   const [verContrasena, setVerContrasena] = useState(false)
 
   // `colorScheme`, no `mode`: `mode` vale 'system' cuando el usuario no ha
@@ -203,6 +206,16 @@ export function PantallaAcceso({ auth = supabase.auth }: { auth?: AuthAcceso }) 
             <Typography variant="body2" sx={{ color: 'text.secondary', mb: 3 }}>
               Escribe tus datos para entrar al sistema
             </Typography>
+
+            {enlaceMuerto && (
+              <Alert
+                severity="warning"
+                icon={<Icon icon="mdi:link-variant-off" width={20} />}
+                sx={{ mb: 3 }}
+              >
+                {enlaceMuerto}
+              </Alert>
+            )}
 
             <Stack component="form" onSubmit={enviar} spacing={2.5} noValidate>
               <Controller

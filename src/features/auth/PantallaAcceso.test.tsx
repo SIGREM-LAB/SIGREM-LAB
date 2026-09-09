@@ -1,14 +1,40 @@
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { describe, expect, test } from 'vitest'
+import { afterEach, describe, expect, test } from 'vitest'
 
+import { capturarEnlaceFallido, olvidarEnlaceFallido } from './enlaceDeCorreo'
 import { PantallaAcceso, type AuthAcceso } from './PantallaAcceso'
+
+afterEach(olvidarEnlaceFallido)
 
 function authQue(resultado: { error: { message: string } | null }): AuthAcceso {
   return { signInWithPassword: async () => resultado }
 }
 
 describe('PantallaAcceso', () => {
+  /**
+   * Quien abre un enlace de recuperación caducado acaba aquí: la raíz está
+   * protegida y la guardia manda a /entrar. Sin este aviso, la pantalla no
+   * explica por qué está frente a un formulario de acceso.
+   */
+  test('explica el enlace de correo que ya no servia', () => {
+    capturarEnlaceFallido({
+      hash: '#error=access_denied&error_code=otp_expired&error_description=Email+link+is+invalid',
+      search: '',
+      pathname: '/',
+    } as Location)
+
+    render(<PantallaAcceso auth={authQue({ error: null })} />)
+
+    expect(screen.getByText(/caducó o se abrió una vez antes que tú/)).toBeInTheDocument()
+  })
+
+  test('sin enlace roto detras no inventa avisos', () => {
+    render(<PantallaAcceso auth={authQue({ error: null })} />)
+
+    expect(screen.queryByText(/caducó/)).toBeNull()
+  })
+
   test('pide el correo cuando se envia vacio', async () => {
     const user = userEvent.setup()
     render(<PantallaAcceso auth={authQue({ error: null })} />)
