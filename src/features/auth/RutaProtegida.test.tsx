@@ -3,7 +3,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { beforeEach, describe, expect, test, vi } from 'vitest'
 
-import { RutaProtegida, SoloAdmin, SoloInvitados } from './RutaProtegida'
+import { ConAlmacenPropio, RutaProtegida, SoloAdmin, SoloInvitados } from './RutaProtegida'
 import { ContextoSesion, type EstadoSesion } from './contexto'
 
 const { usePerfil } = vi.hoisted(() => ({
@@ -331,5 +331,81 @@ describe('SoloAdmin - Panel educativo', () => {
     expect(
       screen.getByText(/No se pudo comprobar tu perfil/),
     ).toBeInTheDocument()
+  })
+})
+
+/*
+ * ============================================================
+ * INVENTARIO: LA BODEGA DE QUIEN ENTRA
+ * ============================================================
+ */
+
+function montarInventario(perfil: {
+  isPending?: boolean
+  isError?: boolean
+  almacen?: { id: number; clave: string; nombre: string } | null
+}) {
+  usePerfil.mockReturnValue({
+    isPending: perfil.isPending ?? false,
+    isError: perfil.isError ?? false,
+    error: null,
+    data: perfil.isPending || perfil.isError
+      ? undefined
+      : { rol: 'responsable', almacen: perfil.almacen ?? null },
+  })
+
+  const cliente = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+
+  return render(
+    <QueryClientProvider client={cliente}>
+      <ContextoSesion.Provider value={{ estado: 'con-sesion', usuarioId: 'u-1' }}>
+        <MemoryRouter initialEntries={['/inventario']}>
+          <Routes>
+            <Route path="/inventario-general" element={<p>Inventario general</p>} />
+
+            <Route element={<ConAlmacenPropio />}>
+              <Route path="/inventario" element={<p>Inventario de tu almacen</p>} />
+            </Route>
+          </Routes>
+        </MemoryRouter>
+      </ContextoSesion.Provider>
+    </QueryClientProvider>,
+  )
+}
+
+describe('ConAlmacenPropio', () => {
+  beforeEach(() => {
+    usePerfil.mockReset()
+  })
+
+  test('deja pasar a quien tiene almacen asignado', () => {
+    montarInventario({ almacen: { id: 3, clave: 'LUM', nombre: 'Laboratorio LUM' } })
+
+    expect(screen.getByText('Inventario de tu almacen')).toBeInTheDocument()
+  })
+
+  // Admin y consulta no tienen bodega: su ambito es la Unidad entera, y su
+  // inventario es el general. No es una restriccion de permisos -la RLS les deja
+  // leerlo todo-, es que Inventario no tendria ningun almacen que ensenarles.
+  test('manda al inventario general a quien no tiene almacen', () => {
+    montarInventario({ almacen: null })
+
+    expect(screen.getByText('Inventario general')).toBeInTheDocument()
+    expect(screen.queryByText('Inventario de tu almacen')).not.toBeInTheDocument()
+  })
+
+  // Redirigir mientras el perfil esta en vuelo sacaria de su propia pantalla a
+  // un responsable en cada recarga.
+  test('mientras el perfil carga no decide nada', () => {
+    montarInventario({ isPending: true })
+
+    expect(screen.getByText('Comprobando tu almacén…')).toBeInTheDocument()
+    expect(screen.queryByText('Inventario general')).not.toBeInTheDocument()
+  })
+
+  test('si el perfil no se puede leer, lo dice en vez de quedarse en blanco', () => {
+    montarInventario({ isError: true })
+
+    expect(screen.getByText(/No se pudo comprobar tu perfil/)).toBeInTheDocument()
   })
 })

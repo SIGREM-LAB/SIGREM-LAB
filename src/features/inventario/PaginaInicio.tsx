@@ -81,7 +81,9 @@ export function PaginaInicio() {
   }
 
   const { portada, otros } = repartirAlmacenes(resumen.data, almacenPropio)
-  const pendientes = menuDeNavegacion(perfil?.rol).filter((item) => !item.disponible)
+  const pendientes = menuDeNavegacion(perfil?.rol, almacenPropio !== null).filter(
+    (item) => !item.disponible,
+  )
 
   // El aviso mira los cuatro, no solo la portada: que el almacén de quien entra
   // esté vacío no significa que no se haya cargado nada.

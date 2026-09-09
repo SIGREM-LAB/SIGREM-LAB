@@ -75,14 +75,22 @@ export function useExistencias(filtros: Filtros, pagina: number, porPagina: numb
  *
  * Se cuenta sobre `existencia_listado` y no sobre `existencia` para que el
  * numero de la cabecera y el de la tabla salgan de la misma fuente.
+ *
+ * El almacen es obligatorio y no admite 'todos'. Su unico consumidor es
+ * Inventario, que esta anclado a una bodega y siempre tiene una; admitir 'todos'
+ * seria escribir hoy una rama que nadie recorre. Sin el, esta cabecera diria
+ * "1278 existencias" encima de una tabla de 300.
  */
-export function useResumenEstados() {
+export function useResumenEstados(almacenId: number) {
   return useQuery({
-    queryKey: ['resumen-estados'],
+    queryKey: ['resumen-estados', almacenId],
     staleTime: 60 * 1000,
     queryFn: async () => {
       const contar = async (estado?: Enums<'estado_existencia'>) => {
-        const base = supabase.from('existencia_listado').select('id', { count: 'exact', head: true })
+        const base = supabase
+          .from('existencia_listado')
+          .select('id', { count: 'exact', head: true })
+          .eq('almacen_id', almacenId)
         // Sin estado se cuenta el inventario vivo: lo dado de baja ya no lo es.
         const { count, error } = await (estado === undefined
           ? base.neq('estado', 'baja')
@@ -169,10 +177,15 @@ export function useDetalleExistencia(existenciaId: number | null) {
  * `activo` se filtra aquí y no dentro de la vista, igual que en
  * `useAlmacenes`: una vista que esconde renglones descuadra las cuentas sin
  * que se vea por qué.
+ *
+ * `habilitado` existe para la tira de almacenes, que solo se dibuja en Inventario
+ * general: en Inventario, anclado a una bodega, estos veinte números no se
+ * enseñan en ningún sitio y pedirlos sería un viaje por página vista.
  */
-export function useResumenAlmacenes() {
+export function useResumenAlmacenes(habilitado = true) {
   return useQuery({
     queryKey: ['resumen-almacenes'],
+    enabled: habilitado,
     queryFn: async (): Promise<ResumenAlmacen[]> => {
       const { data, error } = await supabase
         .from('almacen_resumen')

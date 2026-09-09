@@ -1,7 +1,7 @@
 import { ThemeProvider } from '@mui/material/styles'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom'
+import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { describe, expect, test } from 'vitest'
 
 import { TarjetaAlmacen } from './TarjetaAlmacen'
@@ -23,20 +23,14 @@ function portada(cambios: Partial<Portada> = {}): Portada {
   }
 }
 
-/** Enseña lo que le llegó por el state, que es lo que no se ve en el href. */
-function Destino() {
-  const { state } = useLocation()
-  const almacenId = (state as { almacenId?: unknown } | null)?.almacenId
-  return <p>llegó almacén {almacenId === undefined ? 'ninguno' : String(almacenId)}</p>
-}
-
 function pintar(props: Partial<Parameters<typeof TarjetaAlmacen>[0]> = {}) {
   render(
     <ThemeProvider theme={tema}>
       <MemoryRouter initialEntries={['/']}>
         <Routes>
           <Route path="/" element={<TarjetaAlmacen portada={portada()} almacenId={7} {...props} />} />
-          <Route path="/inventario" element={<Destino />} />
+          <Route path="/inventario" element={<p>Inventario de tu almacén</p>} />
+          <Route path="/inventario-general" element={<p>Inventario general</p>} />
         </Routes>
       </MemoryRouter>
     </ThemeProvider>,
@@ -87,17 +81,19 @@ describe('TarjetaAlmacen', () => {
     expect(screen.queryByText('TU ALMACÉN')).not.toBeInTheDocument()
   })
 
-  // El enlace es lo que hace util a la tarjeta: sin el almacen en el state, el
-  // inventario abre sin filtrar y la persona tiene que volver a elegirlo.
-  test('el enlace lleva el almacen al inventario', async () => {
+  // Ya no hace falta mandarle el almacen por el state: Inventario ES la bodega
+  // de quien mira, y la saca del perfil.
+  test('con almacen propio, el enlace lleva a Inventario', async () => {
     pintar()
 
     await userEvent.click(screen.getByRole('link', { name: /ver inventario de N3/i }))
 
-    expect(screen.getByText('llegó almacén 7')).toBeInTheDocument()
+    expect(screen.getByText('Inventario de tu almacén')).toBeInTheDocument()
   })
 
-  test('la suma de la Unidad abre el inventario sin filtrar', async () => {
+  // Admin y consulta no tienen bodega: su portada es la suma de la Unidad, y su
+  // pantalla es la general, que ademas es la unica que puede ensenar las cuatro.
+  test('la suma de la Unidad lleva a Inventario general', async () => {
     pintar({
       portada: portada({ clave: null, nombre: 'Unidad Central de Laboratorios', propio: false }),
       almacenId: null,
@@ -105,7 +101,7 @@ describe('TarjetaAlmacen', () => {
 
     await userEvent.click(screen.getByRole('link', { name: /ver todo el inventario/i }))
 
-    expect(screen.getByText('llegó almacén ninguno')).toBeInTheDocument()
+    expect(screen.getByText('Inventario general')).toBeInTheDocument()
   })
 
   // La captura llega en un hito posterior. Un boton que no hace nada es peor

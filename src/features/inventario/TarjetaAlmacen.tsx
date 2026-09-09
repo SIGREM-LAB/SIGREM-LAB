@@ -180,10 +180,10 @@ export function TarjetaAlmacen({ portada, almacenId }: Props) {
           <Button
             variant="outlined"
             component={EnlaceRuta}
-            to="/inventario"
-            // El almacén viaja en el state y no en la URL: es una semilla que
-            // el inventario lee una vez al montar.
-            state={almacenId === null ? undefined : { almacenId }}
+            // Con almacén propio se va a Inventario, que YA es esa bodega: no
+            // hace falta mandarle nada, la pantalla lo saca del perfil. Sin él
+            // la portada es la suma de la Unidad, y su pantalla es la general.
+            to={almacenId === null ? '/inventario-general' : '/inventario'}
             startIcon={<Icon icon="mdi:magnify" width={18} />}
           >
             {portada.clave === null ? 'Ver todo el inventario' : `Ver inventario de ${portada.clave}`}

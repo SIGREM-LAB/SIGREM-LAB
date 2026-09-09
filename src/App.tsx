@@ -12,7 +12,12 @@ import { ProveedorSesion } from '@/features/auth/ProveedorSesion'
 import { PaginaInicio } from '@/features/inventario/PaginaInicio'
 import { PaginaInventarioGeneral } from '@/features/inventario/PaginaInventarioGeneral'
 import { PaginaUsuarios } from '@/features/usuarios/PaginaUsuarios'
-import { RutaProtegida, SoloAdmin, SoloInvitados } from '@/features/auth/RutaProtegida'
+import {
+  ConAlmacenPropio,
+  RutaProtegida,
+  SoloAdmin,
+  SoloInvitados,
+} from '@/features/auth/RutaProtegida'
 import { PaginaDepuracion } from '@/features/inventario/PaginaDepuracion'
 import { PaginaInventario } from '@/features/inventario/PaginaInventario'
 import { PaginaNuevaPractica } from '@/features/practicas/PaginaNuevaPractica'
@@ -47,7 +52,21 @@ export default function App() {
               <Route element={<RutaProtegida />}>
                 <Route element={<Layout />}>
                   <Route path="/" element={<PaginaInicio />} />
-                  <Route path="/inventario" element={<PaginaInventario />} />
+
+                  {/* Inventario es la bodega de quien entra, así que exige
+                      tenerla. Sin almacén propio la guardia manda a
+                      /inventario-general, que para admin y consulta ES su
+                      inventario. */}
+                  <Route element={<ConAlmacenPropio />}>
+                    <Route path="/inventario" element={<PaginaInventario />} />
+                  </Route>
+
+                  {/* Sin guardia de rol: la RLS abre la lectura de los cuatro
+                      almacenes a propósito, para que un responsable pueda
+                      consultar el stock de otra bodega antes de ir a pedirlo
+                      prestado. Esconder la pantalla no protegería nada y le
+                      quitaría a esa consulta su único camino. */}
+                  <Route path="/inventario-general" element={<PaginaInventarioGeneral />} />
                   {/* Ruta propia y no pestaña dentro de /inventario: es otro
                       trabajo (revisar y corregir, no consultar), sale de otra
                       tabla, y sobre todo es enlazable —"ve a depurar tus 337"
@@ -76,7 +95,6 @@ export default function App() {
               <Route element={<RutaProtegida />}>
                 <Route element={<SoloAdmin />}>
                   <Route element={<Layout />}>
-                    <Route path="/inventario-general" element={<PaginaInventarioGeneral />} />
                     <Route path="/usuarios" element={<PaginaUsuarios />} />
                   </Route>
                 </Route>

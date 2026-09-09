@@ -138,7 +138,7 @@ export function Layout() {
   const { pathname } = useLocation()
 
   const almacen = aspectoDeAlmacen(perfil?.almacen?.clave)
-  const menu = menuDeNavegacion(perfil?.rol)
+  const menu = menuDeNavegacion(perfil?.rol, perfil?.almacen != null)
 
   async function salir() {
     await supabase.auth.signOut()

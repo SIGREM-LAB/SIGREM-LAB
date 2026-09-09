@@ -101,7 +101,14 @@ export function PaginaDepuracion() {
   return (
     <>
       <EncabezadoPagina
-        padre={{ etiqueta: 'Inventario', ruta: '/inventario' }}
+        // La migaja apunta a donde esta persona tiene su inventario. Fija a
+        // /inventario era un enlace que rebotaba para admin y consulta, que no
+        // tienen almacén propio y por tanto tampoco esa pantalla.
+        padre={
+          almacenPropio === null
+            ? { etiqueta: 'Inventario general', ruta: '/inventario-general' }
+            : { etiqueta: 'Inventario', ruta: '/inventario' }
+        }
         titulo="Depuración"
         descripcion="Los renglones que el cargador no pudo resolver solo. Corrígelos y dales el visto bueno"
       >

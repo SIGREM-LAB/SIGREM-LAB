@@ -47,7 +47,7 @@ function pintar() {
             <OtrosAlmacenes almacenes={ALMACENES} titulo="Otros almacenes" subtitulo="Solo consulta" />
           }
         />
-        <Route path="/inventario" element={<Destino />} />
+        <Route path="/inventario-general" element={<Destino />} />
       </Routes>
     </MemoryRouter>,
   )
@@ -69,7 +69,9 @@ describe('OtrosAlmacenes', () => {
     expect(screen.getAllByRole('link')).toHaveLength(2)
   })
 
-  test('pulsar un renglon abre el inventario filtrado por ese almacen', async () => {
+  // Al general y no a Inventario, sin excepciones por rol: Inventario es la
+  // bodega de quien entra, y ninguno de estos renglones lo es.
+  test('pulsar un renglon abre el inventario general filtrado por ese almacen', async () => {
     pintar()
 
     await userEvent.click(screen.getByRole('link', { name: /LUM/ }))

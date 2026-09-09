@@ -105,6 +105,40 @@ export function SoloAdmin() {
   return <Outlet />
 }
 
+/**
+ * Inventario es la pantalla de UNA bodega: la de quien entra. Quien no tiene
+ * almacén asignado —admin y consulta, cuyo ámbito es la Unidad entera— no tiene
+ * ahí nada que ver, y se le manda a Inventario general, que es su inventario.
+ *
+ * Como `SoloAdmin`, esto es comodidad y no seguridad: la RLS deja leer las
+ * cuatro bodegas a cualquiera con sesión, y ésa es la decisión. Lo que la
+ * guardia compra es que la pantalla no se monte nunca sin el dato del que
+ * depende, y por eso `PaginaInventario` puede dar por hecho que hay almacén en
+ * vez de reajustar sus filtros cuando el perfil aterriza.
+ */
+export function ConAlmacenPropio() {
+  const { data: perfil, isPending, isError } = usePerfil()
+
+  if (isPending) {
+    return <Aviso icono="mdi:warehouse" texto="Comprobando tu almacén…" />
+  }
+
+  if (isError) {
+    return (
+      <Aviso
+        icono="mdi:cloud-off-outline"
+        texto="No se pudo comprobar tu perfil. Revisa la conexión y vuelve a cargar la página."
+      />
+    )
+  }
+
+  if (!perfil?.almacen) {
+    return <Navigate to="/inventario-general" replace />
+  }
+
+  return <Outlet />
+}
+
 /** Lo que se ve en lugar de la pantalla mientras la guardia no puede decidir. */
 function Aviso({
   icono,

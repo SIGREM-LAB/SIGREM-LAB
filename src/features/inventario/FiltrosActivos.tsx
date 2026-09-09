@@ -7,6 +7,12 @@ import { CLASIFICACIONES, ORDENES, type Filtros } from './filtros'
 type Props = {
   filtros: Filtros
   almacenes: { id: number; clave: string }[]
+  /**
+   * Si el almacén es una eleccion y no el ancla de la pantalla. En Inventario va
+   * apagado, y no solo por estetica: el chip trae una X que pondria el filtro en
+   * "todos", que es justo lo que esa pantalla no puede hacer.
+   */
+  mostrarAlmacen: boolean
   onCambio: (filtros: Filtros) => void
   /** Si falta, no hay nada que limpiar y el boton no se dibuja. */
   onLimpiar?: () => void
@@ -16,12 +22,17 @@ type Props = {
  * Lo que esta filtrado, dicho con todas sus letras y con una salida por cada
  * cosa.
  *
- * Los cuatro selectores ya llevan su valor, pero para saber por que la tabla
- * muestra 71 renglones hay que recorrerlos uno por uno. Aqui se lee de corrido
- * y se quita de a una. Para un responsable el primer chip explica ademas por
- * que arranca viendo solo su almacen.
+ * Los selectores ya llevan su valor, pero para saber por que la tabla muestra 71
+ * renglones hay que recorrerlos uno por uno. Aqui se lee de corrido y se quita
+ * de a una.
  */
-export function FiltrosActivos({ filtros, almacenes, onCambio, onLimpiar }: Props) {
+export function FiltrosActivos({
+  filtros,
+  almacenes,
+  mostrarAlmacen,
+  onCambio,
+  onLimpiar,
+}: Props) {
   const quitar = (parche: Partial<Filtros>) => onCambio({ ...filtros, ...parche })
 
   const chips: { clave: string; etiqueta: string; quitar: () => void }[] = []
@@ -43,7 +54,7 @@ export function FiltrosActivos({ filtros, almacenes, onCambio, onLimpiar }: Prop
     })
   }
 
-  if (filtros.almacenId !== 'todos') {
+  if (mostrarAlmacen && filtros.almacenId !== 'todos') {
     const almacen = almacenes.find((a) => a.id === filtros.almacenId)
     chips.push({
       clave: 'almacen',
