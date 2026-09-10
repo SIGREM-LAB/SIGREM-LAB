@@ -2,6 +2,7 @@ import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tansta
 
 import { supabase } from '@/lib/supabase'
 import type { Enums, Json } from '@/types/database'
+import type { Campo } from './campos'
 import type { Filtros } from './filtros'
 import type { ResumenAlmacen } from './menu'
 import type { Movimiento } from './PanelExistencia'
@@ -309,18 +310,20 @@ export function useExistenciaResumen(existenciaId: number | null) {
 }
 
 /**
- * Las llaves de todo lo que deja de ser cierto cuando un renglón entra al
- * inventario. Van juntas porque las dos mutaciones de abajo tienen que
- * invalidar lo mismo, y repartirlas fue siempre el camino a que una de ellas se
- * olvide de una.
+ * Las llaves de todo lo que deja de ser cierto cuando el inventario crece: el
+ * listado y las dos cabeceras de cifras. Van juntas porque toda mutación que
+ * mueva existencias tiene que invalidar lo mismo, y repartirlas fue siempre el
+ * camino a que una de ellas se olvide de una.
  */
-const AFECTADAS = [
-  ['pendientes'],
-  ['resumen-pendientes'],
-  ['existencias'],
-  ['resumen-estados'],
-  ['resumen-almacenes'],
-]
+const INVENTARIO = [['existencias'], ['resumen-estados'], ['resumen-almacenes']]
+
+/**
+ * Lo anterior más la cola de depuración, que solo cambia cuando el renglón que
+ * entró al inventario salía de ella. El alta desde la pantalla no toca esas dos
+ * llaves y por eso no las invalida: pedirlas de nuevo serían dos viajes para
+ * volver a recibir el mismo número.
+ */
+const AFECTADAS = [['pendientes'], ['resumen-pendientes'], ...INVENTARIO]
 
 /**
  * El visto bueno que sí carga. Llama a `public.resolver_pendiente`, que crea la
@@ -405,6 +408,129 @@ export function useAlmacenes() {
         .order('clave')
       if (error) throw error
       return data
+    },
+  })
+}
+
+/**
+ * Los campos del alta para un almacén y un tipo. La pantalla los pinta; no los
+ * decide.
+ *
+ * La `queryKey` lleva las dos variables: sin la clasificación, cambiar de tipo
+ * en el diálogo devolvería los campos del tipo anterior, que es justo el error
+ * que el formulario dinámico no puede permitirse.
+ *
+ * `staleTime` largo porque un perfil de captura cambia cuando un admin lo
+ * cambia, y eso ocurre casi nunca.
+ */
+export function useFormulario(
+  almacenId: number,
+  clasificacion: Enums<'clasificacion_articulo'> | null,
+) {
+  return useQuery({
+    queryKey: ['formulario', almacenId, clasificacion],
+    enabled: clasificacion !== null,
+    staleTime: 60 * 60 * 1000,
+    queryFn: async (): Promise<Campo[]> => {
+      const { data, error } = await supabase.rpc('formulario', {
+        p_almacen: almacenId,
+        p_clasificacion: clasificacion as Enums<'clasificacion_articulo'>,
+      })
+      if (error) throw error
+      return data
+    },
+  })
+}
+
+/**
+ * Los laboratorios de un almacén, para el campo `laboratorio` del alta.
+ *
+ * Es el único `seleccion` cuyas opciones no vienen en `campo_capturable`: su
+ * propia ayuda lo dice, «las opciones salen de la tabla laboratorio del
+ * almacén». Se piden aparte y solo cuando el perfil incluye ese campo.
+ */
+export function useLaboratorios(almacenId: number, habilitado: boolean) {
+  return useQuery({
+    queryKey: ['laboratorios', almacenId],
+    enabled: habilitado,
+    staleTime: 60 * 60 * 1000,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('laboratorio')
+        .select('id, nombre')
+        .eq('almacen_id', almacenId)
+        .eq('activo', true)
+        .order('nombre')
+      if (error) throw error
+      return data
+    },
+  })
+}
+
+/**
+ * Buscar antes de crear. Alimenta el «¿te refieres a alguno de estos?» que va
+ * bajo el nombre del artículo.
+ *
+ * No bloquea el alta: sugiere. Quien captura tiene el frasco en la mano y sabe
+ * si su «Zinc en polvo 93%» es el «Zinc en polvo 95%» que ya está cargado —no
+ * lo es, y el esquema dice que son dos artículos—. Lo que esta lista evita es
+ * el duplicado por errata, que es el caso común.
+ *
+ * Menos de tres letras no se pregunta: con una o dos, la similitud por
+ * trigramas devuelve medio catálogo.
+ */
+export function useBuscarArticulo(termino: string) {
+  const limpio = termino.trim()
+
+  return useQuery({
+    queryKey: ['buscar-articulo', limpio],
+    enabled: limpio.length >= 3,
+    staleTime: 5 * 60 * 1000,
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc('buscar_articulo', {
+        termino: limpio,
+        maximo: 5,
+      })
+      if (error) throw error
+      return data
+    },
+  })
+}
+
+/**
+ * El alta. Una sola llamada a `crear_existencia`, que en la base crea el
+ * artículo si hace falta, su ficha normativa, la ubicación, la existencia y el
+ * movimiento de `carga_inicial` —todo en una transacción—.
+ *
+ * No son cinco `insert` encadenados desde aquí a propósito: encadenados, una
+ * caída de red entre el tercero y el cuarto deja un artículo creado sin
+ * existencia, o una existencia en cero porque el movimiento no llegó. Una
+ * función es una transacción; o pasa todo o no pasa nada.
+ *
+ * `almacen_id` se manda y la RLS lo comprueba: `crear_existencia` es SECURITY
+ * INVOKER, así que mandar el de otro almacén falla como debe.
+ */
+export function useCrearExistencia() {
+  const qc = useQueryClient()
+
+  return useMutation({
+    mutationFn: async (v: {
+      almacenId: number
+      clasificacion: Enums<'clasificacion_articulo'>
+      valores: Record<string, string | boolean>
+    }) => {
+      const { data, error } = await supabase.rpc('crear_existencia', {
+        p_almacen: v.almacenId,
+        p_clasificacion: v.clasificacion,
+        p_valores: v.valores,
+      })
+      if (error) throw error
+
+      // `returns table` llega como arreglo aunque sea un solo renglón.
+      return data[0] ?? null
+    },
+    onSuccess: () => {
+      for (const queryKey of INVENTARIO) qc.invalidateQueries({ queryKey })
     },
   })
 }

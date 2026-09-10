@@ -14,7 +14,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 
-select plan(105);
+select plan(118);
 
 
 -- ---------------------------------------------------------------------------
@@ -1268,6 +1268,13 @@ select lives_ok(
   'Con otro admin en pie, un admin si puede bajarse el rol'
 );
 
+-- De vuelta a postgres ANTES de comprobar: `authenticated` tiene denegada la
+-- lectura de auth.users —lo dice el propio comentario de `pg_temp.como`— y
+-- resolver el correo desde la sesion del admin aborta el archivo entero con
+-- «permission denied for table users». Comprobar el efecto sin RLS de por medio
+-- es ademas lo correcto: lo que se prueba es el candado, no quien puede leer.
+select pg_temp.como_postgres();
+
 select is(
   (select rol::text from public.perfil
     where id = (select id from auth.users where email = 'admin@uaeh.local')),
@@ -1311,6 +1318,145 @@ select throws_ok(
   '23514',
   null,
   'Un responsable no puede quedarse sin almacen'
+);
+
+select pg_temp.como_postgres();
+
+
+-- ---------------------------------------------------------------------------
+-- crear_existencia: el alta desde la pantalla
+-- ---------------------------------------------------------------------------
+-- Es SECURITY INVOKER a proposito, asi que aqui no se prueba una politica nueva
+-- sino que las de siempre siguen mandando cuando se entra por esta puerta. Una
+-- funcion SECURITY DEFINER en su lugar habria abierto un camino para escribir en
+-- cualquier almacen conociendo su id.
+select pg_temp.como('n3@uaeh.local');
+
+select lives_ok(
+  $$ select * from public.crear_existencia(
+       (select id from public.almacen where clave = 'N3'),
+       'reactivo',
+       '{"nombre_articulo": "Cloruro de sodio, solido, grado reactivo",
+         "unidad": "g", "cantidad": "250", "cantidad_minima": "25",
+         "estado_fisico": "solido", "densidad": "2.16",
+         "color_almacenamiento": "verde", "hoja_seguridad": true,
+         "marca": "MEYER", "mueble": "Anaquel 4", "repisa": "2"}'::jsonb) $$,
+  'El responsable de N3 da de alta un reactivo en su almacen'
+);
+
+select is(
+  (select e.codigo like 'N3-%' from public.existencia e
+    join public.articulo a on a.id = e.articulo_id
+   where a.nombre_canonico = 'Cloruro de sodio, solido, grado reactivo'),
+  true,
+  'El codigo lo asigno el trigger con la clave del almacen'
+);
+
+-- La promesa que sostiene la bitacora: el saldo no se escribio, se derivo.
+select is(
+  (select e.cantidad from public.existencia e
+    join public.articulo a on a.id = e.articulo_id
+   where a.nombre_canonico = 'Cloruro de sodio, solido, grado reactivo'),
+  250::numeric(14,4),
+  'La cantidad quedo en la existencia'
+);
+
+select is(
+  (select m.tipo::text from public.movimiento m
+    join public.existencia e on e.id = m.existencia_id
+    join public.articulo a on a.id = e.articulo_id
+   where a.nombre_canonico = 'Cloruro de sodio, solido, grado reactivo'),
+  'carga_inicial',
+  'La cantidad entro por movimiento, no escrita directo: hay bitacora'
+);
+
+select is(
+  (select r.densidad from public.articulo_reactivo r
+    join public.articulo a on a.id = r.articulo_id
+   where a.nombre_canonico = 'Cloruro de sodio, solido, grado reactivo'),
+  2.16::numeric(10,4),
+  'La ficha NOM se lleno: un responsable puede crearla, no solo un admin'
+);
+
+-- La procedencia del nombre. `articulo_de_renglon` la tenia fija en 'migracion'
+-- porque su unico llamador era la depuracion, donde el texto SI sale de un
+-- archivo. Tecleado en el alta, «migracion» manda a buscar un Excel que nunca
+-- existio, y el enum `origen_alias` existe justamente para distinguirlos.
+select is(
+  (select al.origen::text from public.articulo_alias al
+    join public.articulo a on a.id = al.articulo_id
+   where a.nombre_canonico = 'Cloruro de sodio, solido, grado reactivo'),
+  'busqueda',
+  'El alias de un alta a mano dice que salio del buscador, no de un archivo'
+);
+
+-- El campo existe en `campo_capturable` pero NO en el perfil de reactivo: es del
+-- perfil de equipos. Si esto se guardara, el filtro del servidor no serviria de
+-- nada y bastaria con hablarle directo a la API para escribir donde no toca.
+select lives_ok(
+  $$ select * from public.crear_existencia(
+       (select id from public.almacen where clave = 'N3'),
+       'reactivo',
+       '{"nombre_articulo": "Sulfato de cobre, solido, grado reactivo",
+         "unidad": "g", "cantidad": "10", "numero_serie": "COLADO-001"}'::jsonb) $$,
+  'Un campo fuera del perfil no hace fallar el alta'
+);
+
+select is(
+  (select count(*)::int from public.existencia where numero_serie = 'COLADO-001'),
+  0,
+  'Un campo fuera del perfil se descarta en el servidor, no solo en la pantalla'
+);
+
+select throws_ok(
+  $$ select * from public.crear_existencia(
+       (select id from public.almacen where clave = 'N4'),
+       'reactivo',
+       '{"nombre_articulo": "Nitrato de plata, solido", "unidad": "g", "cantidad": "5"}'::jsonb) $$,
+  '42501',
+  null,
+  'El responsable de N3 NO puede dar de alta en N4 aunque mande su id'
+);
+
+-- Los equipos son el caso raro: su perfil NO pide unidad ni cantidad —regla 9,
+-- un renglon por equipo fisico— pero `articulo.unidad_base` es NOT NULL. Sin la
+-- regla que las repone, dar de alta un equipo desde la pantalla es imposible.
+-- Los valores son los mismos que pone `etl/rules/validar.py`: si se desviaran,
+-- el mismo microscopio seria DOS articulos segun por donde entrara.
+select lives_ok(
+  $$ select * from public.crear_existencia(
+       (select id from public.almacen where clave = 'N3'),
+       'equipo',
+       '{"nombre_articulo": "Microscopio optico binocular", "marca": "Zeiss",
+         "numero_serie": "RLS-EQ-1", "funcionamiento": "Correcto"}'::jsonb) $$,
+  'Un equipo se da de alta aunque su perfil no pida unidad ni cantidad'
+);
+
+select is(
+  (select a.unidad_base from public.articulo a
+    where a.nombre_canonico = 'Microscopio optico binocular'),
+  'pieza',
+  'El equipo entra en «pieza», igual que lo hace el cargador'
+);
+
+select is(
+  (select e.cantidad from public.existencia e
+    join public.articulo a on a.id = e.articulo_id
+   where a.nombre_canonico = 'Microscopio optico binocular'),
+  1::numeric(14,4),
+  'Y en cantidad 1: regla 9, un renglon por equipo fisico'
+);
+
+select pg_temp.como('lectura@uaeh.local');
+
+select throws_ok(
+  $$ select * from public.crear_existencia(
+       (select id from public.almacen where clave = 'N3'),
+       'reactivo',
+       '{"nombre_articulo": "Yoduro de potasio, solido", "unidad": "g", "cantidad": "5"}'::jsonb) $$,
+  '42501',
+  null,
+  'Un usuario de consulta no puede dar de alta en ningun almacen'
 );
 
 select pg_temp.como_postgres();

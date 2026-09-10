@@ -7,7 +7,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 
-select plan(71);
+select plan(81);
 
 -- Las pruebas corren como postgres, que se salta la RLS. Es lo correcto aqui:
 -- este archivo prueba la forma del esquema, no quien puede ver que. Eso es
@@ -726,6 +726,115 @@ select is(
   8,
   'El panel de cantidad ofrece ocho motivos: los cinco del diseno mas los tres consumibles'
 );
+
+-- ---------------------------------------------------------------------------
+-- buscar_articulo mira DENTRO del nombre
+-- ---------------------------------------------------------------------------
+-- El caso que la dejaba inservible en el alta. Los nombres canonicos de
+-- reactivo son la cadena entera del formato —44 caracteres aqui, hasta 90 en los
+-- datos reales— y `similarity()` compara cadenas COMPLETAS: los trigramas de
+-- «acetona» son 7 de esos 44, asi que da 0.21 y no llega al umbral de 0.3
+-- aunque el termino este ahi literalmente.
+--
+-- Bajar el umbral no lo arregla: el que deja entrar un nombre de 44 caracteres
+-- deja pasar medio catalogo cuando el nombre tiene 90. Lo que cambia es la
+-- medida, no el corte.
+insert into public.articulo (nombre_canonico, clasificacion, unidad_base)
+values ('Acetona, liquido, grado A.C.S., pureza 99.5%', 'reactivo', 'mL');
+
+select cmp_ok(
+  (select extensions.similarity(
+     public.norm_texto('Acetona, liquido, grado A.C.S., pureza 99.5%'), 'acetona')),
+  '<', 0.3::real,
+  'Por cadena completa «acetona» no alcanza el umbral: de ahi venia el fallo'
+);
+
+select is(
+  (select count(*)::int from public.buscar_articulo('acetona', 0.3, 500)
+    where nombre_canonico = 'Acetona, liquido, grado A.C.S., pureza 99.5%'),
+  1,
+  'Y aun asi lo encuentra, porque el termino aparece dentro del nombre'
+);
+
+-- Aditivo, no sustitutivo: se toma la MAYOR de las dos medidas, asi que lo que
+-- coincidia por cadena completa —que es como compara `etl/catalogo.py`, nombre
+-- largo contra nombre largo— sigue coincidiendo.
+select is(
+  (select count(*)::int
+     from public.buscar_articulo('Matraz Volumétrico', 0.3, 500) b
+     join public.articulo a on a.id = b.articulo_id
+    where a.nombre_canonico = 'Matraz volumetrico'),
+  2,
+  'Lo que coincidia por cadena completa sigue coincidiendo'
+);
+
+
+-- ---------------------------------------------------------------------------
+-- El formulario del alta
+-- ---------------------------------------------------------------------------
+-- La pantalla pinta lo que devuelve `formulario()`, asi que estas comprobaciones
+-- son sobre lo que se VE en el alta, no sobre datos sueltos.
+select has_column('public', 'articulo_reactivo', 'densidad',
+  'articulo_reactivo tiene densidad: es propiedad de la sustancia, no del frasco');
+
+select throws_ok(
+  $$ insert into public.articulo_reactivo (articulo_id, densidad)
+     select id, 0 from public.articulo limit 1 $$,
+  '23514', null,
+  'Una densidad de cero no es una densidad'
+);
+
+select is(
+  (select count(*)::int from public.formulario(
+     (select id from public.almacen where clave = 'N3'), 'reactivo')
+    where campo = 'densidad'),
+  1,
+  'El alta de un reactivo pide la densidad'
+);
+
+-- `cantidad_minima` llevaba desde el baseline en el catalogo y en ningun perfil:
+-- `formulario()` no lo devolvia nunca, asi que toda existencia capturada nacia
+-- sin minimo y `stock_bajo` era un estado inalcanzable por esta via.
+select is(
+  (select count(distinct pc.clasificacion)::int
+     from public.perfil_campo pcam
+     join public.perfil_captura pc on pc.id = pcam.perfil_id
+    where pcam.campo = 'cantidad_minima'),
+  5,
+  'Cinco de las seis clasificaciones piden cantidad minima en el alta'
+);
+
+-- La sexta es equipos, y su ausencia es deliberada: regla 9 del formato, un
+-- renglon por equipo fisico, asi que la cantidad siempre es 1 y un minimo no
+-- significa nada.
+select is(
+  (select count(*)::int from public.formulario(
+     (select id from public.almacen where clave = 'N3'), 'equipo')
+    where campo in ('cantidad', 'cantidad_minima')),
+  0,
+  'El alta de un equipo no pide cantidad ni minimo: es uno por renglon'
+);
+
+-- Dos campos con el mismo `orden` dejan el formulario en un orden que Postgres
+-- no promete: la misma alta pintaria los campos distinto en dos maquinas.
+select is(
+  (select count(*)::int from (
+     select perfil_id, orden from public.perfil_campo
+      group by perfil_id, orden having count(*) > 1) d),
+  0,
+  'Ningun perfil tiene dos campos peleandose el mismo orden'
+);
+
+-- El perfil declara campos del catalogo cerrado, y `crear_existencia` traduce
+-- ese nombre al del renglon. Un campo cuyo destino no sepa leer ningun helper se
+-- pinta, se llena y se tira sin un solo error.
+select is(
+  (select count(*)::int from public.campo_capturable
+    where campo = 'densidad' and destino = 'articulo_reactivo.densidad'),
+  1,
+  'La densidad aterriza donde crear_existencia la escribe'
+);
+
 
 select * from finish();
 rollback;

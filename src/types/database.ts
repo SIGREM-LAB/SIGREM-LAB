@@ -189,6 +189,7 @@ export type Database = {
           color_almacenaje:
             | Database["public"]["Enums"]["color_almacenaje"]
             | null
+          densidad: number | null
           estado_fisico: Database["public"]["Enums"]["estado_fisico"] | null
           implica_actividad_peligro: boolean | null
           peligro_especial: string | null
@@ -205,6 +206,7 @@ export type Database = {
           color_almacenaje?:
             | Database["public"]["Enums"]["color_almacenaje"]
             | null
+          densidad?: number | null
           estado_fisico?: Database["public"]["Enums"]["estado_fisico"] | null
           implica_actividad_peligro?: boolean | null
           peligro_especial?: string | null
@@ -221,6 +223,7 @@ export type Database = {
           color_almacenaje?:
             | Database["public"]["Enums"]["color_almacenaje"]
             | null
+          densidad?: number | null
           estado_fisico?: Database["public"]["Enums"]["estado_fisico"] | null
           implica_actividad_peligro?: boolean | null
           peligro_especial?: string | null
@@ -1377,6 +1380,17 @@ export type Database = {
           similitud: number
           unidad_base: string
           verificado: boolean
+        }[]
+      }
+      crear_existencia: {
+        Args: {
+          p_almacen: number
+          p_clasificacion: Database["public"]["Enums"]["clasificacion_articulo"]
+          p_valores: Json
+        }
+        Returns: {
+          codigo: string
+          id: number
         }[]
       }
       formulario: {

@@ -1,10 +1,12 @@
+import { useState } from 'react'
 import { Icon } from '@iconify/react'
-import { Button } from '@mui/material'
+import { Alert, Button, Snackbar } from '@mui/material'
 import { Link as EnlaceRuta } from 'react-router-dom'
 
 import { AccionPendiente } from '@/app/AccionPendiente'
 import { CuerpoPagina, EncabezadoPagina } from '@/app/EncabezadoPagina'
 import { usePerfil } from '@/features/auth/usePerfil'
+import { DialogoNuevaExistencia } from './DialogoNuevaExistencia'
 import { ListadoExistencias } from './ListadoExistencias'
 import { ResumenEstados } from './ResumenEstados'
 import { useResumenEstados, useResumenPendientes } from './consultas'
@@ -40,6 +42,13 @@ export function PaginaInventario() {
 function Inventario({ almacen }: { almacen: Almacen }) {
   const resumen = useResumenEstados(almacen.id)
 
+  const [dandoDeAlta, setDandoDeAlta] = useState(false)
+
+  // El código que asignó la base a lo último que se dio de alta. Es lo que se
+  // imprime en la etiqueta del frasco, así que se anuncia en vez de dejar que
+  // haya que buscarlo en el listado.
+  const [codigoNuevo, setCodigoNuevo] = useState<string | null>(null)
+
   // Lo que falta por cargar de esta bodega. Es el único aviso de que este
   // inventario no está completo: sin él, las existencias cargadas parecen el
   // inventario entero y los renglones apartados no existen para nadie.
@@ -65,7 +74,13 @@ function Inventario({ almacen }: { almacen: Almacen }) {
               </Button>
             )}
             <AccionPendiente etiqueta="Exportar" icono="mdi:download-outline" variante="outlined" />
-            <AccionPendiente etiqueta="Nueva existencia" icono="mdi:plus" variante="contained" />
+            <Button
+              variant="contained"
+              onClick={() => setDandoDeAlta(true)}
+              startIcon={<Icon icon="mdi:plus" width={18} />}
+            >
+              Nueva existencia
+            </Button>
           </>
         }
       >
@@ -75,6 +90,24 @@ function Inventario({ almacen }: { almacen: Almacen }) {
       <CuerpoPagina>
         <ListadoExistencias almacenFijo={almacen.id} almacenPropio={almacen.id} />
       </CuerpoPagina>
+
+      <DialogoNuevaExistencia
+        abierto={dandoDeAlta}
+        almacen={almacen}
+        onCerrar={() => setDandoDeAlta(false)}
+        onCreada={setCodigoNuevo}
+      />
+
+      <Snackbar
+        open={codigoNuevo !== null}
+        autoHideDuration={8000}
+        onClose={() => setCodigoNuevo(null)}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+      >
+        <Alert severity="success" onClose={() => setCodigoNuevo(null)}>
+          Existencia registrada con el código {codigoNuevo}
+        </Alert>
+      </Snackbar>
     </>
   )
 }
