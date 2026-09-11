@@ -114,4 +114,28 @@ describe('PanelExistencia', () => {
     pintar({ fila: null })
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
   })
+
+  // El boton vive en el panel de detalle porque ahi es donde se ve lo que hay
+  // que corregir. Sin `onEditar` no se pinta: es como se apaga donde no toca.
+  test('sin onEditar no hay boton de editar', () => {
+    pintar()
+    expect(screen.queryByRole('button', { name: /editar/i })).not.toBeInTheDocument()
+  })
+
+  test('con onEditar aparece el boton y avisa al pulsarlo', async () => {
+    const usuario = userEvent.setup()
+    const onEditar = vi.fn()
+    pintar({ onEditar })
+
+    await usuario.click(screen.getByRole('button', { name: /editar/i }))
+    expect(onEditar).toHaveBeenCalledTimes(1)
+  })
+
+  // El aviso de "puedes consultarla, no modificarla" y un boton de editar al
+  // lado se contradicen. Quien manda es la RLS, que lo rechazaria; esto evita
+  // ofrecer algo que iba a terminar en un error.
+  test('lo ajeno no se ofrece editar, aunque se pase onEditar', () => {
+    pintar({ onEditar: vi.fn(), almacenPropio: 2 })
+    expect(screen.queryByRole('button', { name: /editar/i })).not.toBeInTheDocument()
+  })
 })

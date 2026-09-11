@@ -168,6 +168,150 @@ export function payloadDe(campos: Campo[], valores: Valores): Record<string, str
 }
 
 /**
+ * El destino del campo por el que entra la cantidad. No es una columna: el
+ * saldo lo mantiene el trigger desde `movimiento`, y por eso el catálogo lo
+ * apunta a la bitácora y no a `existencia.cantidad`.
+ */
+const DESTINO_CANTIDAD = 'movimiento.carga_inicial'
+
+/**
+ * Qué se puede corregir una vez que la existencia ya está dada de alta.
+ *
+ * Sale del `destino` —un dato de la base—, igual que el recuadro: lo del frasco
+ * y su ubicación se edita; lo del ARTÍCULO no, porque el artículo se comparte
+ * con los demás frascos de la misma sustancia. Corregir el CAS «del frasco que
+ * tengo abierto» se lo cambiaría a los catorce, y además su RLS es de admin.
+ *
+ * El servidor sostiene lo mismo por su cuenta: `actualizar_existencia` filtra
+ * por destino antes de escribir. Esto no es el candado, es no pintar controles
+ * que no van a servir.
+ */
+export function esEditable(campo: Campo): boolean {
+  return (
+    campo.destino.startsWith('existencia.') ||
+    campo.destino.startsWith('ubicacion.') ||
+    campo.destino === DESTINO_CANTIDAD
+  )
+}
+
+export function camposEditables(campos: Campo[]): Campo[] {
+  return camposVisibles(campos).filter(esEditable)
+}
+
+/**
+ * Con qué arranca la edición: lo que la existencia tiene hoy.
+ *
+ * `actuales` es lo que devolvió `valores_existencia()`, ya llaveado por `campo`
+ * —el mismo vocabulario con el que se guarda—. Todo se vuelve texto porque todo
+ * se captura en un control de texto; los números llegan como números de JSON y
+ * las fechas como `2026-08-31`, que es justo lo que espera un `input[type=date]`.
+ */
+export function valoresDe(campos: Campo[], actuales: Record<string, unknown>): Valores {
+  const valores: Valores = {}
+
+  for (const campo of camposEditables(campos)) {
+    const actual = actuales[campo.campo]
+
+    if (campo.tipo_dato === 'booleano') {
+      valores[campo.campo] = actual === true
+      continue
+    }
+
+    valores[campo.campo] = actual === null || actual === undefined ? '' : String(actual)
+  }
+
+  return valores
+}
+
+/**
+ * Lo que se enseña en un campo que se muestra pero no se edita.
+ *
+ * Un hueco se dice con una raya y no con una caja vacía: en una ficha de
+ * seguridad, «no lo sabemos» es una respuesta y tiene que verse como tal.
+ */
+export function textoDeValor(campo: Campo, actual: unknown): string {
+  if (actual === null || actual === undefined || actual === '') return '—'
+  if (typeof actual === 'boolean') return actual ? 'Sí' : 'No'
+  if (campo.tipo_dato === 'seleccion') return rotuloDeOpcion(String(actual))
+  return String(actual)
+}
+
+/**
+ * El payload de la edición.
+ *
+ * Se diferencia de `payloadDe` en una cosa, y es la que define lo que significa
+ * editar: **los vacíos SÍ viajan**. En el alta, un campo en blanco es un campo
+ * que no se capturó y omitirlo dice exactamente eso; al editar, dejar en blanco
+ * algo que antes tenía valor es la única forma de BORRARLO, y un formulario
+ * donde vaciar una casilla no hace nada es un formulario que miente.
+ *
+ * `actualizar_existencia` lee esa diferencia igual: llave presente y vacía
+ * borra, llave ausente no se toca.
+ *
+ * Se recorren los campos, nunca las llaves del objeto de estado. Es la misma
+ * propiedad del alta: lo que no está en el perfil no existe en el envío.
+ */
+export function payloadDeEdicion(campos: Campo[], valores: Valores): Record<string, string | boolean> {
+  const payload: Record<string, string | boolean> = {}
+
+  for (const campo of camposEditables(campos)) {
+    const valor = valores[campo.campo]
+    payload[campo.campo] = typeof valor === 'boolean' ? valor : (valor ?? '').trim()
+  }
+
+  return payload
+}
+
+/** El campo del motivo del ajuste. No sale del perfil: lo pide la edición. */
+export const CAMPO_MOTIVO = 'motivo_ajuste'
+
+/** El campo por el que se captura la cantidad, si este perfil la pide. */
+export function campoDeCantidad(campos: Campo[]): Campo | undefined {
+  return camposEditables(campos).find((c) => c.destino === DESTINO_CANTIDAD)
+}
+
+/**
+ * El esquema de la edición: el de los campos editables más el motivo.
+ *
+ * El motivo es obligatorio **solo cuando la cantidad cambia**, porque solo
+ * entonces hay un movimiento que justificar. Un renglón de bitácora que dice
+ * «-3.5 mL» sin decir por qué obliga a preguntarle a quien lo hizo, y para
+ * entonces ya nadie se acuerda; pedirlo siempre, en cambio, sería un peaje para
+ * corregir una marca mal tecleada.
+ *
+ * La regla vive aquí, en el esquema, y no en el JSX, igual que los mensajes.
+ */
+export function esquemaDeEdicion(campos: Campo[], saldo: number | null): z.ZodType<Valores, Valores> {
+  const forma: Record<string, z.ZodType> = {}
+
+  for (const campo of camposEditables(campos)) {
+    forma[campo.campo] = validadorDe(campo)
+  }
+  forma[CAMPO_MOTIVO] = z.string().trim()
+
+  const cantidad = campoDeCantidad(campos)
+
+  const esquema = z.object(forma).superRefine((valores: Record<string, unknown>, ctx) => {
+    if (cantidad === undefined || saldo === null) return
+
+    const contada = String(valores[cantidad.campo] ?? '').trim()
+    if (contada === '' || Number(contada) === saldo) return
+
+    if (String(valores[CAMPO_MOTIVO] ?? '').trim() === '') {
+      ctx.addIssue({
+        code: 'custom',
+        path: [CAMPO_MOTIVO],
+        message: 'Di por qué cambió la cantidad: es lo que queda en la bitácora',
+      })
+    }
+  })
+
+  // El mismo `as` inevitable que en `esquemaDeCampos`, y por la misma razón: la
+  // forma del objeto se arma en tiempo de ejecución con lo que devolvió la base.
+  return esquema as unknown as z.ZodType<Valores, Valores>
+}
+
+/**
  * Las seis clasificaciones, con el rótulo que usa el diálogo.
  *
  * Son las mismas de `CLASIFICACIONES` en `filtros.ts` pero en singular: allá se

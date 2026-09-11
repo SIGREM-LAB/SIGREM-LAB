@@ -88,7 +88,9 @@ function Inventario({ almacen }: { almacen: Almacen }) {
       </EncabezadoPagina>
 
       <CuerpoPagina>
-        <ListadoExistencias almacenFijo={almacen.id} almacenPropio={almacen.id} />
+        {/* La edición se ofrece aquí y no en Inventario general: esta pantalla
+            está anclada a tu bodega, así que todo lo que se lista es tuyo. */}
+        <ListadoExistencias almacenFijo={almacen.id} almacenPropio={almacen.id} permiteEditar />
       </CuerpoPagina>
 
       <DialogoNuevaExistencia

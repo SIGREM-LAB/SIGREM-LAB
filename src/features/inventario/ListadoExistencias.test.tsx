@@ -1,4 +1,5 @@
 import { render, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import { beforeEach, describe, expect, test, vi } from 'vitest'
 
@@ -34,6 +35,13 @@ const FILA: Fila = {
   marca_norm: 'sigma',
 }
 
+/**
+ * Lo que devuelve el listado en este momento. Es una variable y no la constante
+ * de arriba para poder simular lo que pasa tras guardar: la consulta se
+ * invalida y vuelve con la fila corregida.
+ */
+let filaActual: Fila = FILA
+
 function resumen(id: number, clave: string): ResumenAlmacen {
   return {
     id,
@@ -57,7 +65,7 @@ vi.mock('./consultas', async () => {
     useExistencias: (...args: unknown[]) => {
       espias.existencias(...args)
       return {
-        data: { filas: [FILA], total: 1 },
+        data: { filas: [filaActual], total: 1 },
         isPending: false,
         isFetching: false,
         isPlaceholderData: false,
@@ -98,6 +106,7 @@ function ultimosFiltros() {
 beforeEach(() => {
   espias.existencias.mockClear()
   espias.resumenAlmacenes.mockClear()
+  filaActual = FILA
 })
 
 describe('ListadoExistencias', () => {
@@ -158,6 +167,48 @@ describe('ListadoExistencias', () => {
 
       expect(screen.getByText('Almacén: N4')).toBeInTheDocument()
       expect(screen.getByRole('button', { name: /limpiar filtros/i })).toBeInTheDocument()
+    })
+  })
+
+  describe('editar', () => {
+    // Se ofrece en Inventario, que está anclado a tu bodega. Inventario general
+    // cruza los cuatro almacenes y tendrá su propia acción.
+    test('el detalle ofrece corregir donde se permite', async () => {
+      const usuario = userEvent.setup()
+      pintar({ almacenFijo: 1, almacenPropio: 1, permiteEditar: true })
+
+      await usuario.click(screen.getByRole('button', { name: /N3-00001/ }))
+      expect(await screen.findByRole('button', { name: /^editar$/i })).toBeInTheDocument()
+    })
+
+    test('y no lo ofrece donde no', async () => {
+      const usuario = userEvent.setup()
+      pintar({ almacenFijo: 1, almacenPropio: 1 })
+
+      await usuario.click(screen.getByRole('button', { name: /N3-00001/ }))
+      expect(await screen.findByRole('dialog')).toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: /^editar$/i })).not.toBeInTheDocument()
+    })
+
+    // El panel abierto no guarda una copia de la fila: la busca en el listado
+    // cada vez. Con una copia, tras guardar seguiría enseñando el saldo viejo
+    // detrás del diálogo.
+    test('el detalle abierto se refresca cuando la tabla trae otro dato', async () => {
+      const usuario = userEvent.setup()
+      const { rerender } = pintar({ almacenFijo: 1, almacenPropio: 1, permiteEditar: true })
+
+      await usuario.click(screen.getByRole('button', { name: /N3-00001/ }))
+      expect(await screen.findByRole('dialog', { name: /N3-00001/ })).toHaveTextContent('SIGMA')
+
+      filaActual = { ...FILA, marca: 'MEYER', cantidad: 108 }
+      rerender(
+        <MemoryRouter>
+          <ListadoExistencias almacenFijo={1} almacenPropio={1} permiteEditar />
+        </MemoryRouter>,
+      )
+
+      expect(screen.getByRole('dialog', { name: /N3-00001/ })).toHaveTextContent('MEYER')
+      expect(screen.getByRole('dialog', { name: /N3-00001/ })).toHaveTextContent('108 g')
     })
   })
 })

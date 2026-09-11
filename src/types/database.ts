@@ -1370,6 +1370,14 @@ export type Database = {
       }
     }
     Functions: {
+      actualizar_existencia: {
+        Args: { p_existencia: number; p_motivo?: string; p_valores: Json }
+        Returns: {
+          cantidad: number
+          codigo: string
+          id: number
+        }[]
+      }
       buscar_articulo: {
         Args: { maximo?: number; termino: string; umbral?: number }
         Returns: {
@@ -1441,6 +1449,7 @@ export type Database = {
         }
         Returns: number
       }
+      valores_existencia: { Args: { p_existencia: number }; Returns: Json }
       vincular_asignatura: {
         Args: { p_nombre: string; p_programa: number; p_semestre?: number }
         Returns: number

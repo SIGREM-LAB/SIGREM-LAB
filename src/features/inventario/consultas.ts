@@ -534,3 +534,78 @@ export function useCrearExistencia() {
     },
   })
 }
+
+/**
+ * Lo que hoy vale cada campo del perfil, para precargar la edición.
+ *
+ * Llega llaveado por `campo` —el mismo vocabulario con el que se guarda—, así
+ * que la pantalla no necesita un diccionario de columnas en TypeScript que haya
+ * que recordar actualizar cada vez que se agrega un campo. Esa traducción vive
+ * en `valores_existencia`, en SQL, junto al esquema que la puede contradecir.
+ *
+ * Sin `staleTime`: se pide cada vez que se abre el diálogo. Es justo el dato que
+ * otra persona pudo haber cambiado desde la última vez que se miró, y editar
+ * sobre una copia vieja es reescribir lo que el otro acaba de corregir.
+ */
+export function useValoresExistencia(existenciaId: number | null) {
+  return useQuery({
+    queryKey: ['valores-existencia', existenciaId],
+    enabled: existenciaId !== null,
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc('valores_existencia', {
+        p_existencia: existenciaId as number,
+      })
+      if (error) throw error
+
+      // La función devuelve un objeto JSON; el tipo generado dice `Json`, que
+      // también admite arreglo y escalar. Se comprueba en vez de afirmarlo con
+      // un `as`: lo que llega es de la red.
+      return data !== null && typeof data === 'object' && !Array.isArray(data) ? data : {}
+    },
+  })
+}
+
+/**
+ * La corrección. Una sola llamada a `actualizar_existencia`, que en la base
+ * escribe el frasco, resuelve su ubicación y —si lo contado difiere del saldo—
+ * registra el ajuste, todo en una transacción.
+ *
+ * No es un `update` desde el cliente a propósito. Serían tres viajes: la fila,
+ * la ubicación —que hay que resolver o crear— y el movimiento del ajuste; una
+ * caída de red entre el segundo y el tercero deja el frasco en su anaquel nuevo
+ * con el saldo viejo. Además, el filtro por perfil quedaría solo del lado de la
+ * pantalla, que es exactamente lo que los perfiles de captura vienen a evitar.
+ */
+export function useActualizarExistencia() {
+  const qc = useQueryClient()
+
+  return useMutation({
+    mutationFn: async (v: {
+      existenciaId: number
+      valores: Record<string, string | boolean>
+      motivo: string | null
+    }) => {
+      const { data, error } = await supabase.rpc('actualizar_existencia', {
+        p_existencia: v.existenciaId,
+        p_valores: v.valores,
+        // `undefined` y no `null`: el argumento es opcional en la firma, y
+        // omitirlo deja el `default null` de la función, que es lo mismo.
+        p_motivo: v.motivo ?? undefined,
+      })
+      if (error) throw error
+
+      // `returns table` llega como arreglo aunque sea un solo renglón.
+      return data[0] ?? null
+    },
+    onSuccess: (_fila, v) => {
+      for (const queryKey of INVENTARIO) qc.invalidateQueries({ queryKey })
+
+      // Las tres que hablan de ESTA existencia: el historial —donde acaba de
+      // aparecer el ajuste—, los campos del tipo que pinta el panel, y lo que
+      // precarga el propio diálogo.
+      qc.invalidateQueries({ queryKey: ['movimientos', v.existenciaId] })
+      qc.invalidateQueries({ queryKey: ['detalle-existencia', v.existenciaId] })
+      qc.invalidateQueries({ queryKey: ['valores-existencia', v.existenciaId] })
+    },
+  })
+}

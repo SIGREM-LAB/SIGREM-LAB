@@ -20,19 +20,18 @@ import {
 import { useForm, useWatch } from 'react-hook-form'
 
 import type { Enums } from '@/types/database'
-import { CampoCaptura } from './CampoCaptura'
 import {
   CAMPO_LABORATORIO,
   camposVisibles,
   esquemaDeCampos,
-  grupoDe,
   payloadDe,
   TIPOS,
   valoresIniciales,
   type Campo,
-  type Grupo,
   type Valores,
 } from './campos'
+import { FormularioPerfil } from './FormularioPerfil'
+import { mensajeDe } from './presentacion'
 import { useBuscarArticulo, useCrearExistencia, useFormulario, useLaboratorios } from './consultas'
 
 type Props = {
@@ -201,8 +200,6 @@ function Captura({ campos, almacen, tipo, guardando, error, onGuardar }: PropsCa
   const pideLaboratorio = visibles.some((c) => c.campo === CAMPO_LABORATORIO)
   const laboratorios = useLaboratorios(almacen.id, pideLaboratorio)
 
-  const grupos = useMemo(() => agrupar(visibles), [visibles])
-
   return (
     <Box
       component="form"
@@ -210,28 +207,16 @@ function Captura({ campos, almacen, tipo, guardando, error, onGuardar }: PropsCa
       noValidate
     >
       <Stack spacing={2.5}>
-        {/* Los campos de la ficha del artículo van primero y en su propio
-            recuadro: son lo que distingue una sustancia de otra, y el resto del
-            formulario describe el frasco. El recuadro sale del prefijo de
-            `destino`, no de una lista de clasificaciones escrita aquí. */}
-        <Recuadro grupo="reactivo" campos={grupos.reactivo}>
-          <Rejilla campos={grupos.reactivo} control={control} laboratorios={[]} />
-        </Recuadro>
-
-        <Recuadro grupo="biologico" campos={grupos.biologico}>
-          <Rejilla campos={grupos.biologico} control={control} laboratorios={[]} />
-        </Recuadro>
-
-        <Rejilla
-          campos={grupos.general}
+        <FormularioPerfil
+          campos={visibles}
           control={control}
           laboratorios={laboratorios.data ?? []}
-          tipo={tipo}
+          debajoDe={(campo) =>
+            campo.destino === 'articulo.nombre_canonico' ? (
+              <Sugerencias campo={campo.campo} control={control} tipo={tipo} />
+            ) : null
+          }
         />
-
-        <Recuadro grupo="ubicacion" campos={grupos.ubicacion}>
-          <Rejilla campos={grupos.ubicacion} control={control} laboratorios={[]} />
-        </Recuadro>
 
         <Stack direction="row" spacing={1} sx={{ alignItems: 'center', flexWrap: 'wrap' }}>
           <Typography variant="caption" sx={{ color: 'text.secondary' }}>
@@ -259,31 +244,6 @@ function Captura({ campos, almacen, tipo, guardando, error, onGuardar }: PropsCa
         </Button>
       </Stack>
     </Box>
-  )
-}
-
-function Rejilla({
-  campos,
-  control,
-  laboratorios,
-  tipo,
-}: {
-  campos: Campo[]
-  control: ReturnType<typeof useForm<Valores>>['control']
-  laboratorios: { id: number; nombre: string }[]
-  tipo?: Enums<'clasificacion_articulo'>
-}) {
-  return (
-    <Grid container spacing={2}>
-      {campos.map((campo) => (
-        <Grid key={campo.campo} size={anchoDe(campo)}>
-          <CampoCaptura campo={campo} control={control} laboratorios={laboratorios} />
-          {tipo !== undefined && campo.destino === 'articulo.nombre_canonico' ? (
-            <Sugerencias campo={campo.campo} control={control} tipo={tipo} />
-          ) : null}
-        </Grid>
-      ))}
-    </Grid>
   )
 }
 
@@ -342,96 +302,4 @@ function Sugerencias({
   )
 }
 
-const RECUADROS: Record<
-  Exclude<Grupo, 'general'>,
-  { titulo: string; color: string; fondo: string }
-> = {
-  // Los mismos tonos que ya están razonados en `presentacion.ts`: el violeta de
-  // `contaminado` para lo biológico y el guinda del tema para la ficha NOM.
-  reactivo: { titulo: 'Ficha del reactivo — NOM-005-STPS', color: 'primary.main', fondo: 'primary' },
-  biologico: { titulo: 'Materia biológica — campos especiales', color: '#7C3AED', fondo: 'bio' },
-  ubicacion: { titulo: 'Ubicación en el almacén', color: 'text.secondary', fondo: 'neutro' },
-}
 
-function Recuadro({
-  grupo,
-  campos,
-  children,
-}: {
-  grupo: Exclude<Grupo, 'general'>
-  campos: Campo[]
-  children: React.ReactNode
-}) {
-  if (campos.length === 0) return null
-  const aspecto = RECUADROS[grupo]
-
-  return (
-    <Box
-      sx={{
-        p: 2,
-        borderRadius: 1,
-        border: '1px solid',
-        // `color-mix` sobre el color del tema en vez de un hex: así el recuadro
-        // sigue al modo oscuro sin declarar un par de colores por grupo.
-        borderColor:
-          aspecto.fondo === 'neutro'
-            ? 'divider'
-            : `color-mix(in srgb, ${resolver(aspecto.color)} 28%, transparent)`,
-        bgcolor:
-          aspecto.fondo === 'neutro'
-            ? 'action.hover'
-            : `color-mix(in srgb, ${resolver(aspecto.color)} 6%, transparent)`,
-      }}
-    >
-      <Typography
-        variant="caption"
-        sx={{ color: aspecto.color, fontWeight: 700, display: 'block', mb: 1.5 }}
-      >
-        {aspecto.titulo}
-      </Typography>
-      {children}
-    </Box>
-  )
-}
-
-/** `color-mix` necesita un color CSS; los tokens del tema no lo son. */
-function resolver(color: string): string {
-  return color === 'primary.main' ? 'var(--mui-palette-primary-main)' : color
-}
-
-/**
- * Cuánto ocupa cada campo. Los párrafos a lo ancho; el resto a media fila, que
- * es lo que da la retícula de dos columnas de la maqueta. En pantallas de ~1024
- * px —las de las máquinas del almacén— sigue siendo de dos columnas; solo se
- * apila en móvil.
- */
-function anchoDe(campo: Campo): { xs: number; sm: number } {
-  const anchoCompleto = campo.campo === 'observaciones' || campo.campo === 'especificacion'
-  return anchoCompleto ? { xs: 12, sm: 12 } : { xs: 12, sm: 6 }
-}
-
-function agrupar(campos: Campo[]): Record<Grupo, Campo[]> {
-  const grupos: Record<Grupo, Campo[]> = {
-    reactivo: [],
-    biologico: [],
-    ubicacion: [],
-    general: [],
-  }
-  // El orden dentro de cada grupo es el de `orden`, que ya viene aplicado desde
-  // la base: `formulario()` ordena por él.
-  for (const campo of campos) grupos[grupoDe(campo)].push(campo)
-  return grupos
-}
-
-/**
- * Lo que sale del `error` de supabase-js. Los mensajes de Postgres que llegan
- * aquí son los que el propio esquema escribió para que se lean —«El renglon no
- * trae unidad...»— así que se muestran tal cual en vez de taparlos con un «algo
- * salió mal» que no dice qué corregir.
- */
-function mensajeDe(error: unknown): string {
-  if (error !== null && typeof error === 'object' && 'message' in error) {
-    return String((error as { message: unknown }).message)
-  }
-  return 'Vuelve a intentarlo.'
-}

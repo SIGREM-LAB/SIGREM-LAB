@@ -14,7 +14,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 
-select plan(118);
+select plan(139);
 
 
 -- ---------------------------------------------------------------------------
@@ -1461,6 +1461,176 @@ select throws_ok(
 
 select pg_temp.como_postgres();
 
+
+
+-- ---------------------------------------------------------------------------
+-- valores_existencia y actualizar_existencia: la edicion desde la pantalla
+-- ---------------------------------------------------------------------------
+-- Las dos son SECURITY INVOKER, igual que `crear_existencia`, asi que lo que se
+-- prueba aqui no es una politica nueva sino que las de siempre siguen mandando
+-- cuando se entra por esta otra puerta. Y una promesa mas, que es propia de
+-- editar: por aqui NO se cambia el articulo, porque el articulo se comparte con
+-- los demas frascos de la misma sustancia.
+--
+-- Fixtures propios y no los 900001/900002 de arriba: aquellos ya arrastran los
+-- movimientos de las pruebas de la bitacora, y dos de estas cuentan movimientos.
+select pg_temp.como_postgres();
+
+insert into public.existencia (id, articulo_id, almacen_id, codigo, marca, cantidad_minima)
+overriding system value
+values (900011, 900001, pg_temp.id_almacen('N3'), 'N3-EDIT1', 'SIGMA', 50),
+       (900012, 900001, pg_temp.id_almacen('N4'), 'N4-EDIT1', 'MEYER', 50);
+
+select pg_temp.como('n3@uaeh.local');
+
+select is(
+  public.valores_existencia(900011) ->> 'marca',
+  'SIGMA',
+  'valores_existencia devuelve lo que hoy vale el campo, con la llave del perfil'
+);
+
+select is(
+  (public.valores_existencia(900011) ->> 'cantidad')::numeric,
+  0::numeric,
+  'La cantidad se precarga del saldo: no hay columna de captura que leer'
+);
+
+-- Se precargan tambien aunque no se puedan editar: son la ficha de seguridad
+-- del reactivo, y quien corrige el frasco tiene que verla.
+select is(
+  public.valores_existencia(900011) ? 'nombre_articulo',
+  true,
+  'Los campos del articulo tambien se precargan, para poder mostrarlos'
+);
+
+select lives_ok(
+  $$ select * from public.actualizar_existencia(900011,
+       '{"marca": "MEYER", "mueble": "Anaquel 7", "repisa": "3",
+         "observaciones": "Reetiquetado"}'::jsonb) $$,
+  'El responsable de N3 corrige una existencia de su almacen'
+);
+
+select is(
+  (select marca from public.existencia where id = 900011),
+  'MEYER',
+  'El campo corregido se guardo'
+);
+
+select is(
+  (select u.etiqueta from public.ubicacion u
+    join public.existencia e on e.ubicacion_id = u.id
+   where e.id = 900011),
+  'Anaquel 7 · Repisa 3',
+  'La ubicacion se resolvio por sus partes, igual que en el alta'
+);
+
+-- Editar tiene que poder QUITAR. Una llave presente y vacia borra; es la
+-- diferencia con el alta, donde vaciar una casilla no significa nada.
+select lives_ok(
+  $$ select * from public.actualizar_existencia(900011, '{"marca": ""}'::jsonb) $$,
+  'Vaciar un campo no falla'
+);
+
+select is(
+  (select marca from public.existencia where id = 900011),
+  null,
+  'Una llave presente y vacia borra el dato; ausente no lo tocaria'
+);
+
+select is(
+  (select observaciones from public.existencia where id = 900011),
+  'Reetiquetado',
+  'Y lo que no venia en el envio se quedo como estaba'
+);
+
+-- El campo existe en `campo_capturable` pero es del perfil de equipos. Si esto
+-- se guardara, el filtro del servidor no serviria de nada y bastaria con
+-- hablarle directo a la API con la anon key para escribir donde no toca.
+select lives_ok(
+  $$ select * from public.actualizar_existencia(900011,
+       '{"numero_serie": "COLADO-EDIT"}'::jsonb) $$,
+  'Un campo fuera del perfil no hace fallar la edicion'
+);
+
+select is(
+  (select count(*)::int from public.existencia where numero_serie = 'COLADO-EDIT'),
+  0,
+  'Un campo fuera del perfil se descarta en el servidor, no solo en la pantalla'
+);
+
+-- La raya de esta funcion. El articulo lo comparten todos los frascos de la
+-- misma sustancia, y su RLS es de admin: corregir el nombre «del frasco que
+-- tengo abierto» se lo cambiaria a los catorce sin que nadie lo pida.
+select lives_ok(
+  $$ select * from public.actualizar_existencia(900011,
+       '{"nombre_articulo": "Otra cosa", "cas": "99-99-9"}'::jsonb) $$,
+  'Los campos del articulo no hacen fallar la edicion: se ignoran'
+);
+
+select is(
+  (select nombre_canonico from public.articulo where id = 900001),
+  'Acido succinico, solido, grado reactivo',
+  'Editar una existencia NO le cambia el nombre al articulo que comparte'
+);
+
+-- El conteo fisico. La cantidad no se escribe: entra como movimiento, que es lo
+-- unico que deja bitacora y lo unico que el `grant update` por columnas permite.
+select lives_ok(
+  $$ select * from public.actualizar_existencia(900011,
+       '{"cantidad": "12"}'::jsonb, 'Conteo de septiembre') $$,
+  'Contar el frasco al editarlo no falla'
+);
+
+select is(
+  (select cantidad from public.existencia where id = 900011),
+  12::numeric(14,4),
+  'El saldo quedo en lo contado'
+);
+
+select is(
+  (select m.tipo::text || ' ' || m.cantidad::text || ' ' || m.motivo
+     from public.movimiento m where m.existencia_id = 900011),
+  'ajuste_conteo 12.0000 Conteo de septiembre',
+  'La diferencia entro como ajuste_conteo, con el motivo que se capturo'
+);
+
+select lives_ok(
+  $$ select * from public.actualizar_existencia(900011, '{"cantidad": "12"}'::jsonb) $$,
+  'Guardar sin mover la cantidad no falla'
+);
+
+select is(
+  (select count(*)::int from public.movimiento where existencia_id = 900011),
+  1,
+  'Y no inventa un segundo movimiento: contar lo mismo no es noticia'
+);
+
+-- La RLS niega por USING, que esconde la fila en vez de explotar. Sin el aviso
+-- explicito, esto devolveria el mismo «guardado» que una correccion buena.
+select throws_ok(
+  $$ select * from public.actualizar_existencia(900012, '{"marca": "ROBADA"}'::jsonb) $$,
+  '42501',
+  null,
+  'El responsable de N3 NO puede corregir una existencia de N4'
+);
+
+select pg_temp.como('lectura@uaeh.local');
+
+select throws_ok(
+  $$ select * from public.actualizar_existencia(900011, '{"marca": "ROBADA"}'::jsonb) $$,
+  '42501',
+  null,
+  'Un usuario de consulta no puede corregir ninguna'
+);
+
+select pg_temp.como('admin@uaeh.local');
+
+select lives_ok(
+  $$ select * from public.actualizar_existencia(900012, '{"marca": "CTR"}'::jsonb) $$,
+  'El admin si puede corregir en cualquier almacen'
+);
+
+select pg_temp.como_postgres();
 
 select * from finish();
 rollback;

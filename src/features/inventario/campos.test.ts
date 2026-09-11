@@ -2,11 +2,16 @@ import { describe, expect, test } from 'vitest'
 
 import {
   camposVisibles,
+  esEditable,
   esquemaDeCampos,
+  esquemaDeEdicion,
   grupoDe,
   payloadDe,
+  payloadDeEdicion,
   rotuloDeOpcion,
+  textoDeValor,
   TIPOS,
+  valoresDe,
   valoresIniciales,
   type Campo,
 } from './campos'
@@ -175,5 +180,155 @@ describe('rotuloDeOpcion', () => {
 
   test('lo que ya viene en prosa se deja como está', () => {
     expect(rotuloDeOpcion('Presenta fallas')).toBe('Presenta fallas')
+  })
+})
+
+describe('esEditable', () => {
+  // La misma idea que `grupoDe`: la decisión sale del `destino`, que es un dato
+  // de la base. Una lista de nombres escrita aquí dejaría fuera cualquier campo
+  // que se agregue al catálogo mañana.
+  test('lo del frasco y lo de su ubicación se corrige', () => {
+    expect(esEditable(campo({ campo: 'marca', destino: 'existencia.marca' }))).toBe(true)
+    expect(esEditable(campo({ campo: 'mueble', destino: 'ubicacion.componentes.mueble' }))).toBe(
+      true,
+    )
+  })
+
+  // El artículo lo comparten todos los frascos de la misma sustancia: corregir
+  // el CAS «del frasco que tengo abierto» se lo cambiaría a los catorce. Y su
+  // RLS es de admin, así que ni siquiera llegaría.
+  test('lo del artículo y su ficha NOM, no', () => {
+    expect(esEditable(campo())).toBe(false)
+    expect(esEditable(campo({ campo: 'cas', destino: 'articulo_reactivo.cas' }))).toBe(false)
+    expect(
+      esEditable(campo({ campo: 'origen_especie', destino: 'articulo_biologico.origen_especie' })),
+    ).toBe(false)
+  })
+
+  // No es una columna: el saldo lo mantiene el trigger desde `movimiento`. Se
+  // edita como conteo, y la diferencia entra como ajuste.
+  test('la cantidad sí, porque entra como ajuste de conteo', () => {
+    expect(esEditable(campo({ campo: 'cantidad', destino: 'movimiento.carga_inicial' }))).toBe(true)
+  })
+})
+
+describe('valoresDe', () => {
+  const lista = [
+    campo({ campo: 'marca', destino: 'existencia.marca' }),
+    campo({ campo: 'cantidad', tipo_dato: 'numero', destino: 'movimiento.carga_inicial' }),
+    campo({ campo: 'fecha_caducidad', tipo_dato: 'fecha', destino: 'existencia.fecha_caducidad' }),
+  ]
+
+  test('arranca con lo que la existencia tiene hoy', () => {
+    expect(valoresDe(lista, { marca: 'SIGMA', cantidad: 139.8, fecha_caducidad: '2027-03-01' })).toEqual(
+      { marca: 'SIGMA', cantidad: '139.8', fecha_caducidad: '2027-03-01' },
+    )
+  })
+
+  // Sin un valor definido por campo, el control salta de no controlado a
+  // controlado en el primer tecleo y React lo avisa por consola.
+  test('lo que no tiene valor arranca vacío, no indefinido', () => {
+    expect(valoresDe(lista, {})).toEqual({ marca: '', cantidad: '', fecha_caducidad: '' })
+  })
+
+  test('los campos del artículo no entran al formulario: no se editan', () => {
+    expect(valoresDe([campo()], { nombre_articulo: 'Acetona' })).toEqual({})
+  })
+})
+
+describe('payloadDeEdicion', () => {
+  const lista = [
+    campo({ campo: 'marca', destino: 'existencia.marca' }),
+    campo({ campo: 'modelo', destino: 'existencia.modelo' }),
+  ]
+
+  // LA diferencia con el alta. Allá un campo en blanco es uno que no se
+  // capturó y omitirlo dice eso; aquí, vaciar una casilla es la única forma de
+  // borrar un dato, y un formulario donde eso no hace nada es un formulario que
+  // miente. `actualizar_existencia` lee la llave vacía como «bórralo».
+  test('los vacíos sí viajan: es como se borra un dato', () => {
+    expect(payloadDeEdicion(lista, { marca: '', modelo: 'X-1' })).toEqual({
+      marca: '',
+      modelo: 'X-1',
+    })
+  })
+
+  test('los espacios sobrantes no llegan a la base', () => {
+    expect(payloadDeEdicion(lista, { marca: '  MEYER  ', modelo: '' })).toEqual({
+      marca: 'MEYER',
+      modelo: '',
+    })
+  })
+
+  // Si el payload saliera del estado del formulario, un campo del artículo
+  // pintado en la pantalla se colaría en el envío.
+  test('lo que no se edita no se manda, aunque esté en el estado', () => {
+    expect(payloadDeEdicion([campo(), ...lista], { nombre_articulo: 'Otra cosa', marca: 'MEYER', modelo: '' })).toEqual(
+      { marca: 'MEYER', modelo: '' },
+    )
+  })
+})
+
+describe('esquemaDeEdicion', () => {
+  const lista = [
+    campo({ campo: 'cantidad', tipo_dato: 'numero', destino: 'movimiento.carga_inicial' }),
+    campo({ campo: 'marca', destino: 'existencia.marca', obligatorio: false }),
+  ]
+
+  test('corregir sin tocar la cantidad no pide motivo', () => {
+    const salida = esquemaDeEdicion(lista, 12).safeParse({
+      cantidad: '12',
+      marca: 'MEYER',
+      motivo_ajuste: '',
+    })
+    expect(salida.success).toBe(true)
+  })
+
+  // El motivo es lo que queda escrito junto al movimiento. Un renglón de
+  // bitácora que dice «-3.5 mL» sin decir por qué obliga a preguntarle a quien
+  // lo hizo, y para entonces ya nadie se acuerda.
+  test('cambiar la cantidad sí lo pide, y dice por qué', () => {
+    const salida = esquemaDeEdicion(lista, 12).safeParse({
+      cantidad: '8',
+      marca: 'MEYER',
+      motivo_ajuste: '',
+    })
+    expect(salida.success).toBe(false)
+    expect(salida.error?.issues[0]?.path).toEqual(['motivo_ajuste'])
+    expect(salida.error?.issues[0]?.message).toMatch(/bitácora/)
+  })
+
+  test('con motivo, el ajuste pasa', () => {
+    const salida = esquemaDeEdicion(lista, 12).safeParse({
+      cantidad: '8',
+      marca: 'MEYER',
+      motivo_ajuste: 'Derrame',
+    })
+    expect(salida.success).toBe(true)
+  })
+
+  // Equipos no pide cantidad —regla 9, un renglón por equipo físico—, así que
+  // no hay nada que ajustar ni motivo que pedir.
+  test('un perfil sin cantidad nunca pide motivo', () => {
+    const soloMarca = [campo({ campo: 'marca', destino: 'existencia.marca', obligatorio: false })]
+    expect(esquemaDeEdicion(soloMarca, 12).safeParse({ marca: '', motivo_ajuste: '' }).success).toBe(
+      true,
+    )
+  })
+})
+
+describe('textoDeValor', () => {
+  // Un hueco se dice con una raya: en una ficha de seguridad, «no lo sabemos»
+  // es una respuesta y tiene que verse como tal.
+  test('lo que no se capturó se enseña como hueco', () => {
+    expect(textoDeValor(campo(), null)).toBe('—')
+  })
+
+  test('los enums se leen como español, igual que en los selectores', () => {
+    expect(textoDeValor(campo({ tipo_dato: 'seleccion' }), 'liquido')).toBe('Líquido')
+  })
+
+  test('una casilla se lee como sí o no, no como true', () => {
+    expect(textoDeValor(campo({ tipo_dato: 'booleano' }), false)).toBe('No')
   })
 })
