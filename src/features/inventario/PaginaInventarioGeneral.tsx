@@ -38,10 +38,16 @@ export function PaginaInventarioGeneral() {
       />
 
       <CuerpoPagina>
+        {/* Registrar movimientos es de quien escribe. Un usuario de consulta ve
+            estas mismas cuatro bodegas y no tiene ninguna propia, así que sin
+            esta condición le saldría un botón que la RLS va a rechazar. Sobre
+            qué renglones se ofrece —los del almacén propio, o todos si eres
+            admin— lo decide el panel con `almacenPropio`. */}
         <ListadoExistencias
           almacenFijo={null}
           almacenPropio={perfil?.almacen?.id ?? null}
           almacenSemilla={almacenPedido}
+          permiteMovimiento={perfil !== undefined && perfil.rol !== 'consulta'}
         />
       </CuerpoPagina>
     </>

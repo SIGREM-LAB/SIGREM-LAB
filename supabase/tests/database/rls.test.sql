@@ -14,7 +14,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 
-select plan(139);
+select plan(150);
 
 
 -- ---------------------------------------------------------------------------
@@ -1628,6 +1628,125 @@ select pg_temp.como('admin@uaeh.local');
 select lives_ok(
   $$ select * from public.actualizar_existencia(900012, '{"marca": "CTR"}'::jsonb) $$,
   'El admin si puede corregir en cualquier almacen'
+);
+
+select pg_temp.como_postgres();
+
+
+-- ---------------------------------------------------------------------------
+-- Registrar un movimiento tal como lo manda la pantalla
+-- ---------------------------------------------------------------------------
+-- Las pruebas de arriba mandan las siete columnas porque comprueban que el
+-- trigger reescribe lo que el cliente inventa. El diálogo de movimientos hace
+-- lo contrario: manda CUATRO —existencia, tipo, cantidad y motivo— y se apoya
+-- en que `private.aplicar_movimiento` ponga el resto. Los cuatro que no manda
+-- son NOT NULL, así que eso es toda la apuesta del diálogo y se fija aquí: si
+-- alguien quitara el trigger, revienta esta prueba antes que la pantalla.
+select pg_temp.como_postgres();
+
+insert into public.existencia (id, articulo_id, almacen_id, codigo, cantidad_minima)
+overriding system value
+values (900021, 900001, pg_temp.id_almacen('N3'), 'N3-MOV1', 50);
+
+select pg_temp.como('n3@uaeh.local');
+
+select lives_ok(
+  $$ insert into public.movimiento (existencia_id, tipo, cantidad, motivo)
+     values (900021, 'entrada', 500, 'Compra proveedor Merck') $$,
+  'Un movimiento entra con solo las cuatro columnas que captura la pantalla'
+);
+
+select is(
+  (select cantidad from public.existencia where id = 900021),
+  500::numeric(14,4),
+  'El trigger aplicó el saldo sin que el cliente lo escribiera'
+);
+
+select is(
+  (select m.usuario_id = (select auth.uid()) from public.movimiento m
+    where m.existencia_id = 900021),
+  true,
+  'La firma la pone el trigger: nadie firma un movimiento en nombre de otro'
+);
+
+select is(
+  (select a.clave from public.movimiento m
+     join public.almacen a on a.id = m.almacen_id
+    where m.existencia_id = 900021),
+  'N3',
+  'Y el almacén sale de la existencia, no del envío'
+);
+
+-- El ajuste de conteo manda la DIFERENCIA, no lo contado: es lo que calcula
+-- `registroDe` en la pantalla, y lo que deja el saldo en lo que se contó.
+select lives_ok(
+  $$ insert into public.movimiento (existencia_id, tipo, cantidad, motivo)
+     values (900021, 'ajuste_conteo', -20, 'Conteo físico') $$,
+  'Un ajuste de conteo entra como la diferencia contra el saldo'
+);
+
+select is(
+  (select cantidad from public.existencia where id = 900021),
+  480::numeric(14,4),
+  'El saldo queda en lo contado'
+);
+
+-- Lo que la pantalla frena en el esquema de zod, el esquema de la base también
+-- lo frena. Las dos comprobaciones existen por razones distintas: aquélla para
+-- no hacer teclear algo que va a fallar, ésta porque la anon key es pública.
+select throws_ok(
+  $$ insert into public.movimiento (existencia_id, tipo, cantidad, motivo)
+     values (900021, 'merma', 0, 'Nada') $$,
+  '23514',
+  null,
+  'Un movimiento de cero no se registra: no es noticia'
+);
+
+select throws_ok(
+  $$ insert into public.movimiento (existencia_id, tipo, cantidad, motivo)
+     values (900021, 'consumo', -9999, 'De más') $$,
+  'P0001',
+  null,
+  'Ni uno que dejaría la existencia en negativo'
+);
+
+
+-- ---------------------------------------------------------------------------
+-- Cambio de laboratorio: un UPDATE, no un movimiento
+-- ---------------------------------------------------------------------------
+-- No pasa por `movimiento` porque no mueve cantidad, y uno de cero está
+-- prohibido por el check de arriba. Lo que sí sostiene el esquema es que no se
+-- pueda mandar el frasco al laboratorio de otra bodega: la FK es compuesta
+-- `(laboratorio_id, almacen_id)`, así que es imposible por construcción y no
+-- por una comprobación de la pantalla.
+select lives_ok(
+  $$ update public.existencia
+        set laboratorio_id = (select l.id from public.laboratorio l
+                               where l.almacen_id = (select almacen_id from public.existencia
+                                                      where id = 900021)
+                               limit 1)
+      where id = 900021 $$,
+  'El responsable mueve su existencia a un laboratorio de su almacén'
+);
+
+select throws_ok(
+  $$ update public.existencia
+        set laboratorio_id = (select l.id from public.laboratorio l
+                               where l.almacen_id = pg_temp.id_almacen('N4') limit 1)
+      where id = 900021 $$,
+  '23503',
+  null,
+  'Y no puede mandarla al laboratorio de otra bodega: lo impide la FK compuesta'
+);
+
+select pg_temp.como('lectura@uaeh.local');
+
+select throws_ok(
+  $$ insert into public.movimiento (existencia_id, tipo, cantidad, motivo)
+     values (900021, 'entrada', 10, 'Robada') $$,
+  '42501',
+  null,
+  'Un usuario de consulta no registra movimientos en ningún almacén'
 );
 
 select pg_temp.como_postgres();

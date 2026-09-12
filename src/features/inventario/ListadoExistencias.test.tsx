@@ -190,6 +190,29 @@ describe('ListadoExistencias', () => {
       expect(screen.queryByRole('button', { name: /^editar$/i })).not.toBeInTheDocument()
     })
 
+    // El botón de movimientos lo enciende Inventario general, que es donde se
+    // ven las cuatro bodegas. En Inventario el conteo entra por Editar.
+    test('el detalle ofrece registrar un movimiento donde se permite', async () => {
+      const usuario = userEvent.setup()
+      pintar({ almacenPropio: 1, permiteMovimiento: true })
+
+      await usuario.click(screen.getByRole('button', { name: /N3-00001/ }))
+      expect(
+        await screen.findByRole('button', { name: /registrar movimiento/i }),
+      ).toBeInTheDocument()
+    })
+
+    test('y no lo ofrece sin la prop', async () => {
+      const usuario = userEvent.setup()
+      pintar({ almacenPropio: 1 })
+
+      await usuario.click(screen.getByRole('button', { name: /N3-00001/ }))
+      expect(await screen.findByRole('dialog')).toBeInTheDocument()
+      expect(
+        screen.queryByRole('button', { name: /registrar movimiento/i }),
+      ).not.toBeInTheDocument()
+    })
+
     // El panel abierto no guarda una copia de la fila: la busca en el listado
     // cada vez. Con una copia, tras guardar seguiría enseñando el saldo viejo
     // detrás del diálogo.

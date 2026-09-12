@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Alert, Box, Card, LinearProgress, Snackbar, Stack, Typography } from '@mui/material'
 
 import { DialogoEditarExistencia } from './DialogoEditarExistencia'
+import { DialogoMovimiento } from './DialogoMovimiento'
 import { FiltrosActivos } from './FiltrosActivos'
 import { FiltrosInventario } from './FiltrosInventario'
 import { PanelExistencia } from './PanelExistencia'
@@ -55,6 +56,14 @@ type Props = {
    * terminar en un error.
    */
   permiteEditar?: boolean
+
+  /**
+   * Si el detalle ofrece registrar un movimiento. Hoy lo enciende Inventario
+   * general, y solo para quien puede escribir: `lectura@` no tiene almacén
+   * propio, así que sin esta condición vería un botón que la RLS le rechaza.
+   * El almacén ajeno ya lo filtra el propio panel.
+   */
+  permiteMovimiento?: boolean
 }
 
 /**
@@ -71,6 +80,7 @@ export function ListadoExistencias({
   almacenPropio,
   almacenSemilla,
   permiteEditar = false,
+  permiteMovimiento = false,
 }: Props) {
   const cruzaAlmacenes = almacenFijo === null
 
@@ -94,10 +104,13 @@ export function ListadoExistencias({
   // detrás y al cerrar el diálogo se vuelve a él con el dato ya corregido.
   const [editando, setEditando] = useState<Fila | null>(null)
 
-  // El código de lo último que se corrigió, para poder decirlo. Es el mismo
-  // aviso que da el alta, y por la misma razón: quien guarda tiene que saber
-  // que se guardó sin ir a buscarlo en la tabla.
-  const [guardada, setGuardada] = useState<string | null>(null)
+  // Lo mismo para el movimiento: se registra sobre la fila que está abierta.
+  const [moviendo, setMoviendo] = useState<Fila | null>(null)
+
+  // Lo último que se guardó, ya escrito como frase. Es el mismo aviso que da el
+  // alta, y por la misma razón: quien guarda tiene que saber que se guardó sin
+  // ir a buscarlo en la tabla.
+  const [aviso, setAviso] = useState<string | null>(null)
 
   const almacenes = useAlmacenes()
   const resumenAlmacenes = useResumenAlmacenes(cruzaAlmacenes)
@@ -255,22 +268,29 @@ export function ListadoExistencias({
         datosTipo={datosTipo}
         onCerrar={() => setAbiertaId(null)}
         onEditar={permiteEditar ? () => setEditando(abierta) : undefined}
+        onMovimiento={permiteMovimiento ? () => setMoviendo(abierta) : undefined}
       />
 
       <DialogoEditarExistencia
         fila={editando}
         onCerrar={() => setEditando(null)}
-        onGuardada={setGuardada}
+        onGuardada={(codigo) => setAviso(`Cambios guardados en ${codigo}`)}
+      />
+
+      <DialogoMovimiento
+        fila={moviendo}
+        onCerrar={() => setMoviendo(null)}
+        onRegistrado={(resumen) => setAviso(`Movimiento registrado: ${resumen}`)}
       />
 
       <Snackbar
-        open={guardada !== null}
+        open={aviso !== null}
         autoHideDuration={6000}
-        onClose={() => setGuardada(null)}
+        onClose={() => setAviso(null)}
         anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
       >
-        <Alert severity="success" onClose={() => setGuardada(null)}>
-          Cambios guardados en {guardada}
+        <Alert severity="success" onClose={() => setAviso(null)}>
+          {aviso}
         </Alert>
       </Snackbar>
     </>

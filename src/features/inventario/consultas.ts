@@ -1,7 +1,7 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import { supabase } from '@/lib/supabase'
-import type { Enums, Json } from '@/types/database'
+import type { Enums, Json, TablesInsert } from '@/types/database'
 import type { Campo } from './campos'
 import type { Filtros } from './filtros'
 import type { ResumenAlmacen } from './menu'
@@ -136,6 +136,15 @@ export function useMovimientos(existenciaId: number | null) {
  * los de reactivo (CAS y rombo NFPA), los de equipo y los de materia biológica.
  * Van en su propia consulta porque traerlos en el listado sería pedir tres
  * tablas más por cada uno de los 25 renglones de la página.
+ *
+ * Trae además el mínimo y el laboratorio, que no están en `existencia_listado`
+ * y sí en la ficha del diálogo de movimientos. Van aquí y no en la vista por lo
+ * mismo que el resto: son dos columnas por fila abierta, no por página.
+ *
+ * El laboratorio viaja como ID y no como recurso embebido: su FK es COMPUESTA
+ * —`(laboratorio_id, almacen_id)`, que es lo que impide apuntar al laboratorio
+ * de otra bodega— y PostgREST no resuelve un embebido por una llave así. El
+ * nombre sale de `useLaboratorios`, que la pantalla ya pide para el selector.
  */
 export function useDetalleExistencia(existenciaId: number | null) {
   return useQuery({
@@ -149,6 +158,7 @@ export function useDetalleExistencia(existenciaId: number | null) {
            mantenimiento, fecha_chequeo, metodo_conservacion, temperatura,
            fecha_recoleccion, fecha_preparacion, responsable_muestra,
            peso_frasco_vacio, peso_total, fecha_adquisicion, fecha_caducidad, observaciones,
+           cantidad_minima, laboratorio_id,
            articulo:articulo_id (
              familia,
              articulo_reactivo ( cas, estado_fisico, color_almacenaje, tiene_hoja_seguridad,
@@ -531,6 +541,96 @@ export function useCrearExistencia() {
     },
     onSuccess: () => {
       for (const queryKey of INVENTARIO) qc.invalidateQueries({ queryKey })
+    },
+  })
+}
+
+/**
+ * Registrar un movimiento: entrada, consumo, merma o ajuste de conteo.
+ *
+ * Un solo `insert`, y basta. `almacen_id`, `cantidad_antes`, `cantidad_despues`
+ * y `usuario_id` los escribe `private.aplicar_movimiento`, que además mueve el
+ * saldo y recalcula el estado; mandarlos desde aquí no serviría porque los
+ * sobrescribe. La RLS de `movimiento` se evalúa DESPUÉS del trigger, sobre la
+ * fila final, así que comprueba el almacén real de la existencia y no lo que
+ * mande el cliente.
+ *
+ * `ocurrido_en` solo se manda cuando se eligió un día pasado: tiene
+ * `default now()` y mandar el de hoy lo dejaría a las 00:00.
+ */
+export function useRegistrarMovimiento() {
+  const qc = useQueryClient()
+
+  return useMutation({
+    mutationFn: async (v: {
+      existenciaId: number
+      tipo: Enums<'tipo_movimiento'>
+      cantidad: number
+      motivo: string | null
+      ocurridoEn: string | null
+    }) => {
+      const fila = {
+        existencia_id: v.existenciaId,
+        tipo: v.tipo,
+        cantidad: v.cantidad,
+        motivo: v.motivo,
+        ...(v.ocurridoEn === null ? {} : { ocurrido_en: v.ocurridoEn }),
+      } satisfies Partial<TablesInsert<'movimiento'>>
+
+      // El único `as` del módulo, y es de las cuatro columnas que NO se mandan:
+      // `almacen_id`, `cantidad_antes`, `cantidad_despues` y `usuario_id` las
+      // escribe el trigger BEFORE INSERT. `supabase gen types` no ve triggers,
+      // así que al ser NOT NULL sin default las marca obligatorias. Mandarlas
+      // sería peor que este `as`: el trigger las sobrescribe, y poder mandar
+      // `usuario_id` es poder firmar un movimiento en nombre de otro.
+      const { error } = await supabase
+        .from('movimiento')
+        .insert(fila as unknown as TablesInsert<'movimiento'>)
+      if (error) throw error
+    },
+    onSuccess: (_nada, v) => {
+      for (const queryKey of INVENTARIO) qc.invalidateQueries({ queryKey })
+      qc.invalidateQueries({ queryKey: ['movimientos', v.existenciaId] })
+      qc.invalidateQueries({ queryKey: ['detalle-existencia', v.existenciaId] })
+      qc.invalidateQueries({ queryKey: ['valores-existencia', v.existenciaId] })
+    },
+  })
+}
+
+/**
+ * Mover el frasco a otro laboratorio.
+ *
+ * NO es un movimiento y por eso no pasa por `movimiento`: la cantidad no
+ * cambia, y uno de cero lo prohíbe `movimiento_cantidad_no_cero`. Es un UPDATE
+ * de una columna que el `grant update` por columnas ya permite, con la FK
+ * compuesta `(laboratorio_id, almacen_id)` impidiendo por construcción que
+ * apunte al laboratorio de otra bodega.
+ *
+ * La consecuencia —que este cambio no deja renglón en la bitácora— se dice en
+ * el diálogo, donde se decide.
+ */
+export function useCambiarLaboratorio() {
+  const qc = useQueryClient()
+
+  return useMutation({
+    mutationFn: async (v: { existenciaId: number; laboratorioId: number }) => {
+      const { data, error } = await supabase
+        .from('existencia')
+        .update({ laboratorio_id: v.laboratorioId })
+        .eq('id', v.existenciaId)
+        // Devolver la fila es lo que delata el caso silencioso: la RLS niega
+        // por USING, que esconde el renglón en vez de explotar, así que sin
+        // esto un intento sobre otro almacén se vería igual que un cambio bueno.
+        .select('id')
+      if (error) throw error
+      if (data.length === 0) {
+        throw new Error('No se pudo mover: la existencia pertenece a otro almacén')
+      }
+    },
+    onSuccess: (_nada, v) => {
+      for (const queryKey of INVENTARIO) qc.invalidateQueries({ queryKey })
+      qc.invalidateQueries({ queryKey: ['detalle-existencia', v.existenciaId] })
+      qc.invalidateQueries({ queryKey: ['valores-existencia', v.existenciaId] })
     },
   })
 }

@@ -47,6 +47,13 @@ type Props = {
    * esto solo evita ofrecer un botón que iba a terminar en un error.
    */
   onEditar?: () => void
+
+  /**
+   * Qué hacer al pulsar «Registrar movimiento». Misma regla que `onEditar`: sin
+   * esto no hay botón. Hoy lo pasa Inventario general, que es la pantalla de
+   * quien mira las cuatro bodegas; en Inventario el conteo entra por Editar.
+   */
+  onMovimiento?: () => void
 }
 
 const FECHA = new Intl.DateTimeFormat('es-MX', { dateStyle: 'medium', timeStyle: 'short' })
@@ -72,6 +79,7 @@ export function PanelExistencia({
   datosTipo,
   onCerrar,
   onEditar,
+  onMovimiento,
 }: Props) {
   if (fila === null) return null
 
@@ -134,18 +142,32 @@ export function PanelExistencia({
         </Alert>
       )}
 
-      {/* A lo ancho y no como un icono junto al código: se pulsa con el ratón
-          de las máquinas del almacén, y es la única acción del panel. */}
-      {onEditar !== undefined && !ajeno && (
-        <Button
-          fullWidth
-          variant="outlined"
-          onClick={onEditar}
-          startIcon={<Icon icon="mdi:pencil-outline" width={18} />}
-          sx={{ mb: 2 }}
-        >
-          Editar
-        </Button>
+      {/* A lo ancho y no como iconos junto al código: se pulsan con el ratón de
+          las máquinas del almacén, y son las acciones del panel. Lo ajeno no se
+          ofrece: la RLS lo rechazaría y el aviso de arriba ya lo dijo. */}
+      {!ajeno && (onMovimiento !== undefined || onEditar !== undefined) && (
+        <Stack spacing={1} sx={{ mb: 2 }}>
+          {onMovimiento !== undefined && (
+            <Button
+              fullWidth
+              variant="contained"
+              onClick={onMovimiento}
+              startIcon={<Icon icon="mdi:swap-horizontal" width={18} />}
+            >
+              Registrar movimiento
+            </Button>
+          )}
+          {onEditar !== undefined && (
+            <Button
+              fullWidth
+              variant="outlined"
+              onClick={onEditar}
+              startIcon={<Icon icon="mdi:pencil-outline" width={18} />}
+            >
+              Editar
+            </Button>
+          )}
+        </Stack>
       )}
 
       <Stack spacing={1} sx={{ mb: 2 }}>
