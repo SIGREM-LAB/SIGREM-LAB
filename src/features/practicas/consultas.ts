@@ -137,12 +137,17 @@ export function useSemestresDePrograma(programaId: number | null) {
  * `.is('semestre', null)` y no `.eq(...)`: en SQL nada es igual a NULL, así que
  * un `eq` con nulo devuelve cero filas y las optativas desaparecerían.
  */
-export function useAsignaturasDeSemestre(programaId: number | null, semestre: number | null) {
-  const activo = programaId !== null
+export function useAsignaturasDeSemestre(
+  programaId: number | null,
+  semestre: number | null | undefined,
+) {
+  const activo = programaId !== null && semestre !== undefined
   return useQuery({
     queryKey: ['practicas', 'asignaturas', programaId, semestre],
     enabled: activo,
     queryFn: async (): Promise<Asignatura[]> => {
+      if (semestre === undefined) return []
+
       let consulta = supabase
         .from('programa_asignatura')
         .select('asignatura:asignatura_id (id, nombre)')

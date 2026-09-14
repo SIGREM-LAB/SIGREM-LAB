@@ -7,6 +7,7 @@
     # los archivos reales, un libro por almacén
     python -m etl.cargar --origen etl/Datos-Reales-JD2026/corregido
     python -m etl.cargar --origen etl/Datos-Reales-JD2026/corregido --cargar
+    python -m etl.cargar --origen etl/Datos-Reales-JD2026/original --almacen N4 --hoja Reactivos
 
 Lo válido entra a `existencia`; lo que ninguna regla puede resolver sola se
 aparta en `public.carga_pendiente` y lo revisa una persona en pantalla. Hasta el
@@ -62,7 +63,8 @@ def archivos(origen: Path, almacen: str | None = None) -> list[Path]:
     return rutas
 
 
-def hojas_de(origen: Path, almacen: str | None = None) -> list[Hoja]:
+def hojas_de(origen: Path, almacen: str | None = None,
+             hoja: str | None = None) -> list[Hoja]:
     """Todas las hojas de datos del origen, en el orden de carga.
 
     Reconoce las dos formas en que llegan los archivos:
@@ -74,41 +76,49 @@ def hojas_de(origen: Path, almacen: str | None = None) -> list[Hoja]:
     es global, así que cuál renglón crea el artículo y cuál lo reutiliza depende
     del orden de carga. Que eso lo decidiera el orden alfabético de una carpeta
     haría la migración irreproducible.
+
+    `hoja` recorta a una sola pestaña. Los libros reales copian el formato
+    entero y dejan ejemplos en las hojas que no llenaron: sin este filtro,
+    esos ejemplos se cargarían como inventario.
     """
     if archivos(origen, almacen):
-        return [leer(ruta) for ruta in archivos(origen, almacen)]
+        hojas = [leer(ruta) for ruta in archivos(origen, almacen)]
+    else:
+        libros: list[tuple[str, Path]] = []
+        for ruta in sorted(origen.rglob("*.xlsx")):
+            if ruta.name.startswith("~$"):
+                continue
+            clave = almacen_de(ruta)
+            if almacen and clave != almacen:
+                continue
+            libros.append((clave, ruta))
 
-    libros: list[tuple[str, Path]] = []
-    for ruta in sorted(origen.rglob("*.xlsx")):
-        if ruta.name.startswith("~$"):
-            continue
-        clave = almacen_de(ruta)
-        if almacen and clave != almacen:
-            continue
-        libros.append((clave, ruta))
+        hojas = []
+        for clave in ORDEN:
+            for suya, ruta in libros:
+                if suya == clave:
+                    hojas.extend(leer_libro(ruta, clave))
 
-    hojas: list[Hoja] = []
-    for clave in ORDEN:
-        for suya, ruta in libros:
-            if suya == clave:
-                hojas.extend(leer_libro(ruta, clave))
+    if hoja:
+        hojas = [h for h in hojas if h.nombre == hoja]
     return hojas
 
 
 def simular(origen: Path, catalogos: Catalogos,
-            almacen: str | None = None
+            almacen: str | None = None, hoja: str | None = None
             ) -> tuple[Informe, dict[str, Resultado]]:
     """Lee y valida sin tocar la base."""
     informe, vistos = Informe(), Vistos()
     resultados: dict[str, Resultado] = {}
-    for hoja in hojas_de(origen, almacen):
-        resultados[f"{hoja.archivo} · {hoja.nombre}"] = validar(
-            hoja, informe, catalogos, vistos)
+    for h in hojas_de(origen, almacen, hoja):
+        resultados[f"{h.archivo} · {h.nombre}"] = validar(
+            h, informe, catalogos, vistos)
     return informe, resultados
 
 
 def cargar(origen: Path, cadena: str,
-           almacen: str | None = None) -> tuple[Informe, int, int]:
+           almacen: str | None = None, hoja: str | None = None
+           ) -> tuple[Informe, int, int]:
     """Una transacción por hoja: entra lo válido y se aparta lo demás.
 
     La transacción sigue siendo por hoja, pero ya no es todo-o-nada sobre el
@@ -127,13 +137,13 @@ def cargar(origen: Path, cadena: str,
             perfil = db.perfil_de_carga(cur)
         con.commit()
 
-        for hoja in hojas_de(origen, almacen):
-            resultado = validar(hoja, informe, catalogos, vistos)
+        for h in hojas_de(origen, almacen, hoja):
+            resultado = validar(h, informe, catalogos, vistos)
             if not resultado.validos and not resultado.rechazados:
                 continue
             try:
                 with con.cursor() as cur:
-                    n, a = destino.escribir_hoja(cur, hoja, resultado, perfil)
+                    n, a = destino.escribir_hoja(cur, h, resultado, perfil)
                 nuevas += n
                 apartados += a
                 con.commit()
@@ -147,7 +157,7 @@ def cargar(origen: Path, cadena: str,
             except Exception as error:  # noqa: BLE001 — se anota y se sigue
                 con.rollback()
                 informe.anotar(Problema(
-                    archivo=hoja.archivo, hoja=hoja.nombre, fila=None,
+                    archivo=h.archivo, hoja=h.nombre, fila=None,
                     columna="", regla="Error de la base", valor="",
                     accion="rechazo", detalle=str(error).strip()))
     return informe, nuevas, apartados
@@ -172,6 +182,8 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--juego", choices=("limpios", "defectos"))
     p.add_argument("--origen", type=Path)
     p.add_argument("--almacen", choices=ORDEN)
+    p.add_argument("--hoja", choices=ORDEN_HOJAS,
+                   help="una sola pestaña; el resto del libro se ignora")
     p.add_argument("--cargar", action="store_true",
                    help="escribe en la base; sin esto es simulacro")
     p.add_argument("--dsn", help="por omisión, DATABASE_URL")
@@ -186,7 +198,7 @@ def main(argv: list[str] | None = None) -> int:
         from etl import db, destino
         try:
             informe, nuevas, apartados = cargar(origen, db.dsn(args.dsn),
-                                                args.almacen)
+                                                args.almacen, args.hoja)
         except destino.YaCargado as error:
             print(f"\n  {error}\n", file=sys.stderr)
             return 2
@@ -197,7 +209,7 @@ def main(argv: list[str] | None = None) -> int:
         # El simulacro corre sin base, pero si la hay se aprovecha: el único
         # control que no se puede hacer en frío es el del laboratorio.
         informe, resultados = simular(origen, _catalogos_si_hay(args.dsn),
-                                      args.almacen)
+                                      args.almacen, args.hoja)
         validos = sum(len(r.validos) for r in resultados.values())
         apartados = sum(len(r.rechazados) for r in resultados.values())
         print(f"  {len(resultados)} hojas, {validos} renglones cargables, "

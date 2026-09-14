@@ -6,6 +6,7 @@ import { beforeEach, describe, expect, test, vi } from 'vitest'
 const registrar = vi.fn()
 const guardarBorrador = vi.fn()
 const borrarBorrador = vi.fn()
+const consultarAsignaturas = vi.fn()
 
 // El doble reemplaza la capa de datos entera. Lo que se prueba aquí son las
 // reglas de estado de la pantalla, no las consultas: ésas se ejercitan en el
@@ -16,7 +17,10 @@ vi.mock('./consultas', async () => {
     ...real,
     useProgramas: () => ({ data: [{ id: 1, nombre: 'Química en Alimentos' }] }),
     useSemestresDePrograma: () => ({ data: [3] }),
-    useAsignaturasDeSemestre: () => ({ data: [{ id: 10, nombre: 'Bioquímica' }] }),
+    useAsignaturasDeSemestre: (programaId: number | null, semestre: number | null | undefined) => {
+      consultarAsignaturas(programaId, semestre)
+      return { data: [{ id: 10, nombre: 'Bioquímica' }] }
+    },
     usePracticasDeAsignatura: () => ({
       data: [{ id: 100, numero: 2, nombre: 'Actividad enzimática' }],
     }),
@@ -89,6 +93,7 @@ beforeEach(() => {
   registrar.mockClear()
   guardarBorrador.mockClear()
   borrarBorrador.mockClear()
+  consultarAsignaturas.mockClear()
 })
 
 describe('PaginaNuevaPractica', () => {
@@ -97,6 +102,15 @@ describe('PaginaNuevaPractica', () => {
 
     expect(screen.getByText('Seleccione un producto')).toBeInTheDocument()
     expect(screen.getByText('Sin productos')).toBeInTheDocument()
+  })
+
+  test('no consulta asignaturas hasta elegir un semestre', async () => {
+    montar()
+
+    await userEvent.click(screen.getByLabelText('Programa educativo'))
+    await userEvent.click(screen.getByRole('option', { name: 'Química en Alimentos' }))
+
+    expect(consultarAsignaturas).toHaveBeenLastCalledWith(1, undefined)
   })
 
   // Sin laboratorio no hay almacén, y sin almacén no hay sobre qué buscar.

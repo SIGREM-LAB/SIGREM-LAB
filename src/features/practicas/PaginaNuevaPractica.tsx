@@ -68,7 +68,7 @@ function Captura({ inicial }: { inicial: Restaurado | null }) {
   const semestres = useSemestresDePrograma(cabecera.programaId ?? null)
   const asignaturas = useAsignaturasDeSemestre(
     cabecera.programaId ?? null,
-    cabecera.semestre ?? null,
+    cabecera.semestre,
   )
   const practicas = usePracticasDeAsignatura(cabecera.asignaturaId ?? null)
   const laboratorios = useLaboratorios()

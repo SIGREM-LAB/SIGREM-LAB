@@ -6,6 +6,7 @@ cursor y no se hace commit.
 
 from __future__ import annotations
 
+import datetime as dt
 import re
 import uuid
 from typing import Any
@@ -72,7 +73,7 @@ def _json(d: dict[str, str]) -> str:
     return json.dumps(d, ensure_ascii=False)
 
 
-def _fecha(texto: str | None) -> str | None:
+def _fecha(valor: Any) -> str | None:
     """El encabezado la trae como dd/mm/aaaa; Postgres la quiere ISO.
 
     El formato unificado trae la casilla como `___/___/______`, y los almacenes
@@ -81,12 +82,20 @@ def _fecha(texto: str | None) -> str | None:
     —columna `date`— y Postgres abortaba la transacción de la hoja ENTERA. Las
     tres hojas de N3 se caían por una casilla vacía del encabezado.
 
+    N4 la dejó como fecha de Excel (`datetime`), no como texto. `"/" not in`
+    sobre un datetime lanza TypeError y cae la hoja entera: la misma clase de
+    trampa. Si llega un date/datetime, se toma el día y se sigue.
+
     Sin fecha se carga igual: `actualizado_el` es nullable justamente porque es
     metadato de procedencia, no un dato del inventario.
     """
-    if not texto or "/" not in texto:
+    if isinstance(valor, dt.datetime):
+        return valor.date().isoformat()
+    if isinstance(valor, dt.date):
+        return valor.isoformat()
+    if not valor or not isinstance(valor, str) or "/" not in valor:
         return None
-    partes = texto.split("/")
+    partes = valor.split("/")
     if len(partes) != 3 or not all(p.strip().isdigit() for p in partes):
         return None
     dia, mes, anio = (p.strip() for p in partes)

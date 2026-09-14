@@ -8,6 +8,7 @@ que un archivo mal rotulado no pase inadvertido.
 
 from __future__ import annotations
 
+import datetime as dt
 import unicodedata
 from dataclasses import dataclass
 from pathlib import Path
@@ -127,12 +128,25 @@ def _extraer(ws, nombre: str) -> tuple[tuple[int, ...], tuple[dict[str, Any], ..
     return tuple(filas), tuple(renglones)
 
 
+def _texto_cabecera(valor: Any) -> str | None:
+    if valor is None:
+        return None
+    if isinstance(valor, dt.datetime):
+        return valor.strftime("%d/%m/%Y")
+    if isinstance(valor, dt.date):
+        return valor.strftime("%d/%m/%Y")
+    limpio = " ".join(str(valor).split())
+    return limpio or None
+
+
 def _hoja(ruta: Path, ws, almacen: str, nombre: str) -> Hoja:
     filas, renglones = _extraer(ws, nombre)
     return Hoja(
         ruta=ruta, almacen=almacen, nombre=nombre,
-        responsable=ws["F4"].value, periodo=ws["B5"].value,
-        actualizado=ws["F5"].value, filas=filas, renglones=renglones,
+        responsable=_texto_cabecera(ws["F4"].value),
+        periodo=_texto_cabecera(ws["B5"].value),
+        actualizado=_texto_cabecera(ws["F5"].value),
+        filas=filas, renglones=renglones,
     )
 
 
