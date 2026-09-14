@@ -45,9 +45,6 @@ export function mensajeDeError(error: unknown): string {
   }
 
   if (code === '23503') {
-    if (message?.includes('practica_catalogo_coincide')) {
-      return 'La práctica elegida no es de esa asignatura'
-    }
     if (message?.includes('practica_pareja_valida')) {
       return 'Esa asignatura no pertenece al programa elegido'
     }
@@ -87,7 +84,6 @@ export function debeReintentar(intentos: number, error: unknown): boolean {
 // ---------------------------------------------------------------------------
 export type Programa = { id: number; nombre: string }
 export type Asignatura = { id: number; nombre: string }
-export type PracticaCatalogo = { id: number; numero: number; nombre: string }
 export type Laboratorio = { id: number; nombre: string; almacenClave: string }
 export type Motivo = { clave: string; etiqueta: string; metodos: Metodo[] }
 
@@ -162,23 +158,6 @@ export function useAsignaturasDeSemestre(
       return data
         .map((f) => ({ id: f.asignatura.id, nombre: f.asignatura.nombre }))
         .sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'))
-    },
-  })
-}
-
-export function usePracticasDeAsignatura(asignaturaId: number | null) {
-  return useQuery({
-    queryKey: ['practicas', 'catalogo', asignaturaId],
-    enabled: asignaturaId !== null,
-    queryFn: async (): Promise<PracticaCatalogo[]> => {
-      const { data, error } = await supabase
-        .from('practica_catalogo')
-        .select('id, numero, nombre')
-        .eq('asignatura_id', asignaturaId as number)
-        .eq('activo', true)
-        .order('numero')
-      if (error) throw error
-      return data
     },
   })
 }
@@ -412,7 +391,7 @@ export function useDetallePractica(practicaId: number | null) {
         .from('practica')
         // Una sola cadena literal, por lo mismo que en el historial.
         .select(
-          'id, folio, fecha, observaciones, programa:programa_educativo_id (nombre), asignatura:asignatura_id (nombre), catalogo:practica_catalogo_id (numero, nombre), laboratorio:laboratorio_id (nombre), responsable:registrado_por (nombre), practica_elemento (id, metodo_control, peso_inicial, peso_final, consumo, cantidad_entregada, cantidad_devuelta, cantidad_danada, perdidas, estado_salida, estado_devolucion, observaciones, existencia:existencia_id (codigo, articulo:articulo_id (nombre_canonico, unidad_base)))',
+          'id, folio, numero_practica, fecha, observaciones, programa:programa_educativo_id (nombre), asignatura:asignatura_id (nombre), laboratorio:laboratorio_id (nombre), responsable:registrado_por (nombre), practica_elemento (id, metodo_control, peso_inicial, peso_final, consumo, cantidad_entregada, cantidad_devuelta, cantidad_danada, perdidas, estado_salida, estado_devolucion, observaciones, existencia:existencia_id (codigo, articulo:articulo_id (nombre_canonico, unidad_base)))',
         )
         .eq('id', practicaId as number)
         .single()
@@ -426,18 +405,47 @@ export type DetallePractica = NonNullable<ReturnType<typeof useDetallePractica>[
 export type ElementoDetalle = DetallePractica['practica_elemento'][number]
 
 // ---------------------------------------------------------------------------
-// El borrador
+// Los borradores
 // ---------------------------------------------------------------------------
 // La RLS ya limita cada borrador a su dueño: no hace falta filtrar por usuario.
-// `maybeSingle` y no `single` porque no tener borrador es lo normal, no un error.
+// Son varios por persona, así que el listado los pide todos y el formulario pide
+// el suyo por id.
 
-export function useBorrador() {
+export type Borrador = {
+  id: number
+  contenido: unknown
+  actualizado_en: string
+}
+
+/** Todos los borradores de quien mira. La RLS garantiza que sean los suyos. */
+export function useBorradores() {
   return useQuery({
-    queryKey: ['practicas', 'borrador'],
+    queryKey: ['practicas', 'borradores'],
+    queryFn: async (): Promise<Borrador[]> => {
+      const { data, error } = await supabase
+        .from('practica_borrador')
+        .select('id, contenido, actualizado_en')
+        .order('actualizado_en', { ascending: false })
+      if (error) throw error
+      return data
+    },
+  })
+}
+
+/**
+ * El borrador que el formulario está editando. `enabled` en vez de pedirlo sin
+ * id: para comenzar uno nuevo la ruta no lleva id, y consultar "el borrador de
+ * null" no significa nada.
+ */
+export function useBorrador(id: number | null) {
+  return useQuery({
+    queryKey: ['practicas', 'borrador', id],
+    enabled: id !== null,
     queryFn: async () => {
       const { data, error } = await supabase
         .from('practica_borrador')
-        .select('contenido, actualizado_en')
+        .select('id, contenido, actualizado_en')
+        .eq('id', id as number)
         .maybeSingle()
       if (error) throw error
       return data
@@ -450,42 +458,63 @@ export function useGuardarBorrador() {
   const { data: perfil } = usePerfil()
 
   return useMutation({
-    mutationFn: async (contenido: ContenidoBorrador) => {
-      if (perfil === undefined) throw new Error('Todavía no se conoce tu perfil')
+    // Id nulo es "todavía no existe": el primer guardado inserta y devuelve el
+    // id con el que la pantalla se queda para los siguientes.
+    //
+    // La conversión a `Json` es de una sola dirección y a propósito:
+    // `contenido` es `jsonb` opaco para la base, y ensanchar
+    // `ContenidoBorrador` para que encaje estructuralmente en `Json`
+    // ensuciaría el tipo que usa toda la pantalla por complacer una firma.
+    mutationFn: async (v: { id: number | null; contenido: ContenidoBorrador }) => {
+      const contenido = v.contenido as unknown as Json
 
-      // `usuario_id` viaja porque es la llave del upsert, pero no es lo que
-      // decide de quién es el borrador: el trigger lo reescribe con auth.uid().
-      //
-      // La conversión a `Json` es de una sola dirección y a propósito:
-      // `contenido` es `jsonb` opaco para la base, y ensanchar
-      // `ContenidoBorrador` para que encaje estructuralmente en `Json`
-      // ensuciaría el tipo que usa toda la pantalla por complacer una firma.
-      const { error } = await supabase
+      if (v.id === null) {
+        if (perfil === undefined) throw new Error('Todavía no se conoce tu perfil')
+        // `usuario_id` viaja porque el insert lo exige, pero no decide de quién
+        // es el borrador: el trigger lo reescribe con auth.uid().
+        const { data, error } = await supabase
+          .from('practica_borrador')
+          .insert({ usuario_id: perfil.id, contenido })
+          .select('id, contenido, actualizado_en')
+          .single()
+        if (error) throw error
+        return data
+      }
+
+      const { data, error } = await supabase
         .from('practica_borrador')
-        .upsert(
-          { usuario_id: perfil.id, contenido: contenido as unknown as Json },
-          { onConflict: 'usuario_id' },
-        )
+        .update({ contenido })
+        .eq('id', v.id)
+        .select('id, contenido, actualizado_en')
+        .single()
       if (error) throw error
+      return data
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['practicas', 'borrador'] }),
+    onSuccess: (fila) => {
+      // Sembrar la consulta del id recién acuñado es lo que permite navegar a
+      // /practicas/nueva/:id sin que el envoltorio muestre el esqueleto y
+      // desmonte la captura, que perdería lo escrito.
+      qc.setQueryData(['practicas', 'borrador', fila.id], fila)
+      qc.invalidateQueries({ queryKey: ['practicas', 'borradores'] })
+    },
   })
 }
 
+/** Borra uno o varios borradores por id. */
 export function useBorrarBorrador() {
   const qc = useQueryClient()
-  const { data: perfil } = usePerfil()
 
   return useMutation({
-    mutationFn: async () => {
-      if (perfil === undefined) return
-      const { error } = await supabase
-        .from('practica_borrador')
-        .delete()
-        .eq('usuario_id', perfil.id)
+    mutationFn: async (ids: number | number[]) => {
+      const lista = Array.isArray(ids) ? ids : [ids]
+      if (lista.length === 0) return
+      const { error } = await supabase.from('practica_borrador').delete().in('id', lista)
       if (error) throw error
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['practicas', 'borrador'] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['practicas', 'borradores'] })
+      qc.invalidateQueries({ queryKey: ['practicas', 'borrador'] })
+    },
   })
 }
 
@@ -508,7 +537,7 @@ export function useRegistrarPractica() {
         p_programa: v.cabecera.programaId,
         p_laboratorio: v.cabecera.laboratorioId,
         p_asignatura: v.cabecera.asignaturaId,
-        p_practica_catalogo: v.cabecera.practicaCatalogoId,
+        p_numero_practica: v.cabecera.numeroPractica,
         p_fecha: v.cabecera.fecha,
         p_elementos: v.elementos as unknown as Json,
         // `p_observaciones` se omite: la descripción adicional es de cada

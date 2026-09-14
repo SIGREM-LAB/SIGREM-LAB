@@ -7,7 +7,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 
-select plan(81);
+select plan(84);
 
 -- Las pruebas corren como postgres, que se salta la RLS. Es lo correcto aqui:
 -- este archivo prueba la forma del esquema, no quien puede ver que. Eso es
@@ -335,6 +335,26 @@ select is(
   'N3',
   'El trigger deriva almacen_id del laboratorio de la practica'
 );
+
+-- El numero de practica es texto libre, no una FK. Un texto cualquiera entra
+-- tal cual: la base no lo valida contra practica_catalogo porque el catalogo
+-- dejo de ser el origen del dato al registrar.
+select has_column('public', 'practica', 'numero_practica',
+  'practica guarda el numero de practica');
+
+update public.practica set numero_practica = 'Practica de laboratorio 3'
+ where id = 900301;
+
+select is(
+  (select numero_practica from public.practica where id = 900301),
+  'Practica de laboratorio 3',
+  'El numero de practica se guarda como texto libre'
+);
+
+-- Varias capturas por persona: la PK es un id propio y no usuario_id. Sin este
+-- cambio, el segundo guardado pisaba al primero y solo existia una a la vez.
+select col_is_pk('public', 'practica_borrador', 'id',
+  'Cada borrador tiene su propio id, no uno por persona');
 
 -- Union discriminada: un reactivo con estado_devolucion es un renglon imposible.
 select throws_ok(

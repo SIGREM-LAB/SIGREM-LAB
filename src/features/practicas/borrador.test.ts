@@ -24,7 +24,7 @@ const CABECERA = {
   programaId: 1,
   semestre: 3,
   asignaturaId: 2,
-  practicaCatalogoId: 4,
+  numeroPractica: '2',
   laboratorioId: 5,
   fecha: '2026-09-03',
 }

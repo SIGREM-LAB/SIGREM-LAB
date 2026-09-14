@@ -8,7 +8,7 @@ import { serializarBorrador } from './borrador'
 const borrarBorrador = vi.fn()
 const navegar = vi.fn()
 
-let borradorGuardado: { contenido: unknown } | null = null
+let borradoresGuardados: { id: number; contenido: unknown }[] = []
 
 vi.mock('react-router-dom', async () => {
   const real = await vi.importActual<typeof import('react-router-dom')>('react-router-dom')
@@ -40,7 +40,7 @@ vi.mock('./consultas', async () => {
       isFetching: false,
       error: null,
     }),
-    useBorrador: () => ({ data: borradorGuardado }),
+    useBorradores: () => ({ data: borradoresGuardados }),
     useDetallePractica: () => ({ data: undefined, isFetching: false, error: null }),
     useBorrarBorrador: () => ({ mutate: borrarBorrador, isPending: false }),
   }
@@ -61,7 +61,7 @@ function montar() {
 
 beforeEach(() => {
   vi.clearAllMocks()
-  borradorGuardado = null
+  borradoresGuardados = []
 })
 
 describe('PaginaPracticas', () => {
@@ -72,22 +72,14 @@ describe('PaginaPracticas', () => {
     expect(screen.getByText('Bioquímica')).toBeInTheDocument()
   })
 
-  // El botón nombra lo que hay. Con un borrador vivo no se puede empezar otra
-  // captura sin descartarlo, porque el borrador es uno por persona: ofrecer
-  // "Registrar" ahí sería ofrecer pisarlo en silencio.
-  test('sin borrador el botón invita a registrar', () => {
+  // Con varias capturas a la vez, empezar otra ya no pisa ninguna: el botón
+  // siempre invita a registrar, y continuar una existente es cosa de su renglón.
+  test('el botón siempre invita a registrar, aunque haya capturas en curso', () => {
+    borradoresGuardados = [{ id: 1, contenido: serializarBorrador(CABECERA, NOMBRES, []) }]
     montar()
 
     expect(screen.getByRole('button', { name: /registrar práctica/i })).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: /^continuar/i })).toBeNull()
-  })
-
-  test('con borrador el botón invita a continuar', () => {
-    borradorGuardado = { contenido: serializarBorrador(CABECERA, NOMBRES, []) }
-    montar()
-
-    expect(screen.getByRole('button', { name: /continuar práctica/i })).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: /registrar práctica/i })).toBeNull()
+    expect(screen.queryByRole('button', { name: /^continuar práctica/i })).toBeNull()
   })
 
   test('registrar lleva al formulario', async () => {
@@ -99,7 +91,7 @@ describe('PaginaPracticas', () => {
   })
 
   test('el borrador aparece como renglón en curso, con sus nombres', () => {
-    borradorGuardado = { contenido: serializarBorrador(CABECERA, NOMBRES, []) }
+    borradoresGuardados = [{ id: 1, contenido: serializarBorrador(CABECERA, NOMBRES, []) }]
     montar()
 
     expect(screen.getByText('Química Analítica')).toBeInTheDocument()
@@ -111,24 +103,39 @@ describe('PaginaPracticas', () => {
   // Descartar borra trabajo y no se puede deshacer: pedir confirmación es lo
   // que separa un clic mal dado de una captura perdida.
   test('descartar el borrador pide confirmación antes de borrar', async () => {
-    borradorGuardado = { contenido: serializarBorrador(CABECERA, NOMBRES, []) }
+    borradoresGuardados = [{ id: 1, contenido: serializarBorrador(CABECERA, NOMBRES, []) }]
     montar()
 
     await userEvent.click(screen.getByRole('button', { name: /descartar la práctica en curso/i }))
     expect(borrarBorrador).not.toHaveBeenCalled()
 
     await userEvent.click(screen.getByRole('button', { name: /^descartar$/i }))
-    expect(borrarBorrador).toHaveBeenCalled()
+    expect(borrarBorrador).toHaveBeenCalledWith([1])
   })
 
   test('cancelar la confirmación no borra nada', async () => {
-    borradorGuardado = { contenido: serializarBorrador(CABECERA, NOMBRES, []) }
+    borradoresGuardados = [{ id: 1, contenido: serializarBorrador(CABECERA, NOMBRES, []) }]
     montar()
 
     await userEvent.click(screen.getByRole('button', { name: /descartar la práctica en curso/i }))
     await userEvent.click(screen.getByRole('button', { name: /conservar/i }))
 
     expect(borrarBorrador).not.toHaveBeenCalled()
+  })
+
+  // Dos capturas vivas: cada renglón trae sus propias acciones y su propio id.
+  test('con dos capturas se puede continuar la que se elija', async () => {
+    borradoresGuardados = [
+      { id: 1, contenido: serializarBorrador(CABECERA, NOMBRES, []) },
+      { id: 2, contenido: serializarBorrador(CABECERA, NOMBRES, []) },
+    ]
+    montar()
+
+    const botones = screen.getAllByRole('button', { name: /continuar la práctica en curso/i })
+    expect(botones).toHaveLength(2)
+
+    await userEvent.click(botones[1])
+    expect(navegar).toHaveBeenCalledWith('/practicas/nueva/2')
   })
 
   test('ver una práctica abre el panel de detalle', async () => {
@@ -143,13 +150,15 @@ describe('PaginaPracticas', () => {
   // devuelve null— así que sin este aviso desaparecería sin dejar rastro: el
   // botón diría "Registrar" y el trabajo viejo seguiría ahí, invisible.
   test('un borrador que ya no se entiende se avisa y se puede descartar', async () => {
-    borradorGuardado = { contenido: { version: 1, cabecera: {}, elementos: [] } }
+    borradoresGuardados = [{ id: 9, contenido: { version: 1, cabecera: {}, elementos: [] } }]
     montar()
 
     expect(screen.getByRole('alert')).toHaveTextContent(/versión anterior/i)
 
+    // Descartar también pide confirmación: borra trabajo que no se recupera.
     await userEvent.click(screen.getByRole('button', { name: /descartarlo/i }))
-    expect(borrarBorrador).toHaveBeenCalled()
+    await userEvent.click(screen.getByRole('button', { name: /^descartar$/i }))
+    expect(borrarBorrador).toHaveBeenCalledWith([9])
   })
 
   test('sin borrador ilegible no hay aviso', () => {

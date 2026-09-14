@@ -27,11 +27,19 @@ export type FilaHistorial = {
   clave: string
   estado: EstadoPractica
   practicaId: number | null
+  /** Sólo en "En curso": es a dónde navega Continuar y qué borra Descartar. */
+  borradorId: number | null
   folio: string | null
   fecha: string | null
   asignatura: string | null
   laboratorio: string | null
   productos: number
+}
+
+/** Lo mínimo que trae una fila de `practica_borrador` para armar el renglón. */
+export type BorradorCrudo = {
+  id: number
+  contenido: unknown
 }
 
 /** La forma que devuelve la consulta del historial, con sus recursos embebidos. */
@@ -51,14 +59,15 @@ export type FilaPractica = {
  * entiende: un borrador de otra versión ya no se puede continuar, así que
  * ofrecerlo en la tabla sería ofrecer un botón que lleva a un aviso de error.
  */
-export function filaDeBorrador(crudo: unknown): FilaHistorial | null {
-  const contenido = restaurarBorrador(crudo)
+export function filaDeBorrador(borrador: BorradorCrudo): FilaHistorial | null {
+  const contenido = restaurarBorrador(borrador.contenido)
   if (contenido === null) return null
 
   return {
-    clave: 'borrador',
+    clave: `borrador-${borrador.id}`,
     estado: 'en_curso',
     practicaId: null,
+    borradorId: borrador.id,
     folio: null,
     fecha: contenido.cabecera.fecha ?? null,
     asignatura: contenido.nombres.asignatura,
@@ -79,6 +88,7 @@ export function filaDePractica(fila: FilaPractica): FilaHistorial {
     clave: `practica-${fila.id}`,
     estado: 'finalizada',
     practicaId: fila.id,
+    borradorId: null,
     folio: fila.folio,
     fecha: fila.fecha,
     asignatura: fila.asignatura?.nombre ?? null,
@@ -88,16 +98,20 @@ export function filaDePractica(fila: FilaPractica): FilaHistorial {
 }
 
 /**
- * El listado completo: el borrador, si hay y se entiende, y luego lo registrado.
+ * El listado completo: los borradores que se entienden, y luego lo registrado.
  *
- * El borrador va primero aunque su fecha sea más vieja. No es un criterio de
- * orden sino de importancia: es el único renglón accionable de la pantalla y el
- * único que se puede perder. Intercalado por fecha acabaría en la página tres.
+ * Los borradores van primero aunque su fecha sea más vieja. No es un criterio
+ * de orden sino de importancia: son los únicos renglones accionables de la
+ * pantalla y lo único que se puede perder. Intercalados por fecha acabarían en
+ * la página tres. Cada uno conserva el orden en que llegó —más reciente
+ * primero—, que es el de `actualizado_en`.
  */
 export function componerHistorial(
-  borradorCrudo: unknown,
+  borradores: BorradorCrudo[],
   practicas: FilaHistorial[],
 ): FilaHistorial[] {
-  const borrador = filaDeBorrador(borradorCrudo)
-  return borrador === null ? practicas : [borrador, ...practicas]
+  const enCurso = borradores
+    .map(filaDeBorrador)
+    .filter((fila): fila is FilaHistorial => fila !== null)
+  return [...enCurso, ...practicas]
 }

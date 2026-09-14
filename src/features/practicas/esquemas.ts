@@ -197,7 +197,15 @@ export const esquemaCabecera = z.object({
   /** `null` es "Optativa", que el plan de estudios sí contempla. */
   semestre: z.number().int().min(1).max(12).nullable(),
   asignaturaId: requerido('Elige la asignatura'),
-  practicaCatalogoId: requerido('Elige la práctica'),
+  /**
+   * Texto libre y no una fila del catálogo: el número se escribe tal como lo
+   * usa el laboratorio. La base admite nulo, pero la pantalla no deja finalizar
+   * sin él, que es donde el dato importa.
+   */
+  numeroPractica: z
+    .string({ error: 'Escribe el número de práctica' })
+    .trim()
+    .min(1, 'Escribe el número de práctica'),
   laboratorioId: requerido('Elige el laboratorio'),
   fecha: z.string().min(1, 'Elige la fecha'),
 })

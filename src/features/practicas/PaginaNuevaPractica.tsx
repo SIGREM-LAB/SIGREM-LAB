@@ -11,7 +11,7 @@ import {
   Typography,
 } from '@mui/material'
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useParams } from 'react-router-dom'
 
 import { CuerpoPagina, EncabezadoPagina } from '@/app/EncabezadoPagina'
 import { AgregarProductos } from './AgregarProductos'
@@ -25,7 +25,6 @@ import {
   useGuardarBorrador,
   useLaboratorios,
   useMotivos,
-  usePracticasDeAsignatura,
   useProgramas,
   useRegistrarPractica,
   useSemestresDePrograma,
@@ -53,7 +52,11 @@ type Aviso = { tipo: 'success' | 'error' | 'info'; texto: string }
 /** Lo que `restaurarBorrador` devuelve cuando el borrador se entiende. */
 type Restaurado = NonNullable<ReturnType<typeof restaurarBorrador>>
 
-function Captura({ inicial }: { inicial: Restaurado | null }) {
+/**
+ * `borradorId` nulo es una captura que todavía no existe: el primer guardado la
+ * crea y la navegación gana su id. Con id, es una que ya estaba guardada.
+ */
+function Captura({ borradorId, inicial }: { borradorId: number | null; inicial: Restaurado | null }) {
   const navegar = useNavigate()
   const [cabecera, setCabecera] = useState<CabeceraParcial>(inicial?.cabecera ?? { fecha: hoy() })
   const [elementos, setElementos] = useState<ElementoCaptura[]>(inicial?.elementos ?? [])
@@ -70,7 +73,6 @@ function Captura({ inicial }: { inicial: Restaurado | null }) {
     cabecera.programaId ?? null,
     cabecera.semestre,
   )
-  const practicas = usePracticasDeAsignatura(cabecera.asignaturaId ?? null)
   const laboratorios = useLaboratorios()
   const motivos = useMotivos()
   const existencias = useBuscarExistencias(termino, buscando)
@@ -110,10 +112,20 @@ function Captura({ inicial }: { inicial: Restaurado | null }) {
       laboratorio: laboratorios.data?.find((l) => l.id === cabecera.laboratorioId)?.nombre ?? null,
     }
 
-    guardar.mutate(serializarBorrador(cabecera, nombres, elementos), {
-      onSuccess: () => setAviso({ tipo: 'success', texto: 'Borrador guardado' }),
-      onError: (error) => setAviso({ tipo: 'error', texto: mensajeDeError(error) }),
-    })
+    guardar.mutate(
+      { id: borradorId, contenido: serializarBorrador(cabecera, nombres, elementos) },
+      {
+        onSuccess: (fila) => {
+          setAviso({ tipo: 'success', texto: 'Borrador guardado' })
+          // El primer guardado de una captura nueva acuña su id y la vuelve
+          // direccionable: recargar, irse y volver ya apunta a esta captura y no
+          // a empezar otra. Al cambiar sólo el parámetro, la captura no se
+          // desmonta y lo escrito sigue en pie.
+          if (borradorId === null) navegar(`/practicas/nueva/${fila.id}`, { replace: true })
+        },
+        onError: (error) => setAviso({ tipo: 'error', texto: mensajeDeError(error) }),
+      },
+    )
   }
 
   function finalizar() {
@@ -127,8 +139,9 @@ function Captura({ inicial }: { inicial: Restaurado | null }) {
       { cabecera: validada.data, elementos: aPayloadElementos(elementos) },
       {
         onSuccess: (folio) => {
-          // El borrador ya cumplió. Si esto falla no importa: la práctica ya está.
-          borrar.mutate()
+          // El borrador ya cumplió. Si esto falla no importa: la práctica ya
+          // está. Una captura nunca guardada no tiene fila que borrar.
+          if (borradorId !== null) borrar.mutate(borradorId)
           // Se vuelve al listado, donde la práctica recién registrada ya es un
           // renglón "Finalizada" con su folio. El folio es lo único que esta
           // pantalla no podía saber antes de guardar: lo asigna el trigger, y
@@ -193,7 +206,6 @@ function Captura({ inicial }: { inicial: Restaurado | null }) {
                     programas={programas.data ?? []}
                     semestres={semestres.data ?? []}
                     asignaturas={asignaturas.data ?? []}
-                    practicas={practicas.data ?? []}
                     laboratorios={laboratorios.data ?? []}
                     deshabilitado={registrar.isPending}
                   />
@@ -273,8 +285,8 @@ function Captura({ inicial }: { inicial: Restaurado | null }) {
 }
 
 /**
- * Espera a saber si hay borrador y, sólo entonces, monta la captura con él
- * dentro.
+ * Espera a saber qué contiene el borrador y, sólo entonces, monta la captura con
+ * él dentro.
  *
  * Es lo que evita el efecto que rellenaba el formulario después de montarlo:
  * `useState` sólo lee su valor inicial al montar, así que restaurar «después»
@@ -282,18 +294,20 @@ function Captura({ inicial }: { inicial: Restaurado | null }) {
  * de formulario vacío antes de que llegara el borrador—. Naciendo con los
  * valores no hay ni una cosa ni la otra.
  *
- * El diálogo de «¿lo recuperas?» ya no existe: sólo se llega aquí por
- * "Continuar", que quiere el borrador, o por "Registrar práctica", que sólo se
- * ofrece cuando no hay ninguno. En los dos casos preguntar sobra.
- *
- * Un borrador que no se entiende entra como `null` —captura limpia— y se queda
- * guardado hasta que el siguiente guardado lo pise. Quien tenga que enterarse
- * es el listado, que es donde se ve que existe.
+ * La ruta decide: `/practicas/nueva` comienza una captura limpia —no hay nada
+ * que esperar—, y `/practicas/nueva/:id` continúa la que ya existe. Un borrador
+ * que no se entiende entra como `null` y se queda guardado hasta que el
+ * siguiente guardado lo pise; quien se entera es el listado, que es donde se ve
+ * que existe.
  */
 export function PaginaNuevaPractica() {
-  const borrador = useBorrador()
+  const { borradorId } = useParams()
+  const numero = borradorId === undefined ? Number.NaN : Number(borradorId)
+  const id = Number.isInteger(numero) ? numero : null
 
-  if (borrador.data === undefined) {
+  const borrador = useBorrador(id)
+
+  if (id !== null && borrador.data === undefined) {
     return (
       <CuerpoPagina>
         <Skeleton variant="rounded" height={320} />
@@ -301,5 +315,15 @@ export function PaginaNuevaPractica() {
     )
   }
 
-  return <Captura inicial={restaurarBorrador(borrador.data?.contenido)} />
+  // La fila pudo desaparecer entre la navegación y la consulta —se descartó en
+  // otra pestaña, o el id es inventado—. Sin fila se captura como nueva: el
+  // guardado inserta en vez de actualizar a la nada.
+  const existente = id !== null && borrador.data ? id : null
+
+  return (
+    <Captura
+      borradorId={existente}
+      inicial={existente === null ? null : restaurarBorrador(borrador.data?.contenido)}
+    />
+  )
 }

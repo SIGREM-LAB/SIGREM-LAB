@@ -187,7 +187,7 @@ describe('esquemaCabecera', () => {
     programaId: 1,
     semestre: 3,
     asignaturaId: 2,
-    practicaCatalogoId: 4,
+    numeroPractica: '2',
     laboratorioId: 5,
     fecha: '2026-09-03',
   }
@@ -203,7 +203,7 @@ describe('esquemaCabecera', () => {
   test.each([
     ['programaId', 'Elige el programa educativo'],
     ['asignaturaId', 'Elige la asignatura'],
-    ['practicaCatalogoId', 'Elige la práctica'],
+    ['numeroPractica', 'Escribe el número de práctica'],
     ['laboratorioId', 'Elige el laboratorio'],
   ])('sin %s el mensaje lo dice en español', (campo, mensaje) => {
     const resultado = esquemaCabecera.safeParse({ ...valida, [campo]: null })

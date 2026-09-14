@@ -16,7 +16,12 @@ import { useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 
 import { CuerpoPagina, EncabezadoPagina } from '@/app/EncabezadoPagina'
-import { useBorrador, useBorrarBorrador, useDetallePractica, useHistorialPracticas } from './consultas'
+import {
+  useBorradores,
+  useBorrarBorrador,
+  useDetallePractica,
+  useHistorialPracticas,
+} from './consultas'
 import { componerHistorial, filaDeBorrador } from './historial'
 import { PanelPractica } from './PanelPractica'
 import { TablaPracticas } from './TablaPracticas'
@@ -29,7 +34,9 @@ export function PaginaPracticas() {
   const ubicacion = useLocation()
   const [pagina, setPagina] = useState(0)
   const [viendo, setViendo] = useState<number | null>(null)
-  const [confirmandoDescarte, setConfirmandoDescarte] = useState(false)
+  // Los ids a descartar, en singular o plural: un renglón en curso o todas las
+  // capturas ilegibles de una vez. `null` es "no hay confirmación abierta".
+  const [descartando, setDescartando] = useState<number[] | null>(null)
 
   // El folio de la práctica recién registrada llega en el estado de la
   // navegación: es lo único que el formulario sabía y esta pantalla no.
@@ -37,59 +44,59 @@ export function PaginaPracticas() {
   const [avisoCerrado, setAvisoCerrado] = useState(false)
 
   const historial = useHistorialPracticas(pagina, POR_PAGINA)
-  const borrador = useBorrador()
+  const borradores = useBorradores()
   const detalle = useDetallePractica(viendo)
   const borrar = useBorrarBorrador()
 
-  const filas = componerHistorial(borrador.data?.contenido, historial.data?.filas ?? [])
-  const hayBorrador = filaDeBorrador(borrador.data?.contenido) !== null
+  const lista = borradores.data ?? []
+  const filas = componerHistorial(lista, historial.data?.filas ?? [])
 
-  // Hay un borrador guardado, pero de una forma que esta versión ya no sabe
-  // leer. No pinta renglón —`filaDeBorrador` devuelve null— así que sin este
-  // aviso desaparecería sin dejar rastro: el botón diría "Registrar" y el
-  // trabajo viejo seguiría ocupando la única ranura de borrador que hay.
-  const borradorIlegible =
-    borrador.data !== null && borrador.data !== undefined && !hayBorrador
+  // Borradores guardados con una forma que esta versión ya no sabe leer. No
+  // pintan renglón —`filaDeBorrador` devuelve null— así que sin este aviso
+  // desaparecerían sin dejar rastro. Antes había uno solo; ahora puede haber
+  // varios, y por eso el aviso cuenta y descarta en bloque.
+  const ilegibles = lista.filter((b) => filaDeBorrador(b) === null)
 
   function descartar() {
-    setConfirmandoDescarte(false)
-    borrar.mutate()
+    if (descartando !== null) borrar.mutate(descartando)
+    setDescartando(null)
   }
 
   return (
     <>
       <EncabezadoPagina
         titulo="Prácticas"
-        descripcion="Lo registrado en tu almacén, y la captura en curso"
+        descripcion="Lo registrado en tu almacén, y las capturas en curso"
         acciones={
-          // El botón nombra lo que hay. Con un borrador vivo no se ofrece
-          // empezar otra: el borrador es uno por persona, así que "Registrar"
-          // sería ofrecer pisarlo en silencio. Para empezar otra hay que
-          // descartar la de en curso, desde su renglón y a propósito.
+          // Siempre empezar una nueva: hay varias capturas a la vez, así que este
+          // botón no pisa ninguna. Continuar una existente se hace desde su
+          // renglón en la tabla.
           <Button
             variant="contained"
-            startIcon={<Icon icon={hayBorrador ? 'mdi:pencil' : 'mdi:plus'} />}
+            startIcon={<Icon icon="mdi:plus" />}
             onClick={() => navegar('/practicas/nueva')}
           >
-            {hayBorrador ? 'Continuar práctica' : 'Registrar práctica'}
+            Registrar práctica
           </Button>
         }
       />
 
       <CuerpoPagina>
-        {borradorIlegible ? (
+        {ilegibles.length === 0 ? null : (
           <Alert
             severity="info"
             sx={{ mb: 2 }}
             action={
-              <Button size="small" onClick={() => borrar.mutate()}>
-                Descartarlo
+              <Button size="small" onClick={() => setDescartando(ilegibles.map((b) => b.id))}>
+                {ilegibles.length === 1 ? 'Descartarlo' : 'Descartarlas'}
               </Button>
             }
           >
-            Tienes un borrador de una versión anterior y ya no se puede recuperar.
+            {ilegibles.length === 1
+              ? 'Tienes una captura de una versión anterior y ya no se puede recuperar.'
+              : `Tienes ${ilegibles.length} capturas de una versión anterior y ya no se pueden recuperar.`}
           </Alert>
-        ) : null}
+        )}
 
         <Card>
           <CardContent>
@@ -98,14 +105,14 @@ export function PaginaPracticas() {
               cargando={historial.isFetching}
               error={historial.error}
               onVer={setViendo}
-              onContinuar={() => navegar('/practicas/nueva')}
-              onDescartar={() => setConfirmandoDescarte(true)}
+              onContinuar={(borradorId) => navegar(`/practicas/nueva/${borradorId}`)}
+              onDescartar={(borradorId) => setDescartando([borradorId])}
             />
 
             <TablePagination
               component="div"
-              // El renglón en curso no entra en la cuenta: no es una de las
-              // filas que la consulta trajo, y sumarlo desalinearía el total.
+              // Los renglones en curso no entran en la cuenta: no son filas que
+              // la consulta trajo, y sumarlos desalinearía el total.
               count={historial.data?.total ?? 0}
               page={pagina}
               onPageChange={(_e, n) => setPagina(n)}
@@ -127,8 +134,12 @@ export function PaginaPracticas() {
         />
       )}
 
-      <Dialog open={confirmandoDescarte} onClose={() => setConfirmandoDescarte(false)}>
-        <DialogTitle>¿Descartar la práctica en curso?</DialogTitle>
+      <Dialog open={descartando !== null} onClose={() => setDescartando(null)}>
+        <DialogTitle>
+          {(descartando?.length ?? 0) > 1
+            ? '¿Descartar las capturas en curso?'
+            : '¿Descartar la práctica en curso?'}
+        </DialogTitle>
         <DialogContent>
           <DialogContentText>
             Se pierde lo capturado hasta ahora y no se puede recuperar. Lo ya registrado no se
@@ -136,7 +147,7 @@ export function PaginaPracticas() {
           </DialogContentText>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setConfirmandoDescarte(false)}>Conservar</Button>
+          <Button onClick={() => setDescartando(null)}>Conservar</Button>
           <Button onClick={descartar} color="error">
             Descartar
           </Button>

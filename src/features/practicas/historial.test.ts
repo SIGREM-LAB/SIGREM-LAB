@@ -20,7 +20,7 @@ const CABECERA = {
   programaId: 1,
   semestre: 3,
   asignaturaId: 2,
-  practicaCatalogoId: 4,
+  numeroPractica: '2',
   laboratorioId: 5,
   fecha: '2026-09-08',
 }
@@ -29,12 +29,13 @@ const NOMBRES = { asignatura: 'Bioquímica', laboratorio: 'Laboratorio de docenc
 
 describe('filaDeBorrador', () => {
   test('un borrador se vuelve un renglón "en curso" con sus nombres y su conteo', () => {
-    const guardado = serializarBorrador(CABECERA, NOMBRES, [ELEMENTO, ELEMENTO])
+    const contenido = serializarBorrador(CABECERA, NOMBRES, [ELEMENTO, ELEMENTO])
 
-    expect(filaDeBorrador(guardado)).toEqual({
-      clave: 'borrador',
+    expect(filaDeBorrador({ id: 3, contenido })).toEqual({
+      clave: 'borrador-3',
       estado: 'en_curso',
       practicaId: null,
+      borradorId: 3,
       folio: null,
       fecha: '2026-09-08',
       asignatura: 'Bioquímica',
@@ -46,25 +47,23 @@ describe('filaDeBorrador', () => {
   // El folio lo asigna el trigger al finalizar. Inventar uno antes sería
   // mostrar un dato que no existe.
   test('el folio va nulo: todavía no lo tiene', () => {
-    expect(filaDeBorrador(serializarBorrador(CABECERA, NOMBRES, []))?.folio).toBeNull()
+    const contenido = serializarBorrador(CABECERA, NOMBRES, [])
+
+    expect(filaDeBorrador({ id: 1, contenido })?.folio).toBeNull()
   })
 
   test('una cabecera sin fecha no revienta', () => {
-    const fila = filaDeBorrador(serializarBorrador({}, NOMBRES, []))
+    const contenido = serializarBorrador({}, NOMBRES, [])
+    const fila = filaDeBorrador({ id: 1, contenido })
 
     expect(fila?.fecha).toBeNull()
   })
 
   // Un borrador que no se entiende no pinta un renglón roto: no pinta renglón.
   test('un borrador de otra versión no produce renglón', () => {
-    const v1 = { version: 1, cabecera: CABECERA, elementos: [] }
+    const contenido = { version: 1, cabecera: CABECERA, elementos: [] }
 
-    expect(filaDeBorrador(v1)).toBeNull()
-  })
-
-  test('no tener borrador no produce renglón', () => {
-    expect(filaDeBorrador(null)).toBeNull()
-    expect(filaDeBorrador(undefined)).toBeNull()
+    expect(filaDeBorrador({ id: 1, contenido })).toBeNull()
   })
 })
 
@@ -83,6 +82,7 @@ describe('filaDePractica', () => {
       clave: 'practica-7',
       estado: 'finalizada',
       practicaId: 7,
+      borradorId: null,
       folio: 'PRA-0001',
       fecha: '2026-09-05',
       asignatura: 'Bioquímica',
@@ -113,27 +113,46 @@ describe('componerHistorial', () => {
     practica_elemento: [{ count: 3 }],
   })
 
-  // Va primero aunque su fecha sea más vieja: es lo único accionable de la
-  // pantalla y lo único que se puede perder. Intercalarlo por fecha lo
-  // escondería en la página tres.
+  // Van primero aunque su fecha sea más vieja: son lo único accionable de la
+  // pantalla y lo único que se puede perder. Intercalados por fecha acabarían
+  // en la página tres.
   test('el borrador va primero, aunque su fecha sea anterior', () => {
     const viejo = serializarBorrador({ ...CABECERA, fecha: '2026-01-01' }, NOMBRES, [])
 
-    expect(componerHistorial(viejo, [FINALIZADA]).map((f) => f.estado)).toEqual([
+    expect(componerHistorial([{ id: 1, contenido: viejo }], [FINALIZADA]).map((f) => f.estado)).toEqual([
       'en_curso',
       'finalizada',
     ])
   })
 
+  // Varias capturas a la vez: cada una es su propio renglón, y conservan el
+  // orden en que llegaron —más reciente primero, que es `actualizado_en`—.
+  test('los borradores salen todos, en el orden en que llegaron', () => {
+    const uno = serializarBorrador(CABECERA, NOMBRES, [])
+    const dos = serializarBorrador(CABECERA, NOMBRES, [ELEMENTO])
+
+    const filas = componerHistorial(
+      [
+        { id: 2, contenido: dos },
+        { id: 1, contenido: uno },
+      ],
+      [FINALIZADA],
+    )
+
+    expect(filas.map((f) => f.borradorId)).toEqual([2, 1, null])
+  })
+
   test('sin borrador solo van las finalizadas', () => {
-    expect(componerHistorial(null, [FINALIZADA])).toEqual([FINALIZADA])
+    expect(componerHistorial([], [FINALIZADA])).toEqual([FINALIZADA])
   })
 
   test('un borrador que no se entiende no agrega renglón', () => {
-    expect(componerHistorial({ version: 1 }, [FINALIZADA])).toEqual([FINALIZADA])
+    expect(componerHistorial([{ id: 1, contenido: { version: 1 } }], [FINALIZADA])).toEqual([
+      FINALIZADA,
+    ])
   })
 
   test('sin nada, la lista queda vacía', () => {
-    expect(componerHistorial(null, [])).toEqual([])
+    expect(componerHistorial([], [])).toEqual([])
   })
 })

@@ -30,8 +30,8 @@ type Props = {
    */
   error: unknown
   onVer: (practicaId: number) => void
-  onContinuar: () => void
-  onDescartar: () => void
+  onContinuar: (borradorId: number) => void
+  onDescartar: (borradorId: number) => void
 }
 
 /**
@@ -117,17 +117,22 @@ export function TablaPracticas({
                   <TableCell align="right">
                     {enCurso ? (
                       <Stack direction="row" spacing={0.5} sx={{ justifyContent: 'flex-end' }}>
+                        {/* El nombre lleva la asignatura para que, con varias
+                            capturas a la vez, cada botón diga cuál es cuál. */}
                         <Tooltip title="Continuar esta captura">
                           <IconButton
-                            aria-label="Continuar la práctica en curso"
-                            onClick={onContinuar}
+                            aria-label={`Continuar la práctica en curso de ${fila.asignatura ?? 'sin asignatura'}`}
+                            onClick={() => onContinuar(fila.borradorId as number)}
                             color="secondary"
                           >
                             <Icon icon="mdi:pencil" />
                           </IconButton>
                         </Tooltip>
                         <Tooltip title="Descartar esta captura">
-                          <IconButton aria-label="Descartar la práctica en curso" onClick={onDescartar}>
+                          <IconButton
+                            aria-label={`Descartar la práctica en curso de ${fila.asignatura ?? 'sin asignatura'}`}
+                            onClick={() => onDescartar(fila.borradorId as number)}
+                          >
                             <Icon icon="mdi:delete-outline" />
                           </IconButton>
                         </Tooltip>

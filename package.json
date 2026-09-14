@@ -11,7 +11,7 @@
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
     "preview": "vite preview",
-    "gen:types": "supabase gen types typescript --local > src/types/database.ts",
+    "gen:types": "supabase gen types typescript --linked > src/types/database.ts",
     "db:reset": "supabase db reset",
     "db:diff": "supabase db diff -f"
   },

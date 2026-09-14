@@ -21,9 +21,6 @@ vi.mock('./consultas', async () => {
       consultarAsignaturas(programaId, semestre)
       return { data: [{ id: 10, nombre: 'Bioquímica' }] }
     },
-    usePracticasDeAsignatura: () => ({
-      data: [{ id: 100, numero: 2, nombre: 'Actividad enzimática' }],
-    }),
     useLaboratorios: () => ({
       data: [{ id: 5, nombre: 'Laboratorio de docencia N3', almacenClave: 'N3' }],
     }),
@@ -72,8 +69,7 @@ async function llenarCabecera() {
   await userEvent.click(screen.getByRole('option', { name: '3°' }))
   await userEvent.click(screen.getByLabelText('Asignatura'))
   await userEvent.click(screen.getByRole('option', { name: 'Bioquímica' }))
-  await userEvent.click(screen.getByLabelText('Número de práctica'))
-  await userEvent.click(screen.getByRole('option', { name: /Práctica 2/ }))
+  await userEvent.type(screen.getByLabelText('Número de práctica'), '2')
   await userEvent.click(screen.getByLabelText('Laboratorio'))
   await userEvent.click(screen.getByRole('option', { name: /Laboratorio de docencia N3/ }))
 }
@@ -169,7 +165,7 @@ describe('PaginaNuevaPractica', () => {
     const [{ cabecera, elementos }] = registrar.mock.calls[0]
 
     expect(cabecera.laboratorioId).toBe(5)
-    expect(cabecera.practicaCatalogoId).toBe(100)
+    expect(cabecera.numeroPractica).toBe('2')
     expect(elementos).toEqual([
       {
         existencia_id: 12,
@@ -189,8 +185,11 @@ describe('PaginaNuevaPractica', () => {
     await userEvent.click(screen.getByRole('button', { name: /guardar borrador/i }))
 
     expect(guardarBorrador).toHaveBeenCalledOnce()
-    const [contenido] = guardarBorrador.mock.calls[0]
+    // El primer guardado de una captura nueva va con id nulo: todavía no
+    // existe fila y el insert la acuña.
+    const [{ id, contenido }] = guardarBorrador.mock.calls[0]
 
+    expect(id).toBeNull()
     expect(contenido.version).toBe(2)
     expect(contenido.elementos).toHaveLength(1)
     expect(contenido.elementos[0].pesoInicial).toBeNull()
@@ -204,7 +203,7 @@ describe('PaginaNuevaPractica', () => {
 
     await userEvent.click(screen.getByRole('button', { name: /guardar borrador/i }))
 
-    const [contenido] = guardarBorrador.mock.calls[0]
+    const [{ contenido }] = guardarBorrador.mock.calls[0]
     expect(contenido.nombres).toEqual({
       asignatura: 'Bioquímica',
       laboratorio: 'Laboratorio de docencia N3',

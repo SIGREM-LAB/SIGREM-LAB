@@ -14,7 +14,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 
-select plan(155);
+select plan(158);
 
 
 -- ---------------------------------------------------------------------------
@@ -1117,6 +1117,28 @@ select is(
   (select contenido->>'regalado' from public.practica_borrador),
   'true',
   'Y el borrador sigue siendo suyo despues del update'
+);
+
+-- Varias capturas a la vez: antes la PK era usuario_id, asi que este segundo
+-- insert pisaba al primero y solo existia una. Ahora cada una tiene su id.
+select pg_temp.como('n3@uaeh.local');
+
+select lives_ok(
+  $$ insert into public.practica_borrador (usuario_id, contenido)
+     values ((select auth.uid()), '{"version":2}'::jsonb) $$,
+  'Una segunda captura de la misma persona se guarda aparte'
+);
+
+select is(
+  (select count(*)::int from public.practica_borrador),
+  2,
+  'Las dos capturas de la misma persona conviven'
+);
+
+select isnt(
+  (select min(id) from public.practica_borrador),
+  (select max(id) from public.practica_borrador),
+  'Cada captura tiene su propio id'
 );
 
 select pg_temp.como('admin@uaeh.local');

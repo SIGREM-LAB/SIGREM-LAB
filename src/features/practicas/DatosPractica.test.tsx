@@ -11,7 +11,6 @@ const BASE = {
   ],
   semestres: [1, 3, null],
   asignaturas: [{ id: 10, nombre: 'Bioquímica' }],
-  practicas: [{ id: 100, numero: 2, nombre: 'Actividad enzimática' }],
   laboratorios: [{ id: 5, nombre: 'Laboratorio de docencia N3', almacenClave: 'N3' }],
   deshabilitado: false,
 }
@@ -22,12 +21,14 @@ function montar(valores = {}, onCambiar = vi.fn()) {
 }
 
 describe('DatosPractica', () => {
-  test('sin programa elegido, los tres de abajo están apagados', () => {
+  // El número es texto libre y no depende de la cascada: se puede escribir
+  // antes de elegir asignatura, y cambiar de asignatura no lo borra.
+  test('sin programa elegido, el número sigue escribiéndose', () => {
     montar()
 
     expect(screen.getByLabelText('Semestre')).toHaveAttribute('aria-disabled', 'true')
     expect(screen.getByLabelText('Asignatura')).toHaveAttribute('aria-disabled', 'true')
-    expect(screen.getByLabelText('Número de práctica')).toHaveAttribute('aria-disabled', 'true')
+    expect(screen.getByLabelText('Número de práctica')).not.toHaveAttribute('aria-disabled', 'true')
   })
 
   test('con programa y semestre, asignatura se enciende', () => {
@@ -38,13 +39,8 @@ describe('DatosPractica', () => {
 
   // Ésta es la que importa: sin ella queda una asignatura de un programa que ya
   // no está elegido, y la FK compuesta lo rechaza al finalizar.
-  test('cambiar de programa limpia semestre, asignatura y práctica', async () => {
-    const onCambiar = montar({
-      programaId: 1,
-      semestre: 3,
-      asignaturaId: 10,
-      practicaCatalogoId: 100,
-    })
+  test('cambiar de programa limpia semestre y asignatura', async () => {
+    const onCambiar = montar({ programaId: 1, semestre: 3, asignaturaId: 10 })
 
     await userEvent.click(screen.getByLabelText('Programa educativo'))
     await userEvent.click(screen.getByRole('option', { name: 'Ingeniería en Biotecnología' }))
@@ -53,17 +49,11 @@ describe('DatosPractica', () => {
       programaId: 2,
       semestre: undefined,
       asignaturaId: undefined,
-      practicaCatalogoId: undefined,
     })
   })
 
-  test('cambiar de semestre limpia asignatura y práctica, pero no el programa', async () => {
-    const onCambiar = montar({
-      programaId: 1,
-      semestre: 3,
-      asignaturaId: 10,
-      practicaCatalogoId: 100,
-    })
+  test('cambiar de semestre limpia la asignatura, pero no el programa', async () => {
+    const onCambiar = montar({ programaId: 1, semestre: 3, asignaturaId: 10 })
 
     await userEvent.click(screen.getByLabelText('Semestre'))
     await userEvent.click(screen.getByRole('option', { name: '1°' }))
@@ -71,17 +61,16 @@ describe('DatosPractica', () => {
     expect(onCambiar).toHaveBeenCalledWith({
       semestre: 1,
       asignaturaId: undefined,
-      practicaCatalogoId: undefined,
     })
   })
 
-  test('cambiar de asignatura limpia sólo la práctica', async () => {
-    const onCambiar = montar({ programaId: 1, semestre: 3, practicaCatalogoId: 100 })
+  test('cambiar de asignatura no toca el número de práctica', async () => {
+    const onCambiar = montar({ programaId: 1, semestre: 3 })
 
     await userEvent.click(screen.getByLabelText('Asignatura'))
     await userEvent.click(screen.getByRole('option', { name: 'Bioquímica' }))
 
-    expect(onCambiar).toHaveBeenCalledWith({ asignaturaId: 10, practicaCatalogoId: undefined })
+    expect(onCambiar).toHaveBeenCalledWith({ asignaturaId: 10 })
   })
 
   // null no es un hueco: es una optativa, que el plan de estudios sí contempla.
@@ -93,14 +82,12 @@ describe('DatosPractica', () => {
     expect(screen.getByRole('option', { name: 'Optativa' })).toBeInTheDocument()
   })
 
-  test('la práctica se ofrece con su número y su nombre', async () => {
-    montar({ programaId: 1, semestre: 3, asignaturaId: 10 })
+  test('el número de práctica se escribe a mano y viaja tal cual', async () => {
+    const onCambiar = montar()
 
-    await userEvent.click(screen.getByLabelText('Número de práctica'))
+    await userEvent.type(screen.getByLabelText('Número de práctica'), '5')
 
-    expect(
-      screen.getByRole('option', { name: 'Práctica 2 — Actividad enzimática' }),
-    ).toBeInTheDocument()
+    expect(onCambiar).toHaveBeenLastCalledWith({ numeroPractica: '5' })
   })
 
   // El laboratorio NO depende de la cascada: sale del almacén de quien captura,

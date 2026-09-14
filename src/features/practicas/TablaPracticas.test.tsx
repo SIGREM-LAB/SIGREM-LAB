@@ -6,9 +6,10 @@ import type { FilaHistorial } from './historial'
 import { TablaPracticas } from './TablaPracticas'
 
 const EN_CURSO: FilaHistorial = {
-  clave: 'borrador',
+  clave: 'borrador-1',
   estado: 'en_curso',
   practicaId: null,
+  borradorId: 1,
   folio: null,
   fecha: '2026-09-08',
   asignatura: 'Bioquímica',
@@ -20,6 +21,7 @@ const FINALIZADA: FilaHistorial = {
   clave: 'practica-7',
   estado: 'finalizada',
   practicaId: 7,
+  borradorId: null,
   folio: 'PRA-0001',
   fecha: '2026-09-05',
   asignatura: 'Análisis Instrumental',
@@ -87,7 +89,7 @@ describe('TablaPracticas', () => {
     expect(within(renglones()[1]).queryByRole('button', { name: /descartar/i })).toBeNull()
 
     await userEvent.click(within(renglones()[0]).getByRole('button', { name: /continuar/i }))
-    expect(onContinuar).toHaveBeenCalled()
+    expect(onContinuar).toHaveBeenCalledWith(1)
   })
 
   test('sin prácticas lo dice, en vez de quedarse en blanco', () => {

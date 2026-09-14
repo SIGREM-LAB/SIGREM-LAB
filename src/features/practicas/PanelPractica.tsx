@@ -120,14 +120,7 @@ export function PanelPractica({ detalle, cargando, error, onCerrar }: Props) {
             <Dato etiqueta="Fecha" valor={detalle.fecha} />
             <Dato etiqueta="Programa" valor={detalle.programa?.nombre ?? '—'} />
             <Dato etiqueta="Asignatura" valor={detalle.asignatura?.nombre ?? '—'} />
-            <Dato
-              etiqueta="Práctica"
-              valor={
-                detalle.catalogo === null
-                  ? '—'
-                  : `${detalle.catalogo.numero} · ${detalle.catalogo.nombre}`
-              }
-            />
+            <Dato etiqueta="Práctica" valor={detalle.numero_practica ?? '—'} />
             <Dato etiqueta="Laboratorio" valor={detalle.laboratorio.nombre} />
             <Dato etiqueta="Registró" valor={detalle.responsable.nombre} />
           </Stack>

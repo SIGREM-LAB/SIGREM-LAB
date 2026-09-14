@@ -2,7 +2,7 @@ import { FormControl, Grid, InputLabel, MenuItem, Select, TextField } from '@mui
 
 import { etiquetaSemestre } from '@/features/academico/semestres'
 import type { CabeceraParcial } from './borrador'
-import type { Asignatura, Laboratorio, PracticaCatalogo, Programa } from './consultas'
+import type { Asignatura, Laboratorio, Programa } from './consultas'
 
 type Props = {
   valores: CabeceraParcial
@@ -11,7 +11,6 @@ type Props = {
   programas: Programa[]
   semestres: (number | null)[]
   asignaturas: Asignatura[]
-  practicas: PracticaCatalogo[]
   laboratorios: Laboratorio[]
   deshabilitado: boolean
 }
@@ -28,13 +27,11 @@ export function DatosPractica({
   programas,
   semestres,
   asignaturas,
-  practicas,
   laboratorios,
   deshabilitado,
 }: Props) {
   const sinPrograma = valores.programaId === undefined
   const sinSemestre = valores.semestre === undefined
-  const sinAsignatura = valores.asignaturaId === undefined
 
   return (
     <Grid container spacing={2}>
@@ -53,7 +50,6 @@ export function DatosPractica({
                 programaId: Number(e.target.value),
                 semestre: undefined,
                 asignaturaId: undefined,
-                practicaCatalogoId: undefined,
               })
             }
           >
@@ -77,7 +73,6 @@ export function DatosPractica({
               onCambiar({
                 semestre: e.target.value === OPTATIVA ? null : Number(e.target.value),
                 asignaturaId: undefined,
-                practicaCatalogoId: undefined,
               })
             }
           >
@@ -97,12 +92,7 @@ export function DatosPractica({
             labelId="rot-asignatura"
             label="Asignatura"
             value={valores.asignaturaId ?? ''}
-            onChange={(e) =>
-              onCambiar({
-                asignaturaId: Number(e.target.value),
-                practicaCatalogoId: undefined,
-              })
-            }
+            onChange={(e) => onCambiar({ asignaturaId: Number(e.target.value) })}
           >
             {asignaturas.map((a) => (
               <MenuItem key={a.id} value={a.id}>
@@ -113,24 +103,18 @@ export function DatosPractica({
         </FormControl>
       </Grid>
 
-      {/* El selector del catálogo, NO el folio. El folio (PRA-0001) lo asigna el
-          trigger y sólo se conoce al finalizar; se muestra en el aviso de éxito. */}
+      {/* Texto libre, NO el folio. El folio (PRA-0001) lo asigna el trigger y
+          sólo se conoce al finalizar; se muestra en el aviso de éxito. Tampoco
+          es una fila del catálogo: el número se escribe tal como lo usa el
+          laboratorio, y por eso no depende de la asignatura elegida. */}
       <Grid size={{ xs: 12, md: 6 }}>
-        <FormControl fullWidth disabled={deshabilitado || sinAsignatura}>
-          <InputLabel id="rot-practica">Número de práctica</InputLabel>
-          <Select
-            labelId="rot-practica"
-            label="Número de práctica"
-            value={valores.practicaCatalogoId ?? ''}
-            onChange={(e) => onCambiar({ practicaCatalogoId: Number(e.target.value) })}
-          >
-            {practicas.map((p) => (
-              <MenuItem key={p.id} value={p.id}>
-                {`Práctica ${p.numero} — ${p.nombre}`}
-              </MenuItem>
-            ))}
-          </Select>
-        </FormControl>
+        <TextField
+          fullWidth
+          label="Número de práctica"
+          value={valores.numeroPractica ?? ''}
+          disabled={deshabilitado}
+          onChange={(e) => onCambiar({ numeroPractica: e.target.value })}
+        />
       </Grid>
 
       {/* No depende de la cascada y no puede ser "Todas": practica.laboratorio_id

@@ -88,6 +88,10 @@ export default function App() {
                       esconderle la pantalla. */}
                   <Route path="/practicas" element={<PaginaPracticas />} />
                   <Route path="/practicas/nueva" element={<PaginaNuevaPractica />} />
+                  {/* El id del borrador en la ruta es lo que hace recargable
+                      una captura a medias y direccionable cada una de las
+                      varias que puede tener una persona. */}
+                  <Route path="/practicas/nueva/:borradorId" element={<PaginaNuevaPractica />} />
 
                   {/* Bajo /administracion y no en la raíz: es el primero de
                       cinco bloques de catálogo que sólo toca el admin, y el

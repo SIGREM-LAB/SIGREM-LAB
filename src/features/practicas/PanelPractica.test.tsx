@@ -69,7 +69,7 @@ const DETALLE = {
   observaciones: null,
   programa: { nombre: 'Química en Alimentos' },
   asignatura: { nombre: 'Bioquímica' },
-  catalogo: { numero: 2, nombre: 'Actividad enzimática' },
+  numero_practica: '2',
   laboratorio: { nombre: 'Laboratorio de docencia N3' },
   responsable: { nombre: 'Daniel González' },
   practica_elemento: [REACTIVO, MATERIAL, EQUIPO],
@@ -98,7 +98,7 @@ describe('PanelPractica', () => {
     montar()
 
     expect(screen.getByText('Bioquímica')).toBeInTheDocument()
-    expect(screen.getByText(/Actividad enzimática/)).toBeInTheDocument()
+    expect(screen.getByText('2')).toBeInTheDocument()
     expect(screen.getByText('Laboratorio de docencia N3')).toBeInTheDocument()
     expect(screen.getByText('Daniel González')).toBeInTheDocument()
   })
