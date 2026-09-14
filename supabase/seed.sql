@@ -198,6 +198,7 @@ insert into public.campo_capturable (campo, etiqueta_default, tipo_dato, destino
   ('color_almacenamiento','Color de almacenaje',      'seleccion', 'articulo_reactivo.color_almacenaje', array['verde','rojo','azul','blanco','amarillo','naranja'], 'Son seis: NO TÓXICO no es un color'),
   ('hoja_seguridad',     'Existencia de hoja de seguridad', 'booleano', 'articulo_reactivo.tiene_hoja_seguridad', null, 'Si la tienes, no si hace falta'),
   ('estado_fisico',      'Estado físico',             'seleccion', 'articulo_reactivo.estado_fisico', array['solido','liquido','gas'], 'Uno solo por reactivo'),
+  ('densidad',           'Densidad (g/mL)',           'numero',    'articulo_reactivo.densidad', null, 'Propiedad de la sustancia. Solo relevante en líquidos'),
   ('caracteristica_quimica','Característica química', 'texto',     'articulo_reactivo.caracteristica_quimica', null, null),
   ('caracteristica_toxica','Característica tóxica',   'texto',     'articulo_reactivo.caracteristica_toxica',  null, null),
   ('riesgo_salud',       'NFPA azul: riesgo a la salud',        'numero', 'articulo_reactivo.riesgo_salud',          null, 'Grado 0 a 4'),
@@ -246,15 +247,17 @@ select p.id, c.campo, c.obligatorio, c.orden
                ('peso_total',             false, 12),
                ('cantidad',               true,  13),
                ('unidad',                 true,  14),
-               ('estado_fisico',          true,  15),
-               ('caracteristica_quimica', false, 16),
-               ('caracteristica_toxica',  false, 17),
-               ('riesgo_salud',           false, 18),
-               ('riesgo_reactividad',     false, 19),
-               ('riesgo_inflamabilidad',  false, 20),
-               ('peligro_especial',       false, 21),
-               ('implica_peligro',        false, 22),
-               ('observaciones',          false, 23)
+               ('cantidad_minima',        false, 15),
+               ('estado_fisico',          true,  16),
+               ('densidad',               false, 17),
+               ('caracteristica_quimica', false, 18),
+               ('caracteristica_toxica',  false, 19),
+               ('riesgo_salud',           false, 20),
+               ('riesgo_reactividad',     false, 21),
+               ('riesgo_inflamabilidad',  false, 22),
+               ('peligro_especial',       false, 23),
+               ('implica_peligro',        false, 24),
+               ('observaciones',          false, 25)
        ) as c(campo, obligatorio, orden)
  where p.almacen_id is null and p.clasificacion = 'reactivo';
 
@@ -268,12 +271,13 @@ select p.id, c.campo, c.obligatorio, c.orden
                ('marca',           false,  4),
                ('cantidad',        true,   5),
                ('unidad',          true,   6),
-               ('presentacion',    false,  7),
-               ('sub_ubicacion',   false,  8),
-               ('mueble',          false,  9),
-               ('repisa',          false, 10),
-               ('fila_cajon',      false, 11),
-               ('observaciones',   false, 12)
+               ('cantidad_minima', false,  7),
+               ('presentacion',    false,  8),
+               ('sub_ubicacion',   false,  9),
+               ('mueble',          false, 10),
+               ('repisa',          false, 11),
+               ('fila_cajon',      false, 12),
+               ('observaciones',   false, 13)
        ) as c(campo, obligatorio, orden)
  where p.almacen_id is null and p.clasificacion in ('insumo', 'material');
 
@@ -306,16 +310,17 @@ select p.id, c.campo, c.obligatorio, c.orden
                ('origen_especie',      false,  2),
                ('cantidad',            true,   3),
                ('unidad',              true,   4),
-               ('presentacion',        false,  5),
-               ('metodo_conservacion', false,  6),
-               ('temperatura',         false,  7),
-               ('fecha_recoleccion',   false,  8),
-               ('fecha_preparacion',   false,  9),
-               ('responsable_muestra', false, 10),
-               ('sub_ubicacion',       false, 11),
-               ('mueble',              false, 12),
-               ('repisa',              false, 13),
-               ('observaciones',       false, 14)
+               ('cantidad_minima',     false,  5),
+               ('presentacion',        false,  6),
+               ('metodo_conservacion', false,  7),
+               ('temperatura',         false,  8),
+               ('fecha_recoleccion',   false,  9),
+               ('fecha_preparacion',   false, 10),
+               ('responsable_muestra', false, 11),
+               ('sub_ubicacion',       false, 12),
+               ('mueble',              false, 13),
+               ('repisa',              false, 14),
+               ('observaciones',       false, 15)
        ) as c(campo, obligatorio, orden)
  where p.almacen_id is null and p.clasificacion = 'materia_biologica';
 
@@ -329,13 +334,14 @@ select p.id, c.campo, c.obligatorio, c.orden
                ('especificacion',  false,  4),
                ('cantidad',        true,   5),
                ('unidad',          true,   6),
-               ('presentacion',    false,  7),
-               ('sub_ubicacion',   false,  8),
-               ('mueble',          false,  9),
-               ('coord_h',         false, 10),
-               ('coord_v',         false, 11),
-               ('coord_i',         false, 12),
-               ('observaciones',   false, 13)
+               ('cantidad_minima', false,  7),
+               ('presentacion',    false,  8),
+               ('sub_ubicacion',   false,  9),
+               ('mueble',          false, 10),
+               ('coord_h',         false, 11),
+               ('coord_v',         false, 12),
+               ('coord_i',         false, 13),
+               ('observaciones',   false, 14)
        ) as c(campo, obligatorio, orden)
  where p.almacen_id is null and p.clasificacion = 'componente';
 

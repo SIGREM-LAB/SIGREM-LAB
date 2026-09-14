@@ -189,6 +189,7 @@ export type Database = {
           color_almacenaje:
             | Database["public"]["Enums"]["color_almacenaje"]
             | null
+          densidad: number | null
           estado_fisico: Database["public"]["Enums"]["estado_fisico"] | null
           implica_actividad_peligro: boolean | null
           peligro_especial: string | null
@@ -205,6 +206,7 @@ export type Database = {
           color_almacenaje?:
             | Database["public"]["Enums"]["color_almacenaje"]
             | null
+          densidad?: number | null
           estado_fisico?: Database["public"]["Enums"]["estado_fisico"] | null
           implica_actividad_peligro?: boolean | null
           peligro_especial?: string | null
@@ -221,6 +223,7 @@ export type Database = {
           color_almacenaje?:
             | Database["public"]["Enums"]["color_almacenaje"]
             | null
+          densidad?: number | null
           estado_fisico?: Database["public"]["Enums"]["estado_fisico"] | null
           implica_actividad_peligro?: boolean | null
           peligro_especial?: string | null
@@ -1367,6 +1370,14 @@ export type Database = {
       }
     }
     Functions: {
+      actualizar_existencia: {
+        Args: { p_existencia: number; p_motivo?: string; p_valores: Json }
+        Returns: {
+          cantidad: number
+          codigo: string
+          id: number
+        }[]
+      }
       buscar_articulo: {
         Args: { maximo?: number; termino: string; umbral?: number }
         Returns: {
@@ -1377,6 +1388,17 @@ export type Database = {
           similitud: number
           unidad_base: string
           verificado: boolean
+        }[]
+      }
+      crear_existencia: {
+        Args: {
+          p_almacen: number
+          p_clasificacion: Database["public"]["Enums"]["clasificacion_articulo"]
+          p_valores: Json
+        }
+        Returns: {
+          codigo: string
+          id: number
         }[]
       }
       formulario: {
@@ -1427,6 +1449,7 @@ export type Database = {
         }
         Returns: number
       }
+      valores_existencia: { Args: { p_existencia: number }; Returns: Json }
       vincular_asignatura: {
         Args: { p_nombre: string; p_programa: number; p_semestre?: number }
         Returns: number

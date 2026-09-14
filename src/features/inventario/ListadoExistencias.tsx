@@ -1,6 +1,8 @@
 import { useState } from 'react'
-import { Alert, Box, Card, LinearProgress, Stack, Typography } from '@mui/material'
+import { Alert, Box, Card, LinearProgress, Snackbar, Stack, Typography } from '@mui/material'
 
+import { DialogoEditarExistencia } from './DialogoEditarExistencia'
+import { DialogoMovimiento } from './DialogoMovimiento'
 import { FiltrosActivos } from './FiltrosActivos'
 import { FiltrosInventario } from './FiltrosInventario'
 import { PanelExistencia } from './PanelExistencia'
@@ -43,6 +45,25 @@ type Props = {
    * y en cuanto la persona toca otra cosa manda lo que eligió.
    */
   almacenSemilla?: number | null
+
+  /**
+   * Si el detalle ofrece corregir la existencia. Hoy solo Inventario, que está
+   * anclado a tu bodega y donde todo lo que ves es tuyo. Inventario general
+   * cruza los cuatro almacenes y tendrá su propia acción.
+   *
+   * Aunque estuviera encendido de más, la RLS es la que manda: un responsable
+   * solo puede escribir en su almacén. Esto evita ofrecer un botón que iba a
+   * terminar en un error.
+   */
+  permiteEditar?: boolean
+
+  /**
+   * Si el detalle ofrece registrar un movimiento. Hoy lo enciende Inventario
+   * general, y solo para quien puede escribir: `lectura@` no tiene almacén
+   * propio, así que sin esta condición vería un botón que la RLS le rechaza.
+   * El almacén ajeno ya lo filtra el propio panel.
+   */
+  permiteMovimiento?: boolean
 }
 
 /**
@@ -54,7 +75,13 @@ type Props = {
  * página, que es de donde sale el dato del que dependen; metidas aquí tendrían
  * que salir a empujones cada vez que alguien tecleara en el buscador.
  */
-export function ListadoExistencias({ almacenFijo, almacenPropio, almacenSemilla }: Props) {
+export function ListadoExistencias({
+  almacenFijo,
+  almacenPropio,
+  almacenSemilla,
+  permiteEditar = false,
+  permiteMovimiento = false,
+}: Props) {
   const cruzaAlmacenes = almacenFijo === null
 
   // A dónde vuelve "Limpiar". La semilla del menú NO cuenta: llegar filtrado por
@@ -67,13 +94,33 @@ export function ListadoExistencias({ almacenFijo, almacenPropio, almacenSemilla 
   }))
   const [pagina, setPagina] = useState(0)
   const [porPagina, setPorPagina] = useState(25)
-  const [abierta, setAbierta] = useState<Fila | null>(null)
+  // El panel guarda el ID, no la fila. La fila se busca en el listado cada vez
+  // que se pinta: así, cuando una corrección invalida la tabla, el detalle que
+  // está abierto detrás se entera. Con una copia guardada aquí seguiría
+  // enseñando la marca y el saldo de antes de guardar.
+  const [abiertaId, setAbiertaId] = useState<number | null>(null)
+
+  // Se edita la fila que se abrió, en su propio estado: el panel se queda
+  // detrás y al cerrar el diálogo se vuelve a él con el dato ya corregido.
+  const [editando, setEditando] = useState<Fila | null>(null)
+
+  // Lo mismo para el movimiento: se registra sobre la fila que está abierta.
+  const [moviendo, setMoviendo] = useState<Fila | null>(null)
+
+  // Lo último que se guardó, ya escrito como frase. Es el mismo aviso que da el
+  // alta, y por la misma razón: quien guarda tiene que saber que se guardó sin
+  // ir a buscarlo en la tabla.
+  const [aviso, setAviso] = useState<string | null>(null)
 
   const almacenes = useAlmacenes()
   const resumenAlmacenes = useResumenAlmacenes(cruzaAlmacenes)
   const listado = useExistencias(filtros, pagina, porPagina)
-  const movimientos = useMovimientos(abierta?.id ?? null)
-  const detalle = useDetalleExistencia(abierta?.id ?? null)
+
+  const abierta: Fila | null =
+    abiertaId === null ? null : (listado.data?.filas.find((f) => f.id === abiertaId) ?? null)
+
+  const movimientos = useMovimientos(abiertaId)
+  const detalle = useDetalleExistencia(abiertaId)
 
   // Se aplana aqui, en un solo sitio, y no dentro del panel: la forma anidada
   // que devuelve PostgREST es un detalle de la consulta, y si el componente la
@@ -206,7 +253,7 @@ export function ListadoExistencias({ almacenFijo, almacenPropio, almacenSemilla 
                   setPorPagina(n)
                   setPagina(0)
                 }}
-                onAbrir={setAbierta}
+                onAbrir={(fila) => setAbiertaId(fila.id)}
               />
             </Box>
           </Box>
@@ -219,8 +266,33 @@ export function ListadoExistencias({ almacenFijo, almacenPropio, almacenSemilla 
         movimientos={movimientos.data ?? []}
         cargandoMovimientos={movimientos.isPending && abierta !== null}
         datosTipo={datosTipo}
-        onCerrar={() => setAbierta(null)}
+        onCerrar={() => setAbiertaId(null)}
+        onEditar={permiteEditar ? () => setEditando(abierta) : undefined}
+        onMovimiento={permiteMovimiento ? () => setMoviendo(abierta) : undefined}
       />
+
+      <DialogoEditarExistencia
+        fila={editando}
+        onCerrar={() => setEditando(null)}
+        onGuardada={(codigo) => setAviso(`Cambios guardados en ${codigo}`)}
+      />
+
+      <DialogoMovimiento
+        fila={moviendo}
+        onCerrar={() => setMoviendo(null)}
+        onRegistrado={(resumen) => setAviso(`Movimiento registrado: ${resumen}`)}
+      />
+
+      <Snackbar
+        open={aviso !== null}
+        autoHideDuration={6000}
+        onClose={() => setAviso(null)}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+      >
+        <Alert severity="success" onClose={() => setAviso(null)}>
+          {aviso}
+        </Alert>
+      </Snackbar>
     </>
   )
 }

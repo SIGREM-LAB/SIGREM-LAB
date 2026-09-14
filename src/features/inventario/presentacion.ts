@@ -111,3 +111,17 @@ export const REVISION: Record<Enums<'estado_pendiente'>, AspectoEstado> = {
   resuelto: { etiqueta: 'Cargado', color: '#2E7D32' },
   descartado: { etiqueta: 'Descartado', color: '#6F6F6E' },
 }
+
+/**
+ * Lo que sale del `error` de supabase-js. Los mensajes de Postgres que llegan
+ * aquí son los que el propio esquema escribió para que se lean —«El renglon no
+ * trae unidad...», «No puedes editar la existencia 12: pertenece a otro
+ * almacen»— así que se muestran tal cual en vez de taparlos con un «algo salió
+ * mal» que no dice qué corregir.
+ */
+export function mensajeDe(error: unknown): string {
+  if (error !== null && typeof error === 'object' && 'message' in error) {
+    return String((error as { message: unknown }).message)
+  }
+  return 'Vuelve a intentarlo.'
+}

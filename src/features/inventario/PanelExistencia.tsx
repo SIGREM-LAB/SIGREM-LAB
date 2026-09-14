@@ -1,5 +1,15 @@
 import { Icon } from '@iconify/react'
-import { Alert, Box, Divider, Drawer, IconButton, Skeleton, Stack, Typography } from '@mui/material'
+import {
+  Alert,
+  Box,
+  Button,
+  Divider,
+  Drawer,
+  IconButton,
+  Skeleton,
+  Stack,
+  Typography,
+} from '@mui/material'
 
 import { aspectoDeAlmacen } from '@/app/almacenes'
 import { DetalleTipo, type DatosTipo } from './DetalleTipo'
@@ -29,6 +39,21 @@ type Props = {
   /** Los campos propios del tipo. `null` mientras su consulta esta en vuelo. */
   datosTipo: DatosTipo | null
   onCerrar: () => void
+
+  /**
+   * Qué hacer al pulsar «Editar». Sin esto no hay botón, que es como se apaga
+   * la edición donde no toca: en Inventario general —que cruza los cuatro
+   * almacenes— y para quien solo consulta. Quién puede editar lo decide la RLS;
+   * esto solo evita ofrecer un botón que iba a terminar en un error.
+   */
+  onEditar?: () => void
+
+  /**
+   * Qué hacer al pulsar «Registrar movimiento». Misma regla que `onEditar`: sin
+   * esto no hay botón. Hoy lo pasa Inventario general, que es la pantalla de
+   * quien mira las cuatro bodegas; en Inventario el conteo entra por Editar.
+   */
+  onMovimiento?: () => void
 }
 
 const FECHA = new Intl.DateTimeFormat('es-MX', { dateStyle: 'medium', timeStyle: 'short' })
@@ -53,6 +78,8 @@ export function PanelExistencia({
   cargandoMovimientos,
   datosTipo,
   onCerrar,
+  onEditar,
+  onMovimiento,
 }: Props) {
   if (fila === null) return null
 
@@ -113,6 +140,34 @@ export function PanelExistencia({
         <Alert severity="info" sx={{ mb: 2 }}>
           Pertenece a {fila.almacen_clave}. Puedes consultarla, no modificarla.
         </Alert>
+      )}
+
+      {/* A lo ancho y no como iconos junto al código: se pulsan con el ratón de
+          las máquinas del almacén, y son las acciones del panel. Lo ajeno no se
+          ofrece: la RLS lo rechazaría y el aviso de arriba ya lo dijo. */}
+      {!ajeno && (onMovimiento !== undefined || onEditar !== undefined) && (
+        <Stack spacing={1} sx={{ mb: 2 }}>
+          {onMovimiento !== undefined && (
+            <Button
+              fullWidth
+              variant="contained"
+              onClick={onMovimiento}
+              startIcon={<Icon icon="mdi:swap-horizontal" width={18} />}
+            >
+              Registrar movimiento
+            </Button>
+          )}
+          {onEditar !== undefined && (
+            <Button
+              fullWidth
+              variant="outlined"
+              onClick={onEditar}
+              startIcon={<Icon icon="mdi:pencil-outline" width={18} />}
+            >
+              Editar
+            </Button>
+          )}
+        </Stack>
       )}
 
       <Stack spacing={1} sx={{ mb: 2 }}>

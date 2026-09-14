@@ -14,7 +14,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 
-select plan(105);
+select plan(150);
 
 
 -- ---------------------------------------------------------------------------
@@ -1268,6 +1268,13 @@ select lives_ok(
   'Con otro admin en pie, un admin si puede bajarse el rol'
 );
 
+-- De vuelta a postgres ANTES de comprobar: `authenticated` tiene denegada la
+-- lectura de auth.users —lo dice el propio comentario de `pg_temp.como`— y
+-- resolver el correo desde la sesion del admin aborta el archivo entero con
+-- «permission denied for table users». Comprobar el efecto sin RLS de por medio
+-- es ademas lo correcto: lo que se prueba es el candado, no quien puede leer.
+select pg_temp.como_postgres();
+
 select is(
   (select rol::text from public.perfil
     where id = (select id from auth.users where email = 'admin@uaeh.local')),
@@ -1315,6 +1322,434 @@ select throws_ok(
 
 select pg_temp.como_postgres();
 
+
+-- ---------------------------------------------------------------------------
+-- crear_existencia: el alta desde la pantalla
+-- ---------------------------------------------------------------------------
+-- Es SECURITY INVOKER a proposito, asi que aqui no se prueba una politica nueva
+-- sino que las de siempre siguen mandando cuando se entra por esta puerta. Una
+-- funcion SECURITY DEFINER en su lugar habria abierto un camino para escribir en
+-- cualquier almacen conociendo su id.
+select pg_temp.como('n3@uaeh.local');
+
+select lives_ok(
+  $$ select * from public.crear_existencia(
+       (select id from public.almacen where clave = 'N3'),
+       'reactivo',
+       '{"nombre_articulo": "Cloruro de sodio, solido, grado reactivo",
+         "unidad": "g", "cantidad": "250", "cantidad_minima": "25",
+         "estado_fisico": "solido", "densidad": "2.16",
+         "color_almacenamiento": "verde", "hoja_seguridad": true,
+         "marca": "MEYER", "mueble": "Anaquel 4", "repisa": "2"}'::jsonb) $$,
+  'El responsable de N3 da de alta un reactivo en su almacen'
+);
+
+select is(
+  (select e.codigo like 'N3-%' from public.existencia e
+    join public.articulo a on a.id = e.articulo_id
+   where a.nombre_canonico = 'Cloruro de sodio, solido, grado reactivo'),
+  true,
+  'El codigo lo asigno el trigger con la clave del almacen'
+);
+
+-- La promesa que sostiene la bitacora: el saldo no se escribio, se derivo.
+select is(
+  (select e.cantidad from public.existencia e
+    join public.articulo a on a.id = e.articulo_id
+   where a.nombre_canonico = 'Cloruro de sodio, solido, grado reactivo'),
+  250::numeric(14,4),
+  'La cantidad quedo en la existencia'
+);
+
+select is(
+  (select m.tipo::text from public.movimiento m
+    join public.existencia e on e.id = m.existencia_id
+    join public.articulo a on a.id = e.articulo_id
+   where a.nombre_canonico = 'Cloruro de sodio, solido, grado reactivo'),
+  'carga_inicial',
+  'La cantidad entro por movimiento, no escrita directo: hay bitacora'
+);
+
+select is(
+  (select r.densidad from public.articulo_reactivo r
+    join public.articulo a on a.id = r.articulo_id
+   where a.nombre_canonico = 'Cloruro de sodio, solido, grado reactivo'),
+  2.16::numeric(10,4),
+  'La ficha NOM se lleno: un responsable puede crearla, no solo un admin'
+);
+
+-- La procedencia del nombre. `articulo_de_renglon` la tenia fija en 'migracion'
+-- porque su unico llamador era la depuracion, donde el texto SI sale de un
+-- archivo. Tecleado en el alta, «migracion» manda a buscar un Excel que nunca
+-- existio, y el enum `origen_alias` existe justamente para distinguirlos.
+select is(
+  (select al.origen::text from public.articulo_alias al
+    join public.articulo a on a.id = al.articulo_id
+   where a.nombre_canonico = 'Cloruro de sodio, solido, grado reactivo'),
+  'busqueda',
+  'El alias de un alta a mano dice que salio del buscador, no de un archivo'
+);
+
+-- El campo existe en `campo_capturable` pero NO en el perfil de reactivo: es del
+-- perfil de equipos. Si esto se guardara, el filtro del servidor no serviria de
+-- nada y bastaria con hablarle directo a la API para escribir donde no toca.
+select lives_ok(
+  $$ select * from public.crear_existencia(
+       (select id from public.almacen where clave = 'N3'),
+       'reactivo',
+       '{"nombre_articulo": "Sulfato de cobre, solido, grado reactivo",
+         "unidad": "g", "cantidad": "10", "numero_serie": "COLADO-001"}'::jsonb) $$,
+  'Un campo fuera del perfil no hace fallar el alta'
+);
+
+select is(
+  (select count(*)::int from public.existencia where numero_serie = 'COLADO-001'),
+  0,
+  'Un campo fuera del perfil se descarta en el servidor, no solo en la pantalla'
+);
+
+select throws_ok(
+  $$ select * from public.crear_existencia(
+       (select id from public.almacen where clave = 'N4'),
+       'reactivo',
+       '{"nombre_articulo": "Nitrato de plata, solido", "unidad": "g", "cantidad": "5"}'::jsonb) $$,
+  '42501',
+  null,
+  'El responsable de N3 NO puede dar de alta en N4 aunque mande su id'
+);
+
+-- Los equipos son el caso raro: su perfil NO pide unidad ni cantidad —regla 9,
+-- un renglon por equipo fisico— pero `articulo.unidad_base` es NOT NULL. Sin la
+-- regla que las repone, dar de alta un equipo desde la pantalla es imposible.
+-- Los valores son los mismos que pone `etl/rules/validar.py`: si se desviaran,
+-- el mismo microscopio seria DOS articulos segun por donde entrara.
+select lives_ok(
+  $$ select * from public.crear_existencia(
+       (select id from public.almacen where clave = 'N3'),
+       'equipo',
+       '{"nombre_articulo": "Microscopio optico binocular", "marca": "Zeiss",
+         "numero_serie": "RLS-EQ-1", "funcionamiento": "Correcto"}'::jsonb) $$,
+  'Un equipo se da de alta aunque su perfil no pida unidad ni cantidad'
+);
+
+select is(
+  (select a.unidad_base from public.articulo a
+    where a.nombre_canonico = 'Microscopio optico binocular'),
+  'pieza',
+  'El equipo entra en «pieza», igual que lo hace el cargador'
+);
+
+select is(
+  (select e.cantidad from public.existencia e
+    join public.articulo a on a.id = e.articulo_id
+   where a.nombre_canonico = 'Microscopio optico binocular'),
+  1::numeric(14,4),
+  'Y en cantidad 1: regla 9, un renglon por equipo fisico'
+);
+
+select pg_temp.como('lectura@uaeh.local');
+
+select throws_ok(
+  $$ select * from public.crear_existencia(
+       (select id from public.almacen where clave = 'N3'),
+       'reactivo',
+       '{"nombre_articulo": "Yoduro de potasio, solido", "unidad": "g", "cantidad": "5"}'::jsonb) $$,
+  '42501',
+  null,
+  'Un usuario de consulta no puede dar de alta en ningun almacen'
+);
+
+select pg_temp.como_postgres();
+
+
+
+-- ---------------------------------------------------------------------------
+-- valores_existencia y actualizar_existencia: la edicion desde la pantalla
+-- ---------------------------------------------------------------------------
+-- Las dos son SECURITY INVOKER, igual que `crear_existencia`, asi que lo que se
+-- prueba aqui no es una politica nueva sino que las de siempre siguen mandando
+-- cuando se entra por esta otra puerta. Y una promesa mas, que es propia de
+-- editar: por aqui NO se cambia el articulo, porque el articulo se comparte con
+-- los demas frascos de la misma sustancia.
+--
+-- Fixtures propios y no los 900001/900002 de arriba: aquellos ya arrastran los
+-- movimientos de las pruebas de la bitacora, y dos de estas cuentan movimientos.
+select pg_temp.como_postgres();
+
+insert into public.existencia (id, articulo_id, almacen_id, codigo, marca, cantidad_minima)
+overriding system value
+values (900011, 900001, pg_temp.id_almacen('N3'), 'N3-EDIT1', 'SIGMA', 50),
+       (900012, 900001, pg_temp.id_almacen('N4'), 'N4-EDIT1', 'MEYER', 50);
+
+select pg_temp.como('n3@uaeh.local');
+
+select is(
+  public.valores_existencia(900011) ->> 'marca',
+  'SIGMA',
+  'valores_existencia devuelve lo que hoy vale el campo, con la llave del perfil'
+);
+
+select is(
+  (public.valores_existencia(900011) ->> 'cantidad')::numeric,
+  0::numeric,
+  'La cantidad se precarga del saldo: no hay columna de captura que leer'
+);
+
+-- Se precargan tambien aunque no se puedan editar: son la ficha de seguridad
+-- del reactivo, y quien corrige el frasco tiene que verla.
+select is(
+  public.valores_existencia(900011) ? 'nombre_articulo',
+  true,
+  'Los campos del articulo tambien se precargan, para poder mostrarlos'
+);
+
+select lives_ok(
+  $$ select * from public.actualizar_existencia(900011,
+       '{"marca": "MEYER", "mueble": "Anaquel 7", "repisa": "3",
+         "observaciones": "Reetiquetado"}'::jsonb) $$,
+  'El responsable de N3 corrige una existencia de su almacen'
+);
+
+select is(
+  (select marca from public.existencia where id = 900011),
+  'MEYER',
+  'El campo corregido se guardo'
+);
+
+select is(
+  (select u.etiqueta from public.ubicacion u
+    join public.existencia e on e.ubicacion_id = u.id
+   where e.id = 900011),
+  'Anaquel 7 · Repisa 3',
+  'La ubicacion se resolvio por sus partes, igual que en el alta'
+);
+
+-- Editar tiene que poder QUITAR. Una llave presente y vacia borra; es la
+-- diferencia con el alta, donde vaciar una casilla no significa nada.
+select lives_ok(
+  $$ select * from public.actualizar_existencia(900011, '{"marca": ""}'::jsonb) $$,
+  'Vaciar un campo no falla'
+);
+
+select is(
+  (select marca from public.existencia where id = 900011),
+  null,
+  'Una llave presente y vacia borra el dato; ausente no lo tocaria'
+);
+
+select is(
+  (select observaciones from public.existencia where id = 900011),
+  'Reetiquetado',
+  'Y lo que no venia en el envio se quedo como estaba'
+);
+
+-- El campo existe en `campo_capturable` pero es del perfil de equipos. Si esto
+-- se guardara, el filtro del servidor no serviria de nada y bastaria con
+-- hablarle directo a la API con la anon key para escribir donde no toca.
+select lives_ok(
+  $$ select * from public.actualizar_existencia(900011,
+       '{"numero_serie": "COLADO-EDIT"}'::jsonb) $$,
+  'Un campo fuera del perfil no hace fallar la edicion'
+);
+
+select is(
+  (select count(*)::int from public.existencia where numero_serie = 'COLADO-EDIT'),
+  0,
+  'Un campo fuera del perfil se descarta en el servidor, no solo en la pantalla'
+);
+
+-- La raya de esta funcion. El articulo lo comparten todos los frascos de la
+-- misma sustancia, y su RLS es de admin: corregir el nombre «del frasco que
+-- tengo abierto» se lo cambiaria a los catorce sin que nadie lo pida.
+select lives_ok(
+  $$ select * from public.actualizar_existencia(900011,
+       '{"nombre_articulo": "Otra cosa", "cas": "99-99-9"}'::jsonb) $$,
+  'Los campos del articulo no hacen fallar la edicion: se ignoran'
+);
+
+select is(
+  (select nombre_canonico from public.articulo where id = 900001),
+  'Acido succinico, solido, grado reactivo',
+  'Editar una existencia NO le cambia el nombre al articulo que comparte'
+);
+
+-- El conteo fisico. La cantidad no se escribe: entra como movimiento, que es lo
+-- unico que deja bitacora y lo unico que el `grant update` por columnas permite.
+select lives_ok(
+  $$ select * from public.actualizar_existencia(900011,
+       '{"cantidad": "12"}'::jsonb, 'Conteo de septiembre') $$,
+  'Contar el frasco al editarlo no falla'
+);
+
+select is(
+  (select cantidad from public.existencia where id = 900011),
+  12::numeric(14,4),
+  'El saldo quedo en lo contado'
+);
+
+select is(
+  (select m.tipo::text || ' ' || m.cantidad::text || ' ' || m.motivo
+     from public.movimiento m where m.existencia_id = 900011),
+  'ajuste_conteo 12.0000 Conteo de septiembre',
+  'La diferencia entro como ajuste_conteo, con el motivo que se capturo'
+);
+
+select lives_ok(
+  $$ select * from public.actualizar_existencia(900011, '{"cantidad": "12"}'::jsonb) $$,
+  'Guardar sin mover la cantidad no falla'
+);
+
+select is(
+  (select count(*)::int from public.movimiento where existencia_id = 900011),
+  1,
+  'Y no inventa un segundo movimiento: contar lo mismo no es noticia'
+);
+
+-- La RLS niega por USING, que esconde la fila en vez de explotar. Sin el aviso
+-- explicito, esto devolveria el mismo «guardado» que una correccion buena.
+select throws_ok(
+  $$ select * from public.actualizar_existencia(900012, '{"marca": "ROBADA"}'::jsonb) $$,
+  '42501',
+  null,
+  'El responsable de N3 NO puede corregir una existencia de N4'
+);
+
+select pg_temp.como('lectura@uaeh.local');
+
+select throws_ok(
+  $$ select * from public.actualizar_existencia(900011, '{"marca": "ROBADA"}'::jsonb) $$,
+  '42501',
+  null,
+  'Un usuario de consulta no puede corregir ninguna'
+);
+
+select pg_temp.como('admin@uaeh.local');
+
+select lives_ok(
+  $$ select * from public.actualizar_existencia(900012, '{"marca": "CTR"}'::jsonb) $$,
+  'El admin si puede corregir en cualquier almacen'
+);
+
+select pg_temp.como_postgres();
+
+
+-- ---------------------------------------------------------------------------
+-- Registrar un movimiento tal como lo manda la pantalla
+-- ---------------------------------------------------------------------------
+-- Las pruebas de arriba mandan las siete columnas porque comprueban que el
+-- trigger reescribe lo que el cliente inventa. El diálogo de movimientos hace
+-- lo contrario: manda CUATRO —existencia, tipo, cantidad y motivo— y se apoya
+-- en que `private.aplicar_movimiento` ponga el resto. Los cuatro que no manda
+-- son NOT NULL, así que eso es toda la apuesta del diálogo y se fija aquí: si
+-- alguien quitara el trigger, revienta esta prueba antes que la pantalla.
+select pg_temp.como_postgres();
+
+insert into public.existencia (id, articulo_id, almacen_id, codigo, cantidad_minima)
+overriding system value
+values (900021, 900001, pg_temp.id_almacen('N3'), 'N3-MOV1', 50);
+
+select pg_temp.como('n3@uaeh.local');
+
+select lives_ok(
+  $$ insert into public.movimiento (existencia_id, tipo, cantidad, motivo)
+     values (900021, 'entrada', 500, 'Compra proveedor Merck') $$,
+  'Un movimiento entra con solo las cuatro columnas que captura la pantalla'
+);
+
+select is(
+  (select cantidad from public.existencia where id = 900021),
+  500::numeric(14,4),
+  'El trigger aplicó el saldo sin que el cliente lo escribiera'
+);
+
+select is(
+  (select m.usuario_id = (select auth.uid()) from public.movimiento m
+    where m.existencia_id = 900021),
+  true,
+  'La firma la pone el trigger: nadie firma un movimiento en nombre de otro'
+);
+
+select is(
+  (select a.clave from public.movimiento m
+     join public.almacen a on a.id = m.almacen_id
+    where m.existencia_id = 900021),
+  'N3',
+  'Y el almacén sale de la existencia, no del envío'
+);
+
+-- El ajuste de conteo manda la DIFERENCIA, no lo contado: es lo que calcula
+-- `registroDe` en la pantalla, y lo que deja el saldo en lo que se contó.
+select lives_ok(
+  $$ insert into public.movimiento (existencia_id, tipo, cantidad, motivo)
+     values (900021, 'ajuste_conteo', -20, 'Conteo físico') $$,
+  'Un ajuste de conteo entra como la diferencia contra el saldo'
+);
+
+select is(
+  (select cantidad from public.existencia where id = 900021),
+  480::numeric(14,4),
+  'El saldo queda en lo contado'
+);
+
+-- Lo que la pantalla frena en el esquema de zod, el esquema de la base también
+-- lo frena. Las dos comprobaciones existen por razones distintas: aquélla para
+-- no hacer teclear algo que va a fallar, ésta porque la anon key es pública.
+select throws_ok(
+  $$ insert into public.movimiento (existencia_id, tipo, cantidad, motivo)
+     values (900021, 'merma', 0, 'Nada') $$,
+  '23514',
+  null,
+  'Un movimiento de cero no se registra: no es noticia'
+);
+
+select throws_ok(
+  $$ insert into public.movimiento (existencia_id, tipo, cantidad, motivo)
+     values (900021, 'consumo', -9999, 'De más') $$,
+  'P0001',
+  null,
+  'Ni uno que dejaría la existencia en negativo'
+);
+
+
+-- ---------------------------------------------------------------------------
+-- Cambio de laboratorio: un UPDATE, no un movimiento
+-- ---------------------------------------------------------------------------
+-- No pasa por `movimiento` porque no mueve cantidad, y uno de cero está
+-- prohibido por el check de arriba. Lo que sí sostiene el esquema es que no se
+-- pueda mandar el frasco al laboratorio de otra bodega: la FK es compuesta
+-- `(laboratorio_id, almacen_id)`, así que es imposible por construcción y no
+-- por una comprobación de la pantalla.
+select lives_ok(
+  $$ update public.existencia
+        set laboratorio_id = (select l.id from public.laboratorio l
+                               where l.almacen_id = (select almacen_id from public.existencia
+                                                      where id = 900021)
+                               limit 1)
+      where id = 900021 $$,
+  'El responsable mueve su existencia a un laboratorio de su almacén'
+);
+
+select throws_ok(
+  $$ update public.existencia
+        set laboratorio_id = (select l.id from public.laboratorio l
+                               where l.almacen_id = pg_temp.id_almacen('N4') limit 1)
+      where id = 900021 $$,
+  '23503',
+  null,
+  'Y no puede mandarla al laboratorio de otra bodega: lo impide la FK compuesta'
+);
+
+select pg_temp.como('lectura@uaeh.local');
+
+select throws_ok(
+  $$ insert into public.movimiento (existencia_id, tipo, cantidad, motivo)
+     values (900021, 'entrada', 10, 'Robada') $$,
+  '42501',
+  null,
+  'Un usuario de consulta no registra movimientos en ningún almacén'
+);
+
+select pg_temp.como_postgres();
 
 select * from finish();
 rollback;

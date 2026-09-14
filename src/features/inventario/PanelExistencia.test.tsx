@@ -114,4 +114,51 @@ describe('PanelExistencia', () => {
     pintar({ fila: null })
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
   })
+
+  // El boton vive en el panel de detalle porque ahi es donde se ve lo que hay
+  // que corregir. Sin `onEditar` no se pinta: es como se apaga donde no toca.
+  test('sin onEditar no hay boton de editar', () => {
+    pintar()
+    expect(screen.queryByRole('button', { name: /editar/i })).not.toBeInTheDocument()
+  })
+
+  test('con onEditar aparece el boton y avisa al pulsarlo', async () => {
+    const usuario = userEvent.setup()
+    const onEditar = vi.fn()
+    pintar({ onEditar })
+
+    await usuario.click(screen.getByRole('button', { name: /editar/i }))
+    expect(onEditar).toHaveBeenCalledTimes(1)
+  })
+
+  // El aviso de "puedes consultarla, no modificarla" y un boton de editar al
+  // lado se contradicen. Quien manda es la RLS, que lo rechazaria; esto evita
+  // ofrecer algo que iba a terminar en un error.
+  test('lo ajeno no se ofrece editar, aunque se pase onEditar', () => {
+    pintar({ onEditar: vi.fn(), almacenPropio: 2 })
+    expect(screen.queryByRole('button', { name: /editar/i })).not.toBeInTheDocument()
+  })
+
+  // La acción principal del panel en Inventario general. Va en guinda del tema
+  // y no en el naranja del prototipo: la paleta institucional se define una vez.
+  test('sin onMovimiento no hay boton de registrar', () => {
+    pintar()
+    expect(screen.queryByRole('button', { name: /registrar movimiento/i })).not.toBeInTheDocument()
+  })
+
+  test('con onMovimiento aparece el boton y avisa al pulsarlo', async () => {
+    const usuario = userEvent.setup()
+    const onMovimiento = vi.fn()
+    pintar({ onMovimiento })
+
+    await usuario.click(screen.getByRole('button', { name: /registrar movimiento/i }))
+    expect(onMovimiento).toHaveBeenCalledTimes(1)
+  })
+
+  // Igual que editar: la RLS solo deja escribir en el almacen propio, asi que
+  // ofrecerlo sobre lo ajeno seria ofrecer un error.
+  test('sobre lo ajeno no se ofrece registrar', () => {
+    pintar({ onMovimiento: vi.fn(), almacenPropio: 2 })
+    expect(screen.queryByRole('button', { name: /registrar movimiento/i })).not.toBeInTheDocument()
+  })
 })

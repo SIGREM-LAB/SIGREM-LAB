@@ -1,7 +1,8 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import { supabase } from '@/lib/supabase'
-import type { Enums, Json } from '@/types/database'
+import type { Enums, Json, TablesInsert } from '@/types/database'
+import type { Campo } from './campos'
 import type { Filtros } from './filtros'
 import type { ResumenAlmacen } from './menu'
 import type { Movimiento } from './PanelExistencia'
@@ -135,6 +136,15 @@ export function useMovimientos(existenciaId: number | null) {
  * los de reactivo (CAS y rombo NFPA), los de equipo y los de materia biológica.
  * Van en su propia consulta porque traerlos en el listado sería pedir tres
  * tablas más por cada uno de los 25 renglones de la página.
+ *
+ * Trae además el mínimo y el laboratorio, que no están en `existencia_listado`
+ * y sí en la ficha del diálogo de movimientos. Van aquí y no en la vista por lo
+ * mismo que el resto: son dos columnas por fila abierta, no por página.
+ *
+ * El laboratorio viaja como ID y no como recurso embebido: su FK es COMPUESTA
+ * —`(laboratorio_id, almacen_id)`, que es lo que impide apuntar al laboratorio
+ * de otra bodega— y PostgREST no resuelve un embebido por una llave así. El
+ * nombre sale de `useLaboratorios`, que la pantalla ya pide para el selector.
  */
 export function useDetalleExistencia(existenciaId: number | null) {
   return useQuery({
@@ -148,6 +158,7 @@ export function useDetalleExistencia(existenciaId: number | null) {
            mantenimiento, fecha_chequeo, metodo_conservacion, temperatura,
            fecha_recoleccion, fecha_preparacion, responsable_muestra,
            peso_frasco_vacio, peso_total, fecha_adquisicion, fecha_caducidad, observaciones,
+           cantidad_minima, laboratorio_id,
            articulo:articulo_id (
              familia,
              articulo_reactivo ( cas, estado_fisico, color_almacenaje, tiene_hoja_seguridad,
@@ -309,18 +320,20 @@ export function useExistenciaResumen(existenciaId: number | null) {
 }
 
 /**
- * Las llaves de todo lo que deja de ser cierto cuando un renglón entra al
- * inventario. Van juntas porque las dos mutaciones de abajo tienen que
- * invalidar lo mismo, y repartirlas fue siempre el camino a que una de ellas se
- * olvide de una.
+ * Las llaves de todo lo que deja de ser cierto cuando el inventario crece: el
+ * listado y las dos cabeceras de cifras. Van juntas porque toda mutación que
+ * mueva existencias tiene que invalidar lo mismo, y repartirlas fue siempre el
+ * camino a que una de ellas se olvide de una.
  */
-const AFECTADAS = [
-  ['pendientes'],
-  ['resumen-pendientes'],
-  ['existencias'],
-  ['resumen-estados'],
-  ['resumen-almacenes'],
-]
+const INVENTARIO = [['existencias'], ['resumen-estados'], ['resumen-almacenes']]
+
+/**
+ * Lo anterior más la cola de depuración, que solo cambia cuando el renglón que
+ * entró al inventario salía de ella. El alta desde la pantalla no toca esas dos
+ * llaves y por eso no las invalida: pedirlas de nuevo serían dos viajes para
+ * volver a recibir el mismo número.
+ */
+const AFECTADAS = [['pendientes'], ['resumen-pendientes'], ...INVENTARIO]
 
 /**
  * El visto bueno que sí carga. Llama a `public.resolver_pendiente`, que crea la
@@ -405,6 +418,294 @@ export function useAlmacenes() {
         .order('clave')
       if (error) throw error
       return data
+    },
+  })
+}
+
+/**
+ * Los campos del alta para un almacén y un tipo. La pantalla los pinta; no los
+ * decide.
+ *
+ * La `queryKey` lleva las dos variables: sin la clasificación, cambiar de tipo
+ * en el diálogo devolvería los campos del tipo anterior, que es justo el error
+ * que el formulario dinámico no puede permitirse.
+ *
+ * `staleTime` largo porque un perfil de captura cambia cuando un admin lo
+ * cambia, y eso ocurre casi nunca.
+ */
+export function useFormulario(
+  almacenId: number,
+  clasificacion: Enums<'clasificacion_articulo'> | null,
+) {
+  return useQuery({
+    queryKey: ['formulario', almacenId, clasificacion],
+    enabled: clasificacion !== null,
+    staleTime: 60 * 60 * 1000,
+    queryFn: async (): Promise<Campo[]> => {
+      const { data, error } = await supabase.rpc('formulario', {
+        p_almacen: almacenId,
+        p_clasificacion: clasificacion as Enums<'clasificacion_articulo'>,
+      })
+      if (error) throw error
+      return data
+    },
+  })
+}
+
+/**
+ * Los laboratorios de un almacén, para el campo `laboratorio` del alta.
+ *
+ * Es el único `seleccion` cuyas opciones no vienen en `campo_capturable`: su
+ * propia ayuda lo dice, «las opciones salen de la tabla laboratorio del
+ * almacén». Se piden aparte y solo cuando el perfil incluye ese campo.
+ */
+export function useLaboratorios(almacenId: number, habilitado: boolean) {
+  return useQuery({
+    queryKey: ['laboratorios', almacenId],
+    enabled: habilitado,
+    staleTime: 60 * 60 * 1000,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('laboratorio')
+        .select('id, nombre')
+        .eq('almacen_id', almacenId)
+        .eq('activo', true)
+        .order('nombre')
+      if (error) throw error
+      return data
+    },
+  })
+}
+
+/**
+ * Buscar antes de crear. Alimenta el «¿te refieres a alguno de estos?» que va
+ * bajo el nombre del artículo.
+ *
+ * No bloquea el alta: sugiere. Quien captura tiene el frasco en la mano y sabe
+ * si su «Zinc en polvo 93%» es el «Zinc en polvo 95%» que ya está cargado —no
+ * lo es, y el esquema dice que son dos artículos—. Lo que esta lista evita es
+ * el duplicado por errata, que es el caso común.
+ *
+ * Menos de tres letras no se pregunta: con una o dos, la similitud por
+ * trigramas devuelve medio catálogo.
+ */
+export function useBuscarArticulo(termino: string) {
+  const limpio = termino.trim()
+
+  return useQuery({
+    queryKey: ['buscar-articulo', limpio],
+    enabled: limpio.length >= 3,
+    staleTime: 5 * 60 * 1000,
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc('buscar_articulo', {
+        termino: limpio,
+        maximo: 5,
+      })
+      if (error) throw error
+      return data
+    },
+  })
+}
+
+/**
+ * El alta. Una sola llamada a `crear_existencia`, que en la base crea el
+ * artículo si hace falta, su ficha normativa, la ubicación, la existencia y el
+ * movimiento de `carga_inicial` —todo en una transacción—.
+ *
+ * No son cinco `insert` encadenados desde aquí a propósito: encadenados, una
+ * caída de red entre el tercero y el cuarto deja un artículo creado sin
+ * existencia, o una existencia en cero porque el movimiento no llegó. Una
+ * función es una transacción; o pasa todo o no pasa nada.
+ *
+ * `almacen_id` se manda y la RLS lo comprueba: `crear_existencia` es SECURITY
+ * INVOKER, así que mandar el de otro almacén falla como debe.
+ */
+export function useCrearExistencia() {
+  const qc = useQueryClient()
+
+  return useMutation({
+    mutationFn: async (v: {
+      almacenId: number
+      clasificacion: Enums<'clasificacion_articulo'>
+      valores: Record<string, string | boolean>
+    }) => {
+      const { data, error } = await supabase.rpc('crear_existencia', {
+        p_almacen: v.almacenId,
+        p_clasificacion: v.clasificacion,
+        p_valores: v.valores,
+      })
+      if (error) throw error
+
+      // `returns table` llega como arreglo aunque sea un solo renglón.
+      return data[0] ?? null
+    },
+    onSuccess: () => {
+      for (const queryKey of INVENTARIO) qc.invalidateQueries({ queryKey })
+    },
+  })
+}
+
+/**
+ * Registrar un movimiento: entrada, consumo, merma o ajuste de conteo.
+ *
+ * Un solo `insert`, y basta. `almacen_id`, `cantidad_antes`, `cantidad_despues`
+ * y `usuario_id` los escribe `private.aplicar_movimiento`, que además mueve el
+ * saldo y recalcula el estado; mandarlos desde aquí no serviría porque los
+ * sobrescribe. La RLS de `movimiento` se evalúa DESPUÉS del trigger, sobre la
+ * fila final, así que comprueba el almacén real de la existencia y no lo que
+ * mande el cliente.
+ *
+ * `ocurrido_en` solo se manda cuando se eligió un día pasado: tiene
+ * `default now()` y mandar el de hoy lo dejaría a las 00:00.
+ */
+export function useRegistrarMovimiento() {
+  const qc = useQueryClient()
+
+  return useMutation({
+    mutationFn: async (v: {
+      existenciaId: number
+      tipo: Enums<'tipo_movimiento'>
+      cantidad: number
+      motivo: string | null
+      ocurridoEn: string | null
+    }) => {
+      const fila = {
+        existencia_id: v.existenciaId,
+        tipo: v.tipo,
+        cantidad: v.cantidad,
+        motivo: v.motivo,
+        ...(v.ocurridoEn === null ? {} : { ocurrido_en: v.ocurridoEn }),
+      } satisfies Partial<TablesInsert<'movimiento'>>
+
+      // El único `as` del módulo, y es de las cuatro columnas que NO se mandan:
+      // `almacen_id`, `cantidad_antes`, `cantidad_despues` y `usuario_id` las
+      // escribe el trigger BEFORE INSERT. `supabase gen types` no ve triggers,
+      // así que al ser NOT NULL sin default las marca obligatorias. Mandarlas
+      // sería peor que este `as`: el trigger las sobrescribe, y poder mandar
+      // `usuario_id` es poder firmar un movimiento en nombre de otro.
+      const { error } = await supabase
+        .from('movimiento')
+        .insert(fila as unknown as TablesInsert<'movimiento'>)
+      if (error) throw error
+    },
+    onSuccess: (_nada, v) => {
+      for (const queryKey of INVENTARIO) qc.invalidateQueries({ queryKey })
+      qc.invalidateQueries({ queryKey: ['movimientos', v.existenciaId] })
+      qc.invalidateQueries({ queryKey: ['detalle-existencia', v.existenciaId] })
+      qc.invalidateQueries({ queryKey: ['valores-existencia', v.existenciaId] })
+    },
+  })
+}
+
+/**
+ * Mover el frasco a otro laboratorio.
+ *
+ * NO es un movimiento y por eso no pasa por `movimiento`: la cantidad no
+ * cambia, y uno de cero lo prohíbe `movimiento_cantidad_no_cero`. Es un UPDATE
+ * de una columna que el `grant update` por columnas ya permite, con la FK
+ * compuesta `(laboratorio_id, almacen_id)` impidiendo por construcción que
+ * apunte al laboratorio de otra bodega.
+ *
+ * La consecuencia —que este cambio no deja renglón en la bitácora— se dice en
+ * el diálogo, donde se decide.
+ */
+export function useCambiarLaboratorio() {
+  const qc = useQueryClient()
+
+  return useMutation({
+    mutationFn: async (v: { existenciaId: number; laboratorioId: number }) => {
+      const { data, error } = await supabase
+        .from('existencia')
+        .update({ laboratorio_id: v.laboratorioId })
+        .eq('id', v.existenciaId)
+        // Devolver la fila es lo que delata el caso silencioso: la RLS niega
+        // por USING, que esconde el renglón en vez de explotar, así que sin
+        // esto un intento sobre otro almacén se vería igual que un cambio bueno.
+        .select('id')
+      if (error) throw error
+      if (data.length === 0) {
+        throw new Error('No se pudo mover: la existencia pertenece a otro almacén')
+      }
+    },
+    onSuccess: (_nada, v) => {
+      for (const queryKey of INVENTARIO) qc.invalidateQueries({ queryKey })
+      qc.invalidateQueries({ queryKey: ['detalle-existencia', v.existenciaId] })
+      qc.invalidateQueries({ queryKey: ['valores-existencia', v.existenciaId] })
+    },
+  })
+}
+
+/**
+ * Lo que hoy vale cada campo del perfil, para precargar la edición.
+ *
+ * Llega llaveado por `campo` —el mismo vocabulario con el que se guarda—, así
+ * que la pantalla no necesita un diccionario de columnas en TypeScript que haya
+ * que recordar actualizar cada vez que se agrega un campo. Esa traducción vive
+ * en `valores_existencia`, en SQL, junto al esquema que la puede contradecir.
+ *
+ * Sin `staleTime`: se pide cada vez que se abre el diálogo. Es justo el dato que
+ * otra persona pudo haber cambiado desde la última vez que se miró, y editar
+ * sobre una copia vieja es reescribir lo que el otro acaba de corregir.
+ */
+export function useValoresExistencia(existenciaId: number | null) {
+  return useQuery({
+    queryKey: ['valores-existencia', existenciaId],
+    enabled: existenciaId !== null,
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc('valores_existencia', {
+        p_existencia: existenciaId as number,
+      })
+      if (error) throw error
+
+      // La función devuelve un objeto JSON; el tipo generado dice `Json`, que
+      // también admite arreglo y escalar. Se comprueba en vez de afirmarlo con
+      // un `as`: lo que llega es de la red.
+      return data !== null && typeof data === 'object' && !Array.isArray(data) ? data : {}
+    },
+  })
+}
+
+/**
+ * La corrección. Una sola llamada a `actualizar_existencia`, que en la base
+ * escribe el frasco, resuelve su ubicación y —si lo contado difiere del saldo—
+ * registra el ajuste, todo en una transacción.
+ *
+ * No es un `update` desde el cliente a propósito. Serían tres viajes: la fila,
+ * la ubicación —que hay que resolver o crear— y el movimiento del ajuste; una
+ * caída de red entre el segundo y el tercero deja el frasco en su anaquel nuevo
+ * con el saldo viejo. Además, el filtro por perfil quedaría solo del lado de la
+ * pantalla, que es exactamente lo que los perfiles de captura vienen a evitar.
+ */
+export function useActualizarExistencia() {
+  const qc = useQueryClient()
+
+  return useMutation({
+    mutationFn: async (v: {
+      existenciaId: number
+      valores: Record<string, string | boolean>
+      motivo: string | null
+    }) => {
+      const { data, error } = await supabase.rpc('actualizar_existencia', {
+        p_existencia: v.existenciaId,
+        p_valores: v.valores,
+        // `undefined` y no `null`: el argumento es opcional en la firma, y
+        // omitirlo deja el `default null` de la función, que es lo mismo.
+        p_motivo: v.motivo ?? undefined,
+      })
+      if (error) throw error
+
+      // `returns table` llega como arreglo aunque sea un solo renglón.
+      return data[0] ?? null
+    },
+    onSuccess: (_fila, v) => {
+      for (const queryKey of INVENTARIO) qc.invalidateQueries({ queryKey })
+
+      // Las tres que hablan de ESTA existencia: el historial —donde acaba de
+      // aparecer el ajuste—, los campos del tipo que pinta el panel, y lo que
+      // precarga el propio diálogo.
+      qc.invalidateQueries({ queryKey: ['movimientos', v.existenciaId] })
+      qc.invalidateQueries({ queryKey: ['detalle-existencia', v.existenciaId] })
+      qc.invalidateQueries({ queryKey: ['valores-existencia', v.existenciaId] })
     },
   })
 }
