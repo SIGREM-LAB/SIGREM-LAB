@@ -110,11 +110,10 @@ export function SoloAdmin() {
  * almacén asignado —admin y consulta, cuyo ámbito es la Unidad entera— no tiene
  * ahí nada que ver, y se le manda a Inventario general, que es su inventario.
  *
- * Como `SoloAdmin`, esto es comodidad y no seguridad: la RLS deja leer las
- * cuatro bodegas a cualquiera con sesión, y ésa es la decisión. Lo que la
- * guardia compra es que la pantalla no se monte nunca sin el dato del que
- * depende, y por eso `PaginaInventario` puede dar por hecho que hay almacén en
- * vez de reajustar sus filtros cuando el perfil aterriza.
+ * Lo que la guardia compra es que la pantalla no se monte nunca sin el dato del
+ * que depende, y por eso `PaginaInventario` puede dar por hecho que hay almacén
+ * en vez de reajustar sus filtros cuando el perfil aterriza. La RLS es la que
+ * de verdad oculta el inventario ajeno al responsable.
  */
 export function ConAlmacenPropio() {
   const { data: perfil, isPending, isError } = usePerfil()
@@ -134,6 +133,37 @@ export function ConAlmacenPropio() {
 
   if (!perfil?.almacen) {
     return <Navigate to="/inventario-general" replace />
+  }
+
+  return <Outlet />
+}
+
+/**
+ * Inventario general es la Unidad entera. Quien tiene almacén propio —el
+ * responsable— no entra: su inventario es el suyo, y la decisión administrativa
+ * es que no consulte los demás. Se le manda a `/inventario`.
+ *
+ * Como `SoloAdmin`, esto es comodidad. Lo que de verdad esconde las otras
+ * bodegas es la RLS de `existencia`.
+ */
+export function SinAlmacenPropio() {
+  const { data: perfil, isPending, isError } = usePerfil()
+
+  if (isPending) {
+    return <Aviso icono="mdi:warehouse" texto="Comprobando tu almacén…" />
+  }
+
+  if (isError) {
+    return (
+      <Aviso
+        icono="mdi:cloud-off-outline"
+        texto="No se pudo comprobar tu perfil. Revisa la conexión y vuelve a cargar la página."
+      />
+    )
+  }
+
+  if (perfil?.almacen) {
+    return <Navigate to="/inventario" replace />
   }
 
   return <Outlet />

@@ -14,7 +14,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 
-select plan(150);
+select plan(155);
 
 
 -- ---------------------------------------------------------------------------
@@ -81,18 +81,18 @@ select is(
 
 
 -- ---------------------------------------------------------------------------
--- 2-6. Existencias: leo todo, escribo lo mio
+-- 2-6. Existencias: leo lo mio, escribo lo mio
 -- ---------------------------------------------------------------------------
 select pg_temp.como('n3@uaeh.local');
 
 -- Se cuentan LOS FIXTURES, no la tabla entera. Contar todo solo funciona con la
 -- base recien reseteada: en cuanto el ETL carga renglones reales -o en cuanto
 -- alguien captura uno- el numero cambia y la prueba miente sobre lo que probaba.
--- Lo que importa aqui es que las DOS filas se vean: la de N3 y la de N4.
+-- Decision administrativa: el responsable ya no ve el inventario ajeno.
 select is(
   (select count(*)::int from public.existencia where id in (900001, 900002)),
-  2,
-  'El responsable de N3 lee las existencias de todos los almacenes'
+  1,
+  'El responsable de N3 solo lee las existencias de su almacen'
 );
 
 select lives_ok(
@@ -110,17 +110,38 @@ select throws_ok(
 );
 
 -- El UPDATE no truena: la fila de N4 simplemente no es visible para el USING
--- de la politica, asi que afecta cero filas. Por eso hay que comprobar el dato.
+-- de la politica, asi que afecta cero filas. Por eso hay que comprobar el dato
+-- como postgres: el responsable ya ni siquiera la lee.
 select lives_ok(
   $$ update public.existencia set marca = 'CAMBIADA' where id = 900002 $$,
   'Editar una existencia ajena no lanza error: afecta cero filas'
 );
+
+select pg_temp.como_postgres();
 
 select is(
   (select marca from public.existencia where id = 900002),
   'MEYER',
   'La existencia de N4 quedo intacta pese al UPDATE del responsable de N3'
 );
+
+select pg_temp.como('lectura@uaeh.local');
+
+select is(
+  (select count(*)::int from public.existencia where id in (900001, 900002)),
+  2,
+  'El usuario de consulta lee las existencias de todos los almacenes'
+);
+
+select pg_temp.como('admin@uaeh.local');
+
+select is(
+  (select count(*)::int from public.existencia where id in (900001, 900002)),
+  2,
+  'El admin lee las existencias de todos los almacenes'
+);
+
+select pg_temp.como('n3@uaeh.local');
 
 
 -- ---------------------------------------------------------------------------
@@ -165,6 +186,16 @@ select is(
   'N3',
   'El trigger impone almacen_id desde la existencia, ignorando el del cliente'
 );
+
+select pg_temp.como('n4@uaeh.local');
+
+select is(
+  (select count(*)::int from public.movimiento where existencia_id = 900001),
+  0,
+  'El responsable de N4 no lee los movimientos de N3'
+);
+
+select pg_temp.como('n3@uaeh.local');
 
 
 -- ---------------------------------------------------------------------------
@@ -530,7 +561,7 @@ select pg_temp.como_postgres();
 -- 43-50. Renglones pendientes de revision
 -- ---------------------------------------------------------------------------
 -- La tabla que aparta lo que el cargador no puede resolver solo. Se rige por
--- las mismas reglas que `existencia`: leo todo, escribo lo mio. Lo propio de
+-- las mismas reglas que `existencia`: leo lo mio, escribo lo mio. Lo propio de
 -- aqui es que `revisado_por` la pone la base, no el cliente: es la firma de
 -- quien dio el visto bueno.
 insert into public.carga_pendiente
@@ -550,9 +581,27 @@ select pg_temp.como('n3@uaeh.local');
 
 select is(
   (select count(*)::int from public.carga_pendiente where id in (900001, 900002)),
-  2,
-  'El responsable de N3 lee los pendientes de todos los almacenes'
+  1,
+  'El responsable de N3 solo lee los pendientes de su almacen'
 );
+
+select pg_temp.como('lectura@uaeh.local');
+
+select is(
+  (select count(*)::int from public.carga_pendiente where id in (900001, 900002)),
+  2,
+  'El usuario de consulta lee los pendientes de todos los almacenes'
+);
+
+select pg_temp.como('admin@uaeh.local');
+
+select is(
+  (select count(*)::int from public.carga_pendiente where id in (900001, 900002)),
+  2,
+  'El admin lee los pendientes de todos los almacenes'
+);
+
+select pg_temp.como('n3@uaeh.local');
 
 select lives_ok(
   $$ insert into public.carga_pendiente
@@ -598,17 +647,22 @@ select is(
 );
 
 -- Ajeno: el USING de la politica no lo ve, asi que afecta cero filas y no
--- truena. Por eso se comprueba el dato, no la ausencia de error.
+-- truena. Por eso se comprueba el dato como postgres: el responsable ya ni
+-- siquiera lee el pendiente de N4.
 select lives_ok(
   $$ update public.carga_pendiente set estado = 'descartado' where id = 900002 $$,
   'Revisar un pendiente ajeno no lanza error: afecta cero filas'
 );
+
+select pg_temp.como_postgres();
 
 select is(
   (select estado from public.carga_pendiente where id = 900002),
   'pendiente'::public.estado_pendiente,
   'El pendiente de N4 sigue sin revisar pese al UPDATE del responsable de N3'
 );
+
+select pg_temp.como('n3@uaeh.local');
 
 -- `fila` es el hallazgo del cargador, no un campo de la pantalla. El revoke por
 -- columna es lo que lo protege, y sin el revoke a nivel tabla que va antes no

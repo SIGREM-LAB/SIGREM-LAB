@@ -41,11 +41,11 @@ export type ItemMenu = {
  *
  * `rol` llega en `undefined` mientras el perfil todavia se esta cargando.
  *
- * `tieneAlmacen` decide si aparece Inventario, que es la pantalla de UNA bodega:
- * la de quien entra. Admin y consulta no tienen ninguna asignada -su ambito es
- * la Unidad entera-, asi que su inventario es Inventario general y ese es el que
- * ven. No es una restriccion de permisos: es que la otra pantalla no tendria
- * ningun almacen que ensenarles.
+ * `tieneAlmacen` decide cuál de las dos pantallas de inventario aparece.
+ * Inventario es UNA bodega —la de quien entra— y solo el responsable tiene
+ * una. Inventario general es la Unidad entera, y el responsable ya no la ve:
+ * su ámbito es el suyo. Admin y consulta no tienen bodega asignada, así que
+ * la general es su inventario.
  */
 export function menuDeNavegacion(
   rol: Enums<'rol_usuario'> | undefined,
@@ -73,19 +73,17 @@ export function menuDeNavegacion(
             disponible: true,
           },
         ]
-      : []),
-    {
-      // Junto a Inventario y no en administración: son hermanas y se leen
-      // juntas. La ven los tres roles porque la RLS abre la lectura de las
-      // cuatro bodegas a propósito, para el préstamo entre almacenes.
-      ruta: '/inventario-general',
-      etiqueta: 'Inventario general',
-      icono: 'mdi:warehouse',
-      grupo: 'operacion',
-      descripcion: 'Buscar en los cuatro almacenes de la Unidad',
-      color: 'institucional.main',
-      disponible: true,
-    },
+      : [
+          {
+            ruta: '/inventario-general',
+            etiqueta: 'Inventario general',
+            icono: 'mdi:warehouse',
+            grupo: 'operacion' as const,
+            descripcion: 'Buscar en los cuatro almacenes de la Unidad',
+            color: 'institucional.main',
+            disponible: true,
+          },
+        ]),
     {
       ruta: '/practicas',
       etiqueta: 'Prácticas',

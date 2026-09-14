@@ -3,7 +3,13 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { beforeEach, describe, expect, test, vi } from 'vitest'
 
-import { ConAlmacenPropio, RutaProtegida, SoloAdmin, SoloInvitados } from './RutaProtegida'
+import {
+  ConAlmacenPropio,
+  RutaProtegida,
+  SinAlmacenPropio,
+  SoloAdmin,
+  SoloInvitados,
+} from './RutaProtegida'
 import { ContextoSesion, type EstadoSesion } from './contexto'
 
 const { usePerfil } = vi.hoisted(() => ({
@@ -385,8 +391,8 @@ describe('ConAlmacenPropio', () => {
   })
 
   // Admin y consulta no tienen bodega: su ambito es la Unidad entera, y su
-  // inventario es el general. No es una restriccion de permisos -la RLS les deja
-  // leerlo todo-, es que Inventario no tendria ningun almacen que ensenarles.
+  // inventario es el general. Inventario no tendria ningun almacen que
+  // ensenarles.
   test('manda al inventario general a quien no tiene almacen', () => {
     montarInventario({ almacen: null })
 
@@ -405,6 +411,72 @@ describe('ConAlmacenPropio', () => {
 
   test('si el perfil no se puede leer, lo dice en vez de quedarse en blanco', () => {
     montarInventario({ isError: true })
+
+    expect(screen.getByText(/No se pudo comprobar tu perfil/)).toBeInTheDocument()
+  })
+})
+
+function montarInventarioGeneral(perfil: {
+  isPending?: boolean
+  isError?: boolean
+  almacen?: { id: number; clave: string; nombre: string } | null
+}) {
+  usePerfil.mockReturnValue({
+    isPending: perfil.isPending ?? false,
+    isError: perfil.isError ?? false,
+    error: null,
+    data: perfil.isPending || perfil.isError
+      ? undefined
+      : { rol: perfil.almacen ? 'responsable' : 'admin', almacen: perfil.almacen ?? null },
+  })
+
+  const cliente = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+
+  return render(
+    <QueryClientProvider client={cliente}>
+      <ContextoSesion.Provider value={{ estado: 'con-sesion', usuarioId: 'u-1' }}>
+        <MemoryRouter initialEntries={['/inventario-general']}>
+          <Routes>
+            <Route path="/inventario" element={<p>Inventario de tu almacen</p>} />
+
+            <Route element={<SinAlmacenPropio />}>
+              <Route path="/inventario-general" element={<p>Inventario general</p>} />
+            </Route>
+          </Routes>
+        </MemoryRouter>
+      </ContextoSesion.Provider>
+    </QueryClientProvider>,
+  )
+}
+
+describe('SinAlmacenPropio', () => {
+  beforeEach(() => {
+    usePerfil.mockReset()
+  })
+
+  test('deja pasar a quien no tiene almacen asignado', () => {
+    montarInventarioGeneral({ almacen: null })
+
+    expect(screen.getByText('Inventario general')).toBeInTheDocument()
+  })
+
+  // El responsable no consulta las otras bodegas: su inventario es el suyo.
+  test('manda al inventario propio a quien tiene almacen', () => {
+    montarInventarioGeneral({ almacen: { id: 3, clave: 'LUM', nombre: 'Laboratorio LUM' } })
+
+    expect(screen.getByText('Inventario de tu almacen')).toBeInTheDocument()
+    expect(screen.queryByText('Inventario general')).not.toBeInTheDocument()
+  })
+
+  test('mientras el perfil carga no decide nada', () => {
+    montarInventarioGeneral({ isPending: true })
+
+    expect(screen.getByText('Comprobando tu almacén…')).toBeInTheDocument()
+    expect(screen.queryByText('Inventario de tu almacen')).not.toBeInTheDocument()
+  })
+
+  test('si el perfil no se puede leer, lo dice en vez de quedarse en blanco', () => {
+    montarInventarioGeneral({ isError: true })
 
     expect(screen.getByText(/No se pudo comprobar tu perfil/)).toBeInTheDocument()
   })

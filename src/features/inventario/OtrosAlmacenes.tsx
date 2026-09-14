@@ -26,10 +26,8 @@ type Props = {
  * enlace de verdad, así que se abre en pestaña nueva con el clic de en medio y
  * se recorre con Tab, cosa que un `div` con `onClick` no hace.
  *
- * A la general y no a Inventario, sin excepciones por rol: Inventario es la
- * bodega de quien entra, y ninguno de estos renglones lo es —para un responsable
- * son las OTRAS tres, y admin y consulta no tienen ninguna—. La regla queda en
- * una línea en vez de en cuatro casos.
+ * Solo lo pinta quien ve la Unidad —admin y consulta—. El responsable no llega
+ * aquí: su inventario es el suyo.
  */
 export function OtrosAlmacenes({ almacenes, titulo, subtitulo }: Props) {
   return (

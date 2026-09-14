@@ -78,12 +78,9 @@ function sumar(resumenes: ResumenAlmacen[]): Portada | null {
 /**
  * Parte los almacenes en el bloque grande y la lista de al lado.
  *
- * Un responsable ve el suyo arriba, con sus acciones, y los otros tres como
- * lista de consulta: es la forma del permiso, no una preferencia de diseño.
- *
- * Admin y consulta no tienen almacén propio. En vez de una pantalla distinta,
- * el bloque grande pasa a ser la suma de la Unidad y la lista los muestra los
- * cuatro: mismas piezas, mismos números, sin un segundo camino que mantener.
+ * Un responsable ve el suyo arriba. Admin y consulta, la suma de la Unidad.
+ * Los `otros` salen siempre; quien no debe consultarlos —el responsable—
+ * simplemente no los pinta.
  */
 export function repartirAlmacenes(
   resumenes: ResumenAlmacen[],

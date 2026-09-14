@@ -2,16 +2,15 @@ import { describe, expect, test } from 'vitest'
 
 import { menuDeNavegacion } from './navegacion'
 
-const ROLES = ['admin', 'responsable', 'consulta'] as const
-
 describe('menuDeNavegacion', () => {
-  // La RLS abre la lectura de las cuatro bodegas a proposito, para el prestamo
-  // entre almacenes. Esconder esta pantalla no protegeria nada -la anon key va
-  // dentro del binario- y le quitaria a esa consulta su unico camino.
-  test('el inventario general lo ven los tres roles', () => {
-    for (const rol of ROLES) {
-      expect(menuDeNavegacion(rol, false).map((i) => i.ruta)).toContain('/inventario-general')
-    }
+  // El responsable trabaja solo su bodega. Admin y consulta no tienen ninguna,
+  // asi que la general es su inventario.
+  test('el inventario general lo ven admin y consulta, no el responsable', () => {
+    expect(menuDeNavegacion('admin', false).map((i) => i.ruta)).toContain('/inventario-general')
+    expect(menuDeNavegacion('consulta', false).map((i) => i.ruta)).toContain('/inventario-general')
+    expect(menuDeNavegacion('responsable', true).map((i) => i.ruta)).not.toContain(
+      '/inventario-general',
+    )
   })
 
   // Dejo de ser una pantalla administrativa cuando dejo de ser solo del admin.
@@ -48,12 +47,14 @@ describe('menuDeNavegacion', () => {
   // Un item disponible sin ruta registrada en App.tsx es un enlace roto, y una
   // ruta sin item es una pantalla a la que nadie llega.
   test('inventario, general y practicas estan disponibles; reportes sigue apagado', () => {
-    const items = menuDeNavegacion('responsable', true)
+    const responsable = menuDeNavegacion('responsable', true)
+    const admin = menuDeNavegacion('admin', false)
 
-    expect(items.find((i) => i.ruta === '/inventario')?.disponible).toBe(true)
-    expect(items.find((i) => i.ruta === '/inventario-general')?.disponible).toBe(true)
-    expect(items.find((i) => i.ruta === '/practicas')?.disponible).toBe(true)
-    expect(items.find((i) => i.ruta === '/reportes')?.disponible).toBe(false)
+    expect(responsable.find((i) => i.ruta === '/inventario')?.disponible).toBe(true)
+    expect(responsable.find((i) => i.ruta === '/inventario-general')).toBeUndefined()
+    expect(responsable.find((i) => i.ruta === '/practicas')?.disponible).toBe(true)
+    expect(admin.find((i) => i.ruta === '/inventario-general')?.disponible).toBe(true)
+    expect(admin.find((i) => i.ruta === '/reportes')?.disponible).toBe(false)
   })
 
   test('ninguna ruta se repite', () => {

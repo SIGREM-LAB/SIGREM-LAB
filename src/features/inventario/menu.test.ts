@@ -43,7 +43,7 @@ describe('necesitanAtencion', () => {
 })
 
 describe('repartirAlmacenes', () => {
-  test('un responsable ve el suyo arriba y los otros tres al lado', () => {
+  test('un responsable parte el suyo arriba y los otros tres aparte', () => {
     const { portada, otros } = repartirAlmacenes(CUATRO, 2)
 
     expect(portada?.clave).toBe('N4')

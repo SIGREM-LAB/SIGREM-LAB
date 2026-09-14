@@ -16,6 +16,7 @@ import { PaginaUsuarios } from '@/features/usuarios/PaginaUsuarios'
 import {
   ConAlmacenPropio,
   RutaProtegida,
+  SinAlmacenPropio,
   SoloAdmin,
   SoloInvitados,
 } from '@/features/auth/RutaProtegida'
@@ -67,12 +68,13 @@ export default function App() {
                     <Route path="/inventario" element={<PaginaInventario />} />
                   </Route>
 
-                  {/* Sin guardia de rol: la RLS abre la lectura de los cuatro
-                      almacenes a propósito, para que un responsable pueda
-                      consultar el stock de otra bodega antes de ir a pedirlo
-                      prestado. Esconder la pantalla no protegería nada y le
-                      quitaría a esa consulta su único camino. */}
-                  <Route path="/inventario-general" element={<PaginaInventarioGeneral />} />
+                  {/* Inventario general es la Unidad. El responsable no entra:
+                      su ámbito es el suyo, y la guardia lo manda a /inventario.
+                      Admin y consulta no tienen bodega, así que ésta ES su
+                      inventario. La RLS es la que de verdad oculta lo ajeno. */}
+                  <Route element={<SinAlmacenPropio />}>
+                    <Route path="/inventario-general" element={<PaginaInventarioGeneral />} />
+                  </Route>
                   {/* Ruta propia y no pestaña dentro de /inventario: es otro
                       trabajo (revisar y corregir, no consultar), sale de otra
                       tabla, y sobre todo es enlazable —"ve a depurar tus 337"

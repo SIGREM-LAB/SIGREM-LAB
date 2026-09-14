@@ -4,7 +4,7 @@ import { describe, expect, test } from 'vitest'
 import { AtajosPendientes } from './AtajosPendientes'
 import { menuDeNavegacion } from '@/app/navegacion'
 
-const PENDIENTES = menuDeNavegacion('admin', true).filter((item) => !item.disponible)
+const PENDIENTES = menuDeNavegacion('admin', false).filter((item) => !item.disponible)
 
 describe('AtajosPendientes', () => {
   test('dibuja una tarjeta por pantalla pendiente', () => {

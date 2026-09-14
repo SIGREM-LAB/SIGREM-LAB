@@ -18,15 +18,15 @@ const ALTO_ATAJO = 76
 /**
  * El menú principal: tu almacén primero.
  *
- * La pantalla sigue la forma del permiso y no una preferencia de composición.
- * Se edita uno y se consultan cuatro, así que el propio ocupa el bloque grande
- * con sus acciones y los demás quedan en una lista de consulta al lado.
+ * El responsable ve solo el suyo. Admin y consulta, que no tienen bodega, ven
+ * la Unidad: el bloque grande es la suma y al lado van los cuatro.
  */
 export function PaginaInicio() {
   const { data: perfil } = usePerfil()
   const resumen = useResumenAlmacenes()
 
   const almacenPropio = perfil?.almacen?.id ?? null
+  const soloElSuyo = almacenPropio !== null
 
   const encabezado = (
     <EncabezadoPagina
@@ -48,12 +48,14 @@ export function PaginaInicio() {
         <CuerpoPagina>
           <Stack spacing={2}>
             <Grid container spacing={2}>
-              <Grid size={{ xs: 12, md: 8 }}>
+              <Grid size={{ xs: 12, md: soloElSuyo ? 12 : 8 }}>
                 <Skeleton variant="rounded" height={ALTO_PORTADA} />
               </Grid>
-              <Grid size={{ xs: 12, md: 4 }}>
-                <Skeleton variant="rounded" height={ALTO_PORTADA} />
-              </Grid>
+              {soloElSuyo ? null : (
+                <Grid size={{ xs: 12, md: 4 }}>
+                  <Skeleton variant="rounded" height={ALTO_PORTADA} />
+                </Grid>
+              )}
             </Grid>
 
             <Grid container spacing={2}>
@@ -97,7 +99,7 @@ export function PaginaInicio() {
         <Stack spacing={2}>
           {portada === null ? null : (
             <Grid container spacing={2}>
-              <Grid size={{ xs: 12, md: 8 }}>
+              <Grid size={{ xs: 12, md: portada.propio ? 12 : 8 }}>
                 <TarjetaAlmacen
                   portada={portada}
                   // Sin almacén propio la portada es la suma de la Unidad, y
@@ -106,13 +108,15 @@ export function PaginaInicio() {
                 />
               </Grid>
 
-              <Grid size={{ xs: 12, md: 4 }}>
-                <OtrosAlmacenes
-                  almacenes={otros}
-                  titulo={portada.propio ? 'Otros almacenes' : 'Almacenes'}
-                  subtitulo={portada.propio ? 'Solo consulta' : 'Toda la Unidad'}
-                />
-              </Grid>
+              {portada.propio ? null : (
+                <Grid size={{ xs: 12, md: 4 }}>
+                  <OtrosAlmacenes
+                    almacenes={otros}
+                    titulo="Almacenes"
+                    subtitulo="Toda la Unidad"
+                  />
+                </Grid>
+              )}
             </Grid>
           )}
 
