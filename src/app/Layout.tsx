@@ -96,8 +96,12 @@ function ItemNavegacion({ item, activo }: { item: ItemMenu; activo: boolean }) {
       </ListItemIcon>
       <ListItemText
         primary={item.etiqueta}
-        slotProps={{ primary: { noWrap: true, sx: { fontWeight: activo ? 600 : 500 } } }}
-        sx={{ display: SOLO_ANCHO, m: 0 }}
+        slotProps={{
+          primary: {
+            sx: { fontWeight: activo ? 600 : 500, whiteSpace: 'normal', lineHeight: 1.3 },
+          },
+        }}
+        sx={{ display: SOLO_ANCHO, m: 0, minWidth: 0 }}
       />
       {item.disponible ? null : <EtiquetaPronto />}
     </>
