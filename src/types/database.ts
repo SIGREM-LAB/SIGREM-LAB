@@ -1595,6 +1595,38 @@ export type Database = {
         }
         Returns: string
       }
+      reporte_caducidades: {
+        Args: { p_almacen?: number; p_dias?: number }
+        Returns: {
+          almacen: string
+          articulo: string
+          cantidad: number
+          clasificacion: Database["public"]["Enums"]["clasificacion_articulo"]
+          codigo: string
+          dias_restantes: number
+          estado: Database["public"]["Enums"]["estado_existencia"]
+          fecha_caducidad: string
+          marca: string
+          presentacion: string
+          ubicacion: string
+          unidad: string
+        }[]
+      }
+      reporte_conteo: {
+        Args: { p_almacen?: number; p_con_cantidad?: boolean }
+        Returns: {
+          almacen: string
+          articulo: string
+          cantidad_sistema: number
+          clasificacion: Database["public"]["Enums"]["clasificacion_articulo"]
+          codigo: string
+          descripcion: string
+          marca: string
+          presentacion: string
+          ubicacion: string
+          unidad: string
+        }[]
+      }
       reporte_reposicion: {
         Args: { p_almacen?: number; p_dias?: number }
         Returns: {
