@@ -20,7 +20,7 @@ from etl.rules.validar import Resultado
 CLASIFICACION_POR_HOJA = {
     "Reactivos": "reactivo",
     "Equipos": "equipo",
-    "Materia biológica": "materia_biologica",
+    "Material biológico": "materia_biologica",
 }
 CLASIFICACION_POR_TEXTO = {
     "material": "material", "insumo": "insumo", "equipo": "equipo",
@@ -307,7 +307,7 @@ def escribir_hoja(cur, hoja: Hoja, resultado: Resultado,
                  c.get("riesgo_inflamabilidad"), c.get("riesgo_reactividad"),
                  c.get("peligro_especial"), c.get("implica_peligro")))
 
-        if hoja.nombre == "Materia biológica" and resolucion.creado:
+        if hoja.nombre == "Material biológico" and resolucion.creado:
             cur.execute(
                 "insert into public.articulo_biologico "
                 "  (articulo_id, origen_especie) values (%s, %s) "

@@ -474,6 +474,41 @@ export type Database = {
           },
         ]
       }
+      columna_formato: {
+        Row: {
+          campo: string
+          columna: string
+          hoja: string
+          orden: number
+          tipo: string
+          titulo: string
+        }
+        Insert: {
+          campo: string
+          columna: string
+          hoja: string
+          orden: number
+          tipo?: string
+          titulo: string
+        }
+        Update: {
+          campo?: string
+          columna?: string
+          hoja?: string
+          orden?: number
+          tipo?: string
+          titulo?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "columna_formato_hoja_fkey"
+            columns: ["hoja"]
+            isOneToOne: false
+            referencedRelation: "hoja_formato"
+            referencedColumns: ["hoja"]
+          },
+        ]
+      }
       existencia: {
         Row: {
           almacen_id: number
@@ -625,6 +660,42 @@ export type Database = {
             referencedColumns: ["id", "almacen_id"]
           },
         ]
+      }
+      hoja_formato: {
+        Row: {
+          celda_actualizado: string
+          celda_periodo: string
+          celda_responsable: string
+          clasificacion:
+            | Database["public"]["Enums"]["clasificacion_articulo"]
+            | null
+          fila_encabezado: number
+          hoja: string
+          orden: number
+        }
+        Insert: {
+          celda_actualizado: string
+          celda_periodo: string
+          celda_responsable: string
+          clasificacion?:
+            | Database["public"]["Enums"]["clasificacion_articulo"]
+            | null
+          fila_encabezado: number
+          hoja: string
+          orden: number
+        }
+        Update: {
+          celda_actualizado?: string
+          celda_periodo?: string
+          celda_responsable?: string
+          clasificacion?:
+            | Database["public"]["Enums"]["clasificacion_articulo"]
+            | null
+          fila_encabezado?: number
+          hoja?: string
+          orden?: number
+        }
+        Relationships: []
       }
       laboratorio: {
         Row: {
@@ -1473,6 +1544,16 @@ export type Database = {
         Returns: {
           codigo: string
           id: number
+        }[]
+      }
+      formato_hoja: {
+        Args: { p_hoja: string }
+        Returns: {
+          campo: string
+          columna: string
+          orden: number
+          tipo: string
+          titulo: string
         }[]
       }
       formulario: {

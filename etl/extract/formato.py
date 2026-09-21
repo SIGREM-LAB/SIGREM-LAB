@@ -22,7 +22,7 @@ FILA_ENCABEZADO = {"Reactivos": 9}
 FILA_ENCABEZADO_DEFECTO = 8
 
 HOJAS_DE_DATOS = ("Reactivos", "Insumos", "Material", "Equipos",
-                  "Materia biológica", "Electrónica")
+                  "Material biológico", "Electrónica")
 
 ALMACENES = ("N3", "N4", "LUM", "LE", "HUJ", "ACT")
 
@@ -70,9 +70,23 @@ CAMPOS: dict[str, dict[str, str]] = {
         "mueble": "I", "funcionamiento": "J", "fecha_chequeo": "K",
         "mantenimiento": "L", "observaciones": "M",
     },
-    "Materia biológica": {
-        "articulo": "B", "origen_especie": "C", "cantidad": "D", "unidad": "E",
-        "presentacion": "F", "metodo_conservacion": "G", "temperatura": "H",
+    # Corregido el 21 de septiembre de 2026 contra los libros reales. El mapeo
+    # anterior estaba desfasado una columna de la D a la H y nadie lo noto,
+    # porque la hoja se llamaba «Materia biologica» en HOJAS_DE_DATOS y en los
+    # libros «Material biologico»: al no coincidir el nombre, `leer_libro` la
+    # saltaba y este mapeo no se ejercio nunca. Dos fallos silenciosos que se
+    # tapaban el uno al otro.
+    #
+    # La D, «Grupo taxonomico», se ignora igual que «No.»: el esquema no tiene
+    # donde guardarla -`articulo_biologico` solo lleva `origen_especie`- y
+    # meterla en otra columna seria inventar el dato.
+    #
+    # `temperatura` NO esta: la hoja real no trae esa columna. El mapeo la
+    # esperaba en la H, donde en realidad va el metodo de conservacion.
+    "Material biológico": {
+        "articulo": "B", "origen_especie": "C",
+        "cantidad": "E", "unidad": "F", "presentacion": "G",
+        "metodo_conservacion": "H",
         "fecha_recoleccion": "I", "fecha_preparacion": "J",
         "responsable_muestra": "K", "sub_ubicacion": "L", "mueble": "M",
         "repisa": "N", "observaciones": "O",
@@ -109,7 +123,7 @@ class Hoja:
 
 
 def slug(nombre: str) -> str:
-    """«Materia biológica» → «materia-biologica». Pública: la usa cargar.py."""
+    """«Material biológico» → «material-biologico». Pública: la usa cargar.py."""
     d = unicodedata.normalize("NFD", nombre.lower())
     return "".join(c for c in d if unicodedata.category(c) != "Mn").replace(" ", "-")
 

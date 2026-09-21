@@ -36,15 +36,14 @@ REVIEW = RAIZ / "etl" / "review"
 # global, así que la deduplicación solo se ejercita con varios almacenes juntos.
 ORDEN = ("N3", "N4", "LUM", "LE", "HUJ", "ACT")
 ORDEN_HOJAS = ("Reactivos", "Insumos", "Material", "Equipos",
-               "Materia biológica", "Electrónica")
+               "Material biológico", "Electrónica")
 
 
 def archivos(origen: Path, almacen: str | None = None) -> list[Path]:
     """Los archivos que hay, en orden fijo.
 
-    El emparejamiento es por slug COMPLETO, no por prefijo: «Material» y
-    «Materia biológica» comparten las seis primeras letras y un startswith los
-    cruzaría.
+    El emparejamiento es por slug COMPLETO, no por prefijo: «Material» es
+    prefijo literal de «Material biológico», y un startswith los cruzaría.
     """
     rutas: list[Path] = []
     for clave in ORDEN:
