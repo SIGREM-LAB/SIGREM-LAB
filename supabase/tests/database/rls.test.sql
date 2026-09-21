@@ -14,7 +14,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 
-select plan(158);
+select plan(161);
 
 
 -- ---------------------------------------------------------------------------
@@ -53,6 +53,39 @@ language sql as $$ select id from public.almacen where almacen.clave = $1 $$;
 -- ---------------------------------------------------------------------------
 -- Datos de trabajo (como postgres, sin RLS)
 -- ---------------------------------------------------------------------------
+-- Suplanta a CUALQUIER usuario con ese rol, en vez de a uno por correo.
+--
+-- `como()` busca por correo, y eso solo funciona con el seed local: en el
+-- remoto NO hay usuarios de prueba, porque `datos-iniciales.sql` los excluye a
+-- proposito -meter en produccion seis cuentas con la contrasenia escrita en un
+-- repositorio publico seria abrir seis puertas con llave conocida-. Buscar por
+-- rol hace la prueba portable entre las dos bases, que es lo que permite
+-- verificarla sin Docker.
+create function pg_temp.como_rol(p_rol text, p_clave text default null)
+returns void
+language plpgsql as $$
+declare uid uuid;
+begin
+  perform set_config('role', 'postgres', true);
+
+  select p.id into uid
+  from public.perfil p
+  left join public.almacen al on al.id = p.almacen_id
+  where p.rol::text = p_rol
+    and (p_clave is null or al.clave = p_clave)
+  order by p.id
+  limit 1;
+
+  if uid is null then
+    raise exception 'No hay ningun perfil con rol %', p_rol;
+  end if;
+
+  perform set_config('request.jwt.claims',
+    json_build_object('sub', uid::text, 'role', 'authenticated')::text, true);
+  perform set_config('role', 'authenticated', true);
+end $$;
+
+
 select pg_temp.como_postgres();
 
 insert into public.articulo (id, nombre_canonico, clasificacion, unidad_base, verificado)
@@ -1824,6 +1857,55 @@ select throws_ok(
   null,
   'Un usuario de consulta no registra movimientos en ningún almacén'
 );
+
+-- ---------------------------------------------------------------------------
+-- minimo_articulo: se escribe solo en el almacen propio
+-- ---------------------------------------------------------------------------
+-- Sin claves de almacen en duro: el seed local usa «N3» y el remoto «UCL-N3».
+-- Cada prueba deriva su almacen de `almacen_actual()`, que es la misma fuente
+-- que usa la politica.
+select pg_temp.como_rol('responsable');
+
+select lives_ok(
+  $$ insert into public.minimo_articulo (articulo_id, almacen_id, minimo)
+     values ((select id from public.articulo limit 1),
+             (select private.almacen_actual()), 100)
+     on conflict do nothing $$,
+  'Un responsable define minimos en su propio almacen'
+);
+
+select throws_ok(
+  $$ insert into public.minimo_articulo (articulo_id, almacen_id, minimo)
+     values ((select id from public.articulo limit 1),
+             (select id from public.almacen
+               where id <> (select private.almacen_actual()) limit 1), 100) $$,
+  '42501',
+  null,
+  'Un responsable NO define minimos en el almacen de otro'
+);
+
+-- El remoto no tiene ningun perfil con rol `consulta` -sus 7 usuarios reales
+-- son 5 responsables y 2 admin-, asi que se degrada uno DENTRO de esta
+-- transaccion, que termina en rollback. Es la escritura mas pequena que deja
+-- probar la regla. En local el seed ya trae `lectura@uaeh.local` y este update
+-- no hace nada.
+select pg_temp.como_postgres();
+
+update public.perfil set rol = 'consulta'
+where id = (select id from public.perfil where rol = 'responsable' order by id limit 1)
+  and not exists (select 1 from public.perfil where rol = 'consulta');
+
+select pg_temp.como_rol('consulta');
+
+select throws_ok(
+  $$ insert into public.minimo_articulo (articulo_id, almacen_id, minimo)
+     values ((select id from public.articulo limit 1),
+             (select id from public.almacen limit 1), 100) $$,
+  '42501',
+  null,
+  'Un usuario de consulta no define minimos en ningun almacen'
+);
+
 
 select pg_temp.como_postgres();
 

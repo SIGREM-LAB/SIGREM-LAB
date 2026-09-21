@@ -54,19 +54,29 @@ desde ahí; léelos juntos.
 
 ## Nota sobre verificación en esta máquina
 
-Dos cosas conocidas que cambian el orden de los pasos, no el diseño:
+**No hay Docker y no lo va a haber.** Todo corre contra el proyecto remoto
+`uoufxatsepdcdaxfknjp`. Eso descarta `supabase start`, `supabase db reset`,
+`supabase test db`, `supabase db dump` y `supabase db pull` — los cinco
+levantan contenedores.
 
-- **`supabase test db` no corre sin Docker.** Si Docker Desktop no está
-  levantado, las pruebas pgTAP se verifican contra el remoto envolviéndolas en
-  `begin; ... rollback;` — que es como ya están escritas ambos archivos.
-- **`pnpm gen:types` lee el esquema local** (`--linked` apunta al proyecto
-  vinculado) mientras la app apunta al remoto. Una migración no aparece en
-  `src/types/database.ts` hasta que se aplica donde `gen:types` la lea. Si
-  `typecheck` se queja de una tabla o función que acabas de crear, ese es el
-  motivo: aplica la migración antes de volver a generar.
-- **La conexión al remoto estaba dando timeout** el 21 de septiembre de 2026
-  (`execute_sql` colgaba aunque el proyecto reportara `ACTIVE_HEALTHY`).
-  Confírmala antes de empezar la Tarea 1.
+Lo que **sí** funciona:
+
+| Necesidad | Herramienta |
+|---|---|
+| Aplicar migraciones | `pnpm supabase db push` (conexión directa, sin Docker) |
+| Ver el historial | `pnpm supabase migration list` |
+| Ejecutar SQL y pruebas pgTAP | `psycopg` desde Python, que ya está instalado y es lo que usa el ETL (`etl/db.py`) |
+| Generar tipos | `pnpm gen:types` — lee del proyecto vinculado, así que **primero se empuja y después se genera** |
+
+Las pruebas pgTAP se corren contra el remoto envueltas en `begin; … rollback;`,
+que es como ya están escritos ambos archivos: no dejan rastro.
+
+> **Ojo con el servidor MCP de Supabase.** El 21 de septiembre de 2026 estaba
+> apuntando al proyecto `akpoxpdfgyjuszqcbskv`, de **otra cuenta**, y daba
+> timeout en cada consulta. El proyecto de SIGREM es `uoufxatsepdcdaxfknjp`,
+> que es al que están vinculados el CLI y el `.env` de la app. Cualquier dato
+> que el MCP devuelva sobre «la base» hay que verificarlo contra ese ref antes
+> de creerlo.
 
 ---
 
@@ -829,16 +839,13 @@ begin
   end if;
 
   return query
-  with gasto as (
-    select m.almacen_id, e.articulo_id, sum(-m.cantidad) as consumo
-    from public.movimiento m
-    join public.existencia e on e.id = m.existencia_id
-    where m.tipo in ('consumo', 'merma')
-      and m.ocurrido_en >= now() - make_interval(days => p_dias)
-      and (p_almacen is null or m.almacen_id = p_almacen)
-    group by m.almacen_id, e.articulo_id
-  ),
-  stock as (
+  -- Sale de `existencia` y NO de `movimiento`. Arrancar en el consumo parecia
+  -- natural -la lista de trabajo ordenada por lo que mas se gasta- y el censo
+  -- del 21 de septiembre lo desmintio: 2,525 movimientos y solo 3 que no son
+  -- `carga_inicial`. Una hoja que arranque en `gasto` trae tres renglones, y el
+  -- mecanismo inventado para resolver el arranque en frio necesitaria, el
+  -- mismo, una historia que todavia no existe.
+  with stock as (
     select e.articulo_id, e.almacen_id,
            coalesce(sum(e.cantidad) filter (
              where e.estado not in ('contaminado', 'mantenimiento', 'baja')
@@ -846,20 +853,34 @@ begin
                     or e.fecha_caducidad >= current_date)), 0) as vigente,
            count(*) as envases
     from public.existencia e
+    where e.estado <> 'baja'
+      and (p_almacen is null or e.almacen_id = p_almacen)
     group by e.articulo_id, e.almacen_id
+  ),
+  gasto as (
+    select m.almacen_id, e.articulo_id, sum(-m.cantidad) as consumo
+    from public.movimiento m
+    join public.existencia e on e.id = m.existencia_id
+    where m.tipo in ('consumo', 'merma')
+      and m.ocurrido_en >= now() - make_interval(days => p_dias)
+      and (p_almacen is null or m.almacen_id = p_almacen)
+    group by m.almacen_id, e.articulo_id
   )
   select al.clave, a.clasificacion, a.nombre_canonico, a.descripcion,
-         a.unidad_base, coalesce(s.vigente, 0), g.consumo, coalesce(s.envases, 0)
-  from gasto g
-  join public.articulo a  on a.id  = g.articulo_id
-  join public.almacen  al on al.id = g.almacen_id
-  left join stock s on s.articulo_id = g.articulo_id and s.almacen_id = g.almacen_id
+         a.unidad_base, s.vigente, coalesce(g.consumo, 0), s.envases
+  from stock s
+  join public.articulo a  on a.id  = s.articulo_id
+  join public.almacen  al on al.id = s.almacen_id
+  left join gasto g on g.articulo_id = s.articulo_id and g.almacen_id = s.almacen_id
   where not exists (
     select 1 from public.minimo_articulo ma
-    where ma.articulo_id = g.articulo_id and ma.almacen_id = g.almacen_id
+    where ma.articulo_id = s.articulo_id and ma.almacen_id = s.almacen_id
   )
-  -- Descendente: la lista de trabajo empieza por lo que mas se gasta.
-  order by g.consumo desc, a.nombre_canonico;
+  -- Consumo primero; envases cuando no hay consumo. Ocho frascos de algo es
+  -- algo que se repone, uno probablemente no: es la mejor senal disponible
+  -- mientras no haya historia. En cuanto practicas genere consumo real, el
+  -- primer criterio toma el mando sin tocar una linea.
+  order by coalesce(g.consumo, 0) desc, s.envases desc, a.nombre_canonico;
 end $$;
 
 comment on function public.reporte_sin_minimo(bigint, integer) is
@@ -1950,6 +1971,18 @@ export function useGenerarReporte() {
                 ),
               })),
             )
+
+      // Un libro con todas las hojas vacias NO se descarga. Hoy le pasa al de
+      // caducidades -0 de 2,526 existencias tienen `fecha_caducidad`, porque el
+      // formato unificado no trae columna de caducidad en ninguna hoja-, y un
+      // Excel en blanco parece un inventario sano. El aviso dice que no hay
+      // datos; el archivo diria que no hay problema.
+      if (hojas.every((h) => h.filas.length === 0)) {
+        throw new Error(
+          `No hay datos para «${v.reporte.titulo}» con estos parámetros. ` +
+            'No se generó el archivo.',
+        )
+      }
 
       const buffer = await aExcel({
         titulo: v.reporte.titulo,

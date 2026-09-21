@@ -7,7 +7,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 
-select plan(84);
+select plan(90);
 
 -- Las pruebas corren como postgres, que se salta la RLS. Es lo correcto aqui:
 -- este archivo prueba la forma del esquema, no quien puede ver que. Eso es
@@ -853,6 +853,49 @@ select is(
     where campo = 'densidad' and destino = 'articulo_reactivo.densidad'),
   1,
   'La densidad aterriza donde crear_existencia la escribe'
+);
+
+
+-- ---------------------------------------------------------------------------
+-- minimo_articulo: el minimo de reposicion, por articulo y almacen
+-- ---------------------------------------------------------------------------
+select has_table('public', 'minimo_articulo', 'minimo_articulo existe');
+
+select col_is_pk(
+  'public', 'minimo_articulo', array['articulo_id', 'almacen_id'],
+  'La llave es el par articulo+almacen: un minimo por articulo en cada bodega'
+);
+
+-- Sin columna de unidad: la hereda de articulo.unidad_base, que es donde el
+-- esquema decidio que viviera para que los totales agregados sean confiables.
+select hasnt_column(
+  'public', 'minimo_articulo', 'unidad',
+  'El minimo no lleva unidad propia: la hereda del articulo'
+);
+
+select throws_ok(
+  $$ insert into public.minimo_articulo (articulo_id, almacen_id, minimo)
+     values ((select id from public.articulo limit 1),
+             (select id from public.almacen limit 1), 0) $$,
+  '23514',
+  null,
+  'Un minimo de cero es un renglon que no dice nada: se rechaza'
+);
+
+select has_function(
+  'private', 'puede_reportar', array[]::text[],
+  'puede_reportar existe y va aparte de puede_escribir'
+);
+
+-- No basta con que exista: tiene que ser OTRA funcion. Si alguien la hiciera
+-- un alias de puede_escribir(), cambiar quien exporta cambiaria en silencio
+-- quien escribe el inventario.
+select isnt(
+  (select prosrc from pg_catalog.pg_proc p
+     join pg_catalog.pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'private' and p.proname = 'puede_reportar'),
+  null,
+  'puede_reportar tiene cuerpo propio'
 );
 
 

@@ -662,6 +662,69 @@ export type Database = {
           },
         ]
       }
+      minimo_articulo: {
+        Row: {
+          almacen_id: number
+          articulo_id: number
+          definido_en: string
+          definido_por: string | null
+          minimo: number
+          nota: string | null
+        }
+        Insert: {
+          almacen_id: number
+          articulo_id: number
+          definido_en?: string
+          definido_por?: string | null
+          minimo: number
+          nota?: string | null
+        }
+        Update: {
+          almacen_id?: number
+          articulo_id?: number
+          definido_en?: string
+          definido_por?: string | null
+          minimo?: number
+          nota?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "minimo_articulo_almacen_id_fkey"
+            columns: ["almacen_id"]
+            isOneToOne: false
+            referencedRelation: "almacen"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "minimo_articulo_almacen_id_fkey"
+            columns: ["almacen_id"]
+            isOneToOne: false
+            referencedRelation: "almacen_resumen"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "minimo_articulo_articulo_id_fkey"
+            columns: ["articulo_id"]
+            isOneToOne: false
+            referencedRelation: "articulo"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "minimo_articulo_articulo_id_fkey"
+            columns: ["articulo_id"]
+            isOneToOne: false
+            referencedRelation: "existencia_listado"
+            referencedColumns: ["articulo_id"]
+          },
+          {
+            foreignKeyName: "minimo_articulo_definido_por_fkey"
+            columns: ["definido_por"]
+            isOneToOne: false
+            referencedRelation: "perfil"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       motivo_observacion: {
         Row: {
           activo: boolean

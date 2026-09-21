@@ -111,13 +111,27 @@ día. Un reporte que sale vacío se abre una vez y no se vuelve a abrir.
 Por eso el libro trae dos:
 
 - **«Reposición»** — los artículos bajo mínimo.
-- **«Sin mínimo definido»** — artículos **que sí se consumieron** en el periodo
-  pero no tienen mínimo, ordenados por consumo descendente.
+- **«Sin mínimo definido»** — los artículos **presentes en el almacén** que no
+  tienen mínimo, ordenados por consumo del periodo y, a falta de consumo, por
+  número de envases.
 
-La segunda es la lista de trabajo: *estos treinta son los que realmente gastas,
-empieza por ellos*. El reporte sirve desde el primer día precisamente por estar
-vacío del lado que importa, y se llena conforme el responsable trabaja la otra
-hoja.
+La segunda es la lista de trabajo: *empieza por éstos*. El reporte sirve desde
+el primer día precisamente por estar vacío del lado que importa, y se llena
+conforme el responsable trabaja la otra hoja.
+
+> **Corrección del 21 de septiembre, tras censar la base real.** Esta hoja se
+> diseñó saliendo de `movimiento` y ordenada solo por consumo. El censo lo
+> desmiente: hay **2,525 movimientos y solo 3 no son `carga_inicial`**. Una hoja
+> que arranca en `gasto` habría traído tres renglones, y el mecanismo inventado
+> para resolver el arranque en frío habría necesitado, él mismo, una historia
+> que todavía no existe.
+>
+> Por eso sale de `existencia` —lo que de verdad hay en la bodega— con el
+> consumo como `left join`. El orden es `consumo desc, envases desc`: mientras
+> no haya historia manda el número de envases, que es la mejor señal disponible
+> —ocho frascos de algo es algo que se repone; uno, probablemente no— y en
+> cuanto el módulo de prácticas genere consumo real, el primer criterio toma el
+> mando sin tocar una línea.
 
 Consecuencia que evita una decisión a ojo: **el reporte no necesita que estén
 todos los mínimos.** Con treinta artículos definidos ya hay lista de compras. La
@@ -340,6 +354,20 @@ Se prefirió a dos hojas separadas porque **el gradiente es la información**: u
 corte en «vencido / no vencido» esconde que algo vence pasado mañana.
 
 Parámetros: almacén y horizonte en días.
+
+> **Hoy este reporte sale vacío, y seguirá vacío hasta que alguien capture
+> fechas.** El censo del 21 de septiembre da **0 de 2,526 existencias con
+> `fecha_caducidad`**, y no es un descuido de la carga: **el formato unificado
+> no tiene columna de caducidad en ninguna de sus seis hojas**, así que el ETL
+> nunca tuvo de dónde llenarla. El campo sí existe en el esquema y en
+> `campo_capturable` —«Informativa: un reactivo caducado no se bloquea»—, y el
+> alta y la edición lo ofrecen: se puede llenar a mano desde hoy.
+>
+> Se construye igual, porque queda listo para ese día y porque el costo es una
+> función. Lo que **no** se hace es descargar un Excel en blanco: la pantalla
+> detecta el caso y dice «ninguna existencia tiene fecha de caducidad
+> registrada» en vez de entregar un archivo que parece un inventario sano.
+> Añadir la captura de la fecha al formato es otro trabajo (§11).
 
 ### 5.3 · Hoja de conteo físico
 
