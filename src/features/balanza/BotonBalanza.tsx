@@ -2,7 +2,9 @@ import { Icon } from '@iconify/react'
 import { Alert, IconButton, Snackbar, Tooltip } from '@mui/material'
 import { useState } from 'react'
 
+import { ErrorBalanza } from './balanza'
 import { useBalanza } from './contextoBalanza'
+import { DialogoPrepararBalanza } from './DialogoPrepararBalanza'
 
 type Props = {
   /** La unidad que espera el campo. Vacía o `null` = no se valida. */
@@ -24,19 +26,24 @@ export function BotonBalanza({ unidad, onPeso, deshabilitado = false }: Props) {
   const balanza = useBalanza()
   const [aviso, setAviso] = useState<string | null>(null)
   const [leyendo, setLeyendo] = useState(false)
+  const [preparando, setPreparando] = useState(false)
 
   const apagado = deshabilitado || !balanza.soportado
 
-  async function leer() {
+  async function leer(sinFiltro?: boolean) {
     setAviso(null)
     setLeyendo(true)
 
     try {
       if (balanza.estado !== 'conectada') {
         try {
-          await balanza.conectar()
+          await balanza.conectar(sinFiltro)
+          setPreparando(false)
         } catch (e) {
-          setAviso(e instanceof Error ? e.message : 'No se pudo abrir la balanza')
+          // No aparecio ningun puerto: eso no se arregla con un aviso de seis
+          // segundos, se arregla instalando algo. Va a la guia.
+          if (e instanceof ErrorBalanza && e.caso === 'sin-puerto') setPreparando(true)
+          else setAviso(e instanceof Error ? e.message : 'No se pudo abrir la balanza')
           return
         }
       }
@@ -92,6 +99,12 @@ export function BotonBalanza({ unidad, onPeso, deshabilitado = false }: Props) {
           {aviso}
         </Alert>
       </Snackbar>
+
+      <DialogoPrepararBalanza
+        abierto={preparando}
+        onCerrar={() => setPreparando(false)}
+        onReintentar={leer}
+      />
     </>
   )
 }

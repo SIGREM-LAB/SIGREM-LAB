@@ -1,6 +1,11 @@
 import { afterEach, describe, expect, test } from 'vitest'
 
-import { crearTransporteWebSerial, parsearTramaOptika } from './balanza'
+import {
+  crearTransporteWebSerial,
+  ErrorBalanza,
+  parsearTramaOptika,
+  VENDOR_FTDI,
+} from './balanza'
 
 /**
  * Tramas reales, capturadas de la balanza del laboratorio por COM4 a 9600 8N1.
@@ -68,7 +73,7 @@ describe('parsearTramaOptika', () => {
  * abierto en silencio, asi que la prueba no sirve de nada si el doble no la
  * respeta.
  */
-function crearPuertoFalso() {
+function crearPuertoFalso(usbVendorId: number = VENDOR_FTDI, alAbrir?: () => never) {
   const estado = { abierto: 0, cerrado: 0, rechazadoPorCandado: 0 }
   let controlador: ReadableStreamDefaultController<Uint8Array> | null = null
 
@@ -79,7 +84,9 @@ function crearPuertoFalso() {
       },
     }),
     writable: null,
+    getInfo: () => ({ usbVendorId, usbProductId: 0x6001 }),
     async open() {
+      alAbrir?.()
       estado.abierto += 1
     },
     async close() {
@@ -101,14 +108,33 @@ function crearPuertoFalso() {
   }
 }
 
-function instalarSerial(puerto: SerialPort) {
+/**
+ * Pone un `navigator.serial` de mentira y apunta lo que se le pide.
+ *
+ * `autorizados` son los puertos que ese perfil de Chrome ya dejo pasar alguna
+ * vez; con la lista vacia, el codigo tiene que abrir el selector. `alPedir` es
+ * lo que hace ese selector: por omision, rechazar igual que cuando alguien lo
+ * cierra sin elegir nada.
+ */
+function instalarSerial(
+  autorizados: SerialPort[],
+  alPedir: () => Promise<SerialPort> = () =>
+    Promise.reject(new DOMException('No port selected by the user', 'NotFoundError')),
+) {
+  const pedidos: (SerialPortRequestOptions | undefined)[] = []
+
   Object.defineProperty(navigator, 'serial', {
     configurable: true,
     value: {
-      getPorts: async () => [puerto],
-      requestPort: async () => puerto,
+      getPorts: async () => autorizados,
+      requestPort: async (opciones?: SerialPortRequestOptions) => {
+        pedidos.push(opciones)
+        return alPedir()
+      },
     },
   })
+
+  return { pedidos }
 }
 
 /** Espera a que se cumpla algo, sondeando el bucle de eventos. */
@@ -119,6 +145,123 @@ async function hasta(condicion: () => boolean) {
   expect(condicion()).toBe(true)
 }
 
+describe('crearTransporteWebSerial · elegir el puerto', () => {
+  afterEach(() => {
+    Reflect.deleteProperty(navigator, 'serial')
+  })
+
+  test('el selector se abre filtrado por el fabricante de la balanza', async () => {
+    const { pedidos } = instalarSerial([], async () => crearPuertoFalso().puerto)
+
+    await crearTransporteWebSerial().conectar()
+
+    expect(pedidos).toEqual([{ filters: [{ usbVendorId: VENDOR_FTDI }] }])
+  })
+
+  test('con sinFiltro el selector los ofrece todos', async () => {
+    const { pedidos } = instalarSerial([], async () => crearPuertoFalso(0x1234).puerto)
+
+    await crearTransporteWebSerial().conectar(true)
+
+    expect(pedidos).toEqual([undefined])
+  })
+
+  // El fallo que habia: `getPorts()[0]` abria el primer puerto que ese perfil
+  // de Chrome autorizo alguna vez. Si en esa maquina hubo un Arduino, se abria
+  // el Arduino y la app se quedaba esperando tramas que no llegaban.
+  test('de los puertos ya autorizados toma el FTDI, no el primero', async () => {
+    const arduino = crearPuertoFalso(0x2341)
+    const balanza = crearPuertoFalso()
+    instalarSerial([arduino.puerto, balanza.puerto])
+
+    await crearTransporteWebSerial().conectar()
+
+    expect(arduino.estado.abierto).toBe(0)
+    expect(balanza.estado.abierto).toBe(1)
+  })
+
+  test('si ninguno es FTDI, no reabre a ciegas: abre el selector', async () => {
+    const arduino = crearPuertoFalso(0x2341)
+    const { pedidos } = instalarSerial([arduino.puerto], async () => crearPuertoFalso().puerto)
+
+    await crearTransporteWebSerial().conectar()
+
+    expect(arduino.estado.abierto).toBe(0)
+    expect(pedidos).toHaveLength(1)
+  })
+
+  test('con sinFiltro si reabre el primero, aunque no sea FTDI', async () => {
+    const arduino = crearPuertoFalso(0x2341)
+    instalarSerial([arduino.puerto])
+
+    await crearTransporteWebSerial().conectar(true)
+
+    expect(arduino.estado.abierto).toBe(1)
+  })
+})
+
+describe('crearTransporteWebSerial · por que fallo', () => {
+  afterEach(() => {
+    Reflect.deleteProperty(navigator, 'serial')
+  })
+
+  /** El caso de un rechazo, o `'sin fallo'` si no rechazo. */
+  async function casoDe(conectar: Promise<void>) {
+    try {
+      await conectar
+      return 'sin fallo'
+    } catch (e) {
+      return e instanceof ErrorBalanza ? e.caso : `otro error: ${String(e)}`
+    }
+  }
+
+  // Es el que dispara el dialogo de preparacion, asi que es el que no puede
+  // caer en 'desconocido'.
+  test('cerrar el selector sin elegir es sin-puerto', async () => {
+    instalarSerial([])
+
+    expect(await casoDe(crearTransporteWebSerial().conectar())).toBe('sin-puerto')
+  })
+
+  test('un puerto que ya tiene otro es ocupado', async () => {
+    const ocupado = crearPuertoFalso(VENDOR_FTDI, () => {
+      throw new DOMException('The port is already open', 'InvalidStateError')
+    })
+    instalarSerial([ocupado.puerto])
+
+    expect(await casoDe(crearTransporteWebSerial().conectar())).toBe('ocupado')
+  })
+
+  test('sin Web Serial es no-soportado', async () => {
+    Reflect.deleteProperty(navigator, 'serial')
+
+    expect(await casoDe(crearTransporteWebSerial().conectar())).toBe('no-soportado')
+  })
+
+  test('cualquier otra cosa es desconocido, con su mensaje', async () => {
+    instalarSerial([], () => Promise.reject(new Error('se cayo el bus')))
+
+    const transporte = crearTransporteWebSerial()
+    expect(await casoDe(transporte.conectar())).toBe('desconocido')
+    await expect(transporte.conectar()).rejects.toThrow('se cayo el bus')
+  })
+
+  // Si `open` falla, no puede quedar un puerto a medias del que `desconectar`
+  // intente tirar despues.
+  test('un fallo al abrir no deja puerto', async () => {
+    const roto = crearPuertoFalso(VENDOR_FTDI, () => {
+      throw new DOMException('device busy', 'NetworkError')
+    })
+    instalarSerial([roto.puerto])
+    const transporte = crearTransporteWebSerial()
+
+    await expect(transporte.conectar()).rejects.toBeInstanceOf(ErrorBalanza)
+    await transporte.desconectar()
+
+    expect(roto.estado.cerrado).toBe(0)
+  })
+})
+
 describe('crearTransporteWebSerial', () => {
   afterEach(() => {
     Reflect.deleteProperty(navigator, 'serial')
@@ -126,7 +269,7 @@ describe('crearTransporteWebSerial', () => {
 
   test('las tramas salen enteras aunque lleguen partidas en dos lecturas', async () => {
     const falso = crearPuertoFalso()
-    instalarSerial(falso.puerto)
+    instalarSerial([falso.puerto])
     const transporte = crearTransporteWebSerial()
     await transporte.conectar()
 
@@ -154,7 +297,7 @@ describe('crearTransporteWebSerial', () => {
   // dice que esta cerrado.
   test('desconectar suelta el candado y cierra el puerto de verdad', async () => {
     const falso = crearPuertoFalso()
-    instalarSerial(falso.puerto)
+    instalarSerial([falso.puerto])
     const transporte = crearTransporteWebSerial()
     await transporte.conectar()
 
@@ -182,7 +325,7 @@ describe('crearTransporteWebSerial', () => {
   // siempre y el `finally` que suelta el puerto no llega a correr nunca.
   test('abortar termina el bucle aunque no lleguen mas bytes', async () => {
     const falso = crearPuertoFalso()
-    instalarSerial(falso.puerto)
+    instalarSerial([falso.puerto])
     const transporte = crearTransporteWebSerial()
     await transporte.conectar()
 

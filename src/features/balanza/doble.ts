@@ -1,4 +1,4 @@
-import type { TransporteBalanza } from './balanza'
+import { ErrorBalanza, type FalloBalanza, type TransporteBalanza } from './balanza'
 
 /**
  * Un puerto serie de mentira para las pruebas.
@@ -27,12 +27,23 @@ export type BalanzaDoble = {
   /** El cable que se afloja: el flujo termina sin que nadie lo haya abortado. */
   morir: () => void
   vecesCerrado: () => number
+  /**
+   * Hace que `conectar()` falle con ese caso, hasta que se ponga `null`.
+   *
+   * Es lo que permite probar que el dialogo de preparacion sale con
+   * `sin-puerto` y NO sale con los demas.
+   */
+  fallarAlConectar: (caso: FalloBalanza | null) => void
+  /** El `sinFiltro` de cada llamada a `conectar()`, en orden. */
+  conexiones: () => boolean[]
 }
 
 export function crearBalanzaDoble(soportado = true): BalanzaDoble {
   let cerrado = 0
   let fin = false
   let continuo: string | null = null
+  let falloAlConectar: FalloBalanza | null = null
+  const conexiones: boolean[] = []
   const pendientes: string[] = []
   let despertar: (() => void) | null = null
 
@@ -44,7 +55,12 @@ export function crearBalanzaDoble(soportado = true): BalanzaDoble {
 
   const transporte: TransporteBalanza = {
     soportado,
-    async conectar() {},
+    async conectar(sinFiltro = false) {
+      conexiones.push(sinFiltro)
+      if (falloAlConectar !== null) {
+        throw new ErrorBalanza(falloAlConectar, 'la balanza de mentira no abre')
+      }
+    },
     async desconectar() {
       cerrado += 1
     },
@@ -82,5 +98,9 @@ export function crearBalanzaDoble(soportado = true): BalanzaDoble {
       fin = true
       empujar()
     },
+    fallarAlConectar(caso) {
+      falloAlConectar = caso
+    },
+    conexiones: () => [...conexiones],
   }
 }

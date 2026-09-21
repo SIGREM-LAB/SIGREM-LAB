@@ -19,9 +19,17 @@ interface SerialOptions {
   bufferSize?: number
 }
 
+interface SerialPortInfo {
+  /** El fabricante del chip. El del adaptador de la balanza es 0x0403, FTDI. */
+  usbVendorId?: number
+  usbProductId?: number
+}
+
 interface SerialPort {
   readonly readable: ReadableStream<Uint8Array> | null
   readonly writable: WritableStream<Uint8Array> | null
+  /** Los dos identificadores USB. Un puerto serie de placa base no trae ninguno. */
+  getInfo(): SerialPortInfo
   open(opciones: SerialOptions): Promise<void>
   close(): Promise<void>
 }

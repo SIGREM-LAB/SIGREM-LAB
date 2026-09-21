@@ -1,6 +1,6 @@
 import { createContext, useContext } from 'react'
 
-import type { LecturaBalanza } from './balanza'
+import type { FalloBalanza, LecturaBalanza } from './balanza'
 
 export type EstadoBalanza = 'desconectada' | 'conectando' | 'conectada' | 'error'
 
@@ -11,7 +11,15 @@ export type ValorBalanza = {
   /** La ultima trama recibida, o `null` si todavia no llega ninguna. */
   lectura: LecturaBalanza | null
   error: string | null
-  conectar: () => Promise<void>
+  /**
+   * Por que fallo el ultimo intento, o `null` si no ha fallado ninguno.
+   *
+   * La pantalla lo necesita para decidir si ensenar el dialogo de preparacion o
+   * un aviso, sin tener que leer el texto de `error`.
+   */
+  fallo: FalloBalanza | null
+  /** `sinFiltro` ofrece todos los puertos, no solo los del adaptador FTDI. */
+  conectar: (sinFiltro?: boolean) => Promise<void>
   desconectar: () => Promise<void>
   /** Espera una lectura estable y la devuelve; `null` si no llega a tiempo. */
   capturar: () => Promise<LecturaBalanza | null>
@@ -27,6 +35,7 @@ const INACTIVA: ValorBalanza = {
   soportado: false,
   lectura: null,
   error: null,
+  fallo: null,
   conectar: async () => {},
   desconectar: async () => {},
   capturar: async () => null,

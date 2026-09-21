@@ -52,6 +52,46 @@ export const OPCIONES_SERIAL: SerialOptions = {
 }
 
 /**
+ * El fabricante del adaptador de la balanza.
+ *
+ * Filtrar por el hace dos cosas. Una, que el selector de Chrome muestre un solo
+ * renglon en vez de todos los COM de la maquina, que es donde se atasca alguien
+ * que no distingue COM3 de COM4. Y dos, que `getPorts()` no reabra a ciegas el
+ * primer puerto que ese perfil autorizo alguna vez: si en esa maquina hubo un
+ * Arduino, se abria el Arduino y la app se quedaba esperando tramas.
+ */
+export const VENDOR_FTDI = 0x0403
+
+/**
+ * Por que no se pudo abrir la balanza, en los terminos de quien lo va a leer.
+ *
+ * `sin-puerto` es el unico ambiguo, y a proposito: significa que no aparecio
+ * ningun puerto, y eso lo causa tanto un driver ausente como un cable
+ * desenchufado. La app no puede distinguirlos —un dispositivo sin driver no es
+ * un puerto, asi que Web Serial no lo ve— asi que no lo finge: el dialogo de
+ * preparacion guia por probabilidad en vez de diagnosticar.
+ */
+export type FalloBalanza = 'sin-puerto' | 'no-soportado' | 'ocupado' | 'desconocido'
+
+export class ErrorBalanza extends Error {
+  constructor(
+    readonly caso: FalloBalanza,
+    mensaje: string,
+  ) {
+    super(mensaje)
+    this.name = 'ErrorBalanza'
+  }
+}
+
+function esDomException(e: unknown, nombre: string): boolean {
+  return e instanceof DOMException && e.name === nombre
+}
+
+function mensajeDe(e: unknown, porOmision: string): string {
+  return e instanceof Error && e.message !== '' ? e.message : porOmision
+}
+
+/**
  * Lo que el proveedor necesita de un puerto serie, sin saber de Web Serial.
  *
  * Declararlo permite inyectar un doble en las pruebas sin tocar `navigator` ni
@@ -60,10 +100,48 @@ export const OPCIONES_SERIAL: SerialOptions = {
 export type TransporteBalanza = {
   /** Si el navegador puede hablar con un puerto serie. Firefox y Safari, no. */
   soportado: boolean
-  conectar(): Promise<void>
+  /**
+   * Abre la balanza. `sinFiltro` ofrece todos los puertos y no solo los FTDI,
+   * para el almacen que acabe con otro adaptador.
+   *
+   * Rechaza con `ErrorBalanza`, nunca con el error crudo de Web Serial: quien
+   * llama necesita saber si ensenar el dialogo de preparacion o un aviso.
+   */
+  conectar(sinFiltro?: boolean): Promise<void>
   desconectar(): Promise<void>
   /** Emite una trama por linea, con el terminador incluido. */
   tramas(senal: AbortSignal): AsyncIterable<string>
+}
+
+function esFtdi(puerto: SerialPort): boolean {
+  return puerto.getInfo().usbVendorId === VENDOR_FTDI
+}
+
+/**
+ * El puerto de la balanza: el ya autorizado si lo hay, y si no, el que elija
+ * quien esta delante.
+ *
+ * Un puerto ya autorizado se reabre sin volver a pedir permiso; el selector
+ * solo se abre la primera vez, porque abrirlo exige un gesto del usuario.
+ */
+async function elegirPuerto(serial: Serial, sinFiltro: boolean): Promise<SerialPort> {
+  const autorizados = await serial.getPorts()
+  const conocido = sinFiltro ? autorizados[0] : autorizados.find(esFtdi)
+  if (conocido !== undefined) return conocido
+
+  try {
+    return await serial.requestPort(
+      sinFiltro ? undefined : { filters: [{ usbVendorId: VENDOR_FTDI }] },
+    )
+  } catch (e) {
+    // Web Serial lanza `NotFoundError` tanto si se cerro el selector como si no
+    // habia nada que elegir. Los dos llevan al mismo sitio, y esta bien: si lo
+    // abrio y lo cerro, o no vio su balanza o no habia ninguna.
+    if (esDomException(e, 'NotFoundError')) {
+      throw new ErrorBalanza('sin-puerto', 'No aparecio ninguna balanza conectada')
+    }
+    throw new ErrorBalanza('desconocido', mensajeDe(e, 'No se pudo abrir la balanza'))
+  }
 }
 
 export function crearTransporteWebSerial(): TransporteBalanza {
@@ -94,15 +172,31 @@ export function crearTransporteWebSerial(): TransporteBalanza {
   return {
     soportado: typeof navigator !== 'undefined' && navigator.serial !== undefined,
 
-    async conectar() {
+    async conectar(sinFiltro = false) {
       const serial = navigator.serial
-      if (serial === undefined) throw new Error('Este navegador no puede leer el puerto serie')
+      if (serial === undefined) {
+        throw new ErrorBalanza('no-soportado', 'Este navegador no puede leer el puerto serie')
+      }
 
-      // Un puerto ya autorizado se reabre sin volver a pedir permiso; solo se
-      // abre el selector la primera vez.
-      const [autorizado] = await serial.getPorts()
-      puerto = autorizado ?? (await serial.requestPort())
-      await puerto.open(OPCIONES_SERIAL)
+      const elegido = await elegirPuerto(serial, sinFiltro)
+
+      try {
+        await elegido.open(OPCIONES_SERIAL)
+      } catch (e) {
+        // `InvalidStateError` es que ya estaba abierto; `NetworkError`, que el
+        // sistema no lo suelta. Para quien lo lee es lo mismo: lo tiene otro.
+        if (esDomException(e, 'InvalidStateError') || esDomException(e, 'NetworkError')) {
+          throw new ErrorBalanza(
+            'ocupado',
+            'La balanza ya esta abierta en otra pestana o en otro programa.',
+          )
+        }
+        throw new ErrorBalanza('desconocido', mensajeDe(e, 'No se pudo abrir la balanza'))
+      }
+
+      // Solo despues de abrir: si `open` falla, no queda un puerto a medias que
+      // `desconectar` intente cerrar.
+      puerto = elegido
     },
 
     async desconectar() {

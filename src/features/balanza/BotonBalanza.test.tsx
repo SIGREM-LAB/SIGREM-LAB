@@ -57,4 +57,39 @@ describe('BotonBalanza', () => {
     expect(await screen.findByText(/no se convierte solo/i)).toBeInTheDocument()
     expect(onPeso).not.toHaveBeenCalled()
   })
+
+  // Que no aparezca ningún puerto no se arregla con un aviso de seis segundos:
+  // se arregla instalando algo, y eso necesita una guía.
+  test('si no aparece ningun puerto, abre la guia en vez de un aviso', async () => {
+    const balanza = crearBalanzaDoble()
+    balanza.fallarAlConectar('sin-puerto')
+    montar(balanza.transporte, 'g')
+
+    await userEvent.click(screen.getByRole('button', { name: /leer balanza/i }))
+
+    expect(await screen.findByText(/no aparece ninguna balanza/i)).toBeInTheDocument()
+  })
+
+  test('los demas fallos siguen saliendo como aviso, sin guia', async () => {
+    const balanza = crearBalanzaDoble()
+    balanza.fallarAlConectar('ocupado')
+    montar(balanza.transporte, 'g')
+
+    await userEvent.click(screen.getByRole('button', { name: /leer balanza/i }))
+
+    expect(await screen.findByText(/no abre/i)).toBeInTheDocument()
+    expect(screen.queryByText(/no aparece ninguna balanza/i)).not.toBeInTheDocument()
+  })
+
+  test('desde la guia se reintenta sin el filtro de fabricante', async () => {
+    const balanza = crearBalanzaDoble()
+    balanza.fallarAlConectar('sin-puerto')
+    montar(balanza.transporte, 'g')
+
+    await userEvent.click(screen.getByRole('button', { name: /leer balanza/i }))
+    await screen.findByText(/no aparece ninguna balanza/i)
+    await userEvent.click(screen.getByRole('button', { name: /no es FTDI/i }))
+
+    expect(balanza.conexiones()).toEqual([false, true])
+  })
 })

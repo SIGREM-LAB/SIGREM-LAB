@@ -2,7 +2,9 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } fro
 
 import {
   crearTransporteWebSerial,
+  ErrorBalanza,
   parsearTramaOptika,
+  type FalloBalanza,
   type LecturaBalanza,
   type TransporteBalanza,
 } from './balanza'
@@ -35,6 +37,7 @@ export function ProveedorBalanza({
   const [estado, setEstado] = useState<EstadoBalanza>('desconectada')
   const [lectura, setLectura] = useState<LecturaBalanza | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [fallo, setFallo] = useState<FalloBalanza | null>(null)
 
   const abortar = useRef<AbortController | null>(null)
   // Numerada: `capturar` necesita distinguir una trama nueva de la de hace un
@@ -47,17 +50,20 @@ export function ProveedorBalanza({
     ultima.current = null
     await transporte.desconectar()
     setLectura(null)
+    setFallo(null)
     setEstado('desconectada')
   }, [transporte])
 
-  const conectar = useCallback(async () => {
+  const conectar = useCallback(async (sinFiltro = false) => {
     setEstado('conectando')
     setError(null)
+    setFallo(null)
 
     try {
-      await transporte.conectar()
+      await transporte.conectar(sinFiltro)
     } catch (e) {
       setError(e instanceof Error ? e.message : 'No se pudo abrir la balanza')
+      setFallo(e instanceof ErrorBalanza ? e.caso : 'desconocido')
       setEstado('error')
       // Se relanza para que quien llamó —un botón de campo— pueda decir qué
       // pasó. El estado y el mensaje ya quedaron puestos para el resto de la
@@ -102,6 +108,9 @@ export function ProveedorBalanza({
       await transporte.desconectar()
       setLectura(null)
       setError('Se perdió la conexión con la balanza. Revisa el cable y vuelve a conectar.')
+      // Ya no hay puerto, que es el mismo caso que no encontrarlo. La primera
+      // linea del dialogo de preparacion —revisa el cable— es justo la que toca.
+      setFallo('sin-puerto')
       setEstado('error')
     })()
   }, [transporte])
@@ -137,6 +146,7 @@ export function ProveedorBalanza({
     soportado: transporte.soportado,
     lectura,
     error,
+    fallo,
     conectar,
     desconectar,
     capturar,
