@@ -309,6 +309,56 @@ def _aplicar_numerico(ws, numerico: Numerico, archivo: str,
     return 1
 
 
+def _materializar(libro, valores, archivo: str, bitacora: Bitacora) -> int:
+    """Cambia por su valor las formulas de las columnas que lee el cargador.
+
+    openpyxl no sabe guardar las dos caras de una formula: o conserva el texto
+    «=L10-K10» y pierde el valor que Excel dejo cacheado, o conserva el valor y
+    pierde el texto. El cargador abre el corregido con data_only=True, asi que
+    una formula sin cache le llega como None y entra como CERO sin un solo
+    error. Actopan trae 64 de esas en la cantidad de Reactivos; N4, 605.
+
+    Por eso se materializan, pero solo en las columnas que el cargador lee y
+    dejando constancia en la bitacora. Las demas formulas del libro se quedan
+    como estan: el corregido se le devuelve al almacen y tiene que seguir
+    siendo su archivo.
+
+    El valor que se fija es el que Excel calculo la ultima vez que alguien
+    guardo. Ninguna correccion de este modulo toca una celda de la que cuelgue
+    una formula —son todas de texto, mas un numero en Material, que no las
+    tiene—, asi que el cache sigue valiendo. Si algun dia entra una que si,
+    esto hay que volver a pensarlo.
+    """
+    cambiadas = 0
+    for hoja, campos in CAMPOS.items():
+        if hoja not in libro.sheetnames:
+            continue
+        ws, vs = libro[hoja], valores[hoja]
+        for campo, letra in campos.items():
+            for fila in range(1, ws.max_row + 1):
+                celda = ws[f"{letra}{fila}"]
+                if not (isinstance(celda.value, str) and celda.value.startswith("=")):
+                    continue
+                formula = celda.value
+                valor = vs[f"{letra}{fila}"].value
+                if valor is None:
+                    # Excel nunca calculo esta celda, asi que no hay valor que
+                    # poner. Antes de inventar un cero, se para la corrida.
+                    raise SystemExit(
+                        f"{archivo} {hoja}!{letra}{fila}: «{formula}» no trae "
+                        f"valor cacheado. Abre el libro en Excel, guardalo y "
+                        f"vuelve a correr esto.")
+                celda.value = valor
+                cambiadas += 1
+                bitacora.anotar(archivo=archivo, hoja=hoja,
+                                celda=f"{letra}{fila}", campo=campo,
+                                antes=f"{formula} (fórmula)",
+                                despues=f"{valor} (valor)",
+                                motivo="Fórmula materializada · openpyxl no guarda "
+                                       "fórmula y valor a la vez")
+    return cambiadas
+
+
 def corregir(origen: Path, destino: Path) -> Bitacora:
     """Copia el libro y le aplica las correcciones. Devuelve la bitacora."""
     destino.parent.mkdir(parents=True, exist_ok=True)
@@ -316,17 +366,16 @@ def corregir(origen: Path, destino: Path) -> Bitacora:
     # el archivo de destino sigue siendo byte a byte el original.
     shutil.copy2(origen, destino)
 
-    # data_only=True a proposito, aunque parezca lo contrario. openpyxl no
-    # guarda las dos cosas de una formula: con data_only=False conserva el texto
-    # «=L10-K10» pero pierde el valor cacheado, y con data_only=True conserva el
-    # valor pero convierte la formula en su resultado. El cargador lee con
-    # data_only=True, asi que la primera opcion deja la cantidad en None y la
-    # mete como cero SIN un solo error. El libro de Actopan trae exactamente esa
-    # formula en la cantidad de Reactivos; N3 y Huejutla no. Se materializa el
-    # valor y el corregido queda cargable.
-    libro = load_workbook(destino, data_only=True)
+    # data_only=False: el libro que se guarda conserva sus formulas. Las pocas
+    # que el cargador necesita leidas se cambian por su valor en
+    # `_materializar`, una por una y anotadas. `valores` es el MISMO archivo
+    # abierto en la otra vista, que es de donde sale ese valor.
+    libro = load_workbook(destino, data_only=False)
+    valores = load_workbook(destino, data_only=True)
     bitacora = Bitacora()
     cuenta: dict[int, int] = {}
+
+    _materializar(libro, valores, destino.name, bitacora)
 
     for i, correccion in enumerate(CORRECCIONES):
         if correccion.libro and correccion.libro.lower() not in str(origen).lower():
@@ -384,9 +433,18 @@ def verificar(origen: Path, destino: Path,
     hoja «Reglas de captura» tiene que salir aqui. Y se comprueban las
     validaciones de datos —los desplegables del formato— porque si openpyxl las
     pierde, el archivo ya no sirve para devolverselo al almacen.
+
+    El libro se abre DOS veces de cada lado. Con data_only=True se comparan los
+    valores; con data_only=False, las formulas, que en la otra vista no se ven
+    porque openpyxl devuelve el cache en su lugar. Sin esa segunda pasada, un
+    «=L10-K10» que se convierte en 483.96 no se distingue de una celda intacta,
+    y perder las formulas del libro es justo el destrozo silencioso que este
+    archivo existe para no dejar pasar.
     """
     a = load_workbook(origen, data_only=True)
     b = load_workbook(destino, data_only=True)
+    af = load_workbook(origen, data_only=False)
+    bf = load_workbook(destino, data_only=False)
     fallas: list[str] = []
     notas: list[str] = []
 
@@ -419,6 +477,20 @@ def verificar(origen: Path, destino: Path,
                 notas.append(f"{nombre}: se descarto/aron "
                              f"{ha.max_column - hb.max_column} columna(s) "
                              f"fantasma, sin una sola celda con dato")
+
+        # Una formula solo puede desaparecer donde la bitacora dice que se
+        # materializo. En cualquier otra celda es una perdida.
+        fa, fb = af[nombre], bf[nombre]
+        for fila in range(1, fa.max_row + 1):
+            for col in range(1, fa.max_column + 1):
+                celda = fa.cell(row=fila, column=col)
+                if not (isinstance(celda.value, str) and celda.value.startswith("=")):
+                    continue
+                ahora = fb.cell(row=fila, column=col).value
+                if ahora == celda.value or (nombre, celda.coordinate) in tocadas:
+                    continue
+                fallas.append(f"{nombre}!{celda.coordinate} perdio su formula sin "
+                              f"estar en la bitacora: {celda.value!r} -> {ahora!r}")
 
         esperadas = ruido = 0
         deriva_max = 0.0
