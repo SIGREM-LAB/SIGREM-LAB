@@ -1,6 +1,7 @@
-import { Icon } from '@iconify/react'
-import { Box, IconButton, Stack, TextField, Tooltip, Typography } from '@mui/material'
+import { Box, Stack, TextField, Typography } from '@mui/material'
 
+import { BarraBalanza } from '@/features/balanza/BarraBalanza'
+import { BotonBalanza } from '@/features/balanza/BotonBalanza'
 import { aNumero, aTexto } from './campoNumero'
 import { consumoDe, type ElementoCaptura } from './esquemas'
 
@@ -9,27 +10,13 @@ type Props = {
   onCambiar: (parcial: Partial<ElementoCaptura>) => void
 }
 
-const AVISO_BALANZA =
-  'La balanza todavía no está conectada al sistema. Teclea el peso que marque.'
-
-/** El botón de la balanza, apagado. Mismo trato que «Escanear QR». */
-function BotonBalanza() {
-  return (
-    <Tooltip title={AVISO_BALANZA}>
-      <span>
-        <IconButton aria-label="Leer balanza" disabled color="secondary">
-          <Icon icon="mdi:scale-balance" />
-        </IconButton>
-      </span>
-    </Tooltip>
-  )
-}
-
 export function CapturaPeso({ elemento, onCambiar }: Props) {
   const consumo = consumoDe(elemento)
 
   return (
     <Stack spacing={2}>
+      <BarraBalanza />
+
       <Stack direction="row" spacing={1} sx={{ alignItems: 'flex-start' }}>
         <TextField
           fullWidth
@@ -38,7 +25,10 @@ export function CapturaPeso({ elemento, onCambiar }: Props) {
           value={aTexto(elemento.pesoInicial)}
           onChange={(e) => onCambiar({ pesoInicial: aNumero(e.target.value) })}
         />
-        <BotonBalanza />
+        <BotonBalanza
+          unidad={elemento.unidadBase}
+          onPeso={(valor) => onCambiar({ pesoInicial: valor })}
+        />
       </Stack>
 
       <Stack direction="row" spacing={1} sx={{ alignItems: 'flex-start' }}>
@@ -49,7 +39,10 @@ export function CapturaPeso({ elemento, onCambiar }: Props) {
           value={aTexto(elemento.pesoFinal)}
           onChange={(e) => onCambiar({ pesoFinal: aNumero(e.target.value) })}
         />
-        <BotonBalanza />
+        <BotonBalanza
+          unidad={elemento.unidadBase}
+          onPeso={(valor) => onCambiar({ pesoFinal: valor })}
+        />
       </Stack>
 
       {/* Se muestra pero NO se envía: `consumo` es una columna generada, y la

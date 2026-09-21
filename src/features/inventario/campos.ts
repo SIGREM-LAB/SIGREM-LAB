@@ -271,6 +271,29 @@ export function campoDeCantidad(campos: Campo[]): Campo | undefined {
 }
 
 /**
+ * Los destinos que son un peso de verdad y no un conteo ni una propiedad.
+ *
+ * Sale del `destino` —un dato de la base—, igual que el recuadro y que la
+ * cantidad. `densidad` y los grados NFPA también son números, pero una balanza
+ * ahí no dice nada; ofrecer el botón sería invitar a escribir una masa donde va
+ * una escala de 0 a 4.
+ *
+ * `cantidad` entra porque en los reactivos el saldo se lleva en gramos y se
+ * pesa. Cuando el artículo se cuenta en piezas, la balanza mide en gramos y la
+ * unidad no coincide, así que `BotonBalanza` avisa en vez de escribir un número
+ * que sería otra cosa. Ese cotejo es el que hace segura la lista.
+ */
+const DESTINOS_PESABLES = new Set([
+  'existencia.peso_frasco_vacio',
+  'existencia.peso_total',
+  DESTINO_CANTIDAD,
+])
+
+export function esPesable(campo: Campo): boolean {
+  return campo.tipo_dato === 'numero' && DESTINOS_PESABLES.has(campo.destino)
+}
+
+/**
  * El esquema de la edición: el de los campos editables más el motivo.
  *
  * El motivo es obligatorio **solo cuando la cantidad cambia**, porque solo

@@ -1,13 +1,20 @@
-import { Checkbox, FormControlLabel, MenuItem, TextField } from '@mui/material'
+import { Checkbox, FormControlLabel, MenuItem, Stack, TextField } from '@mui/material'
 import { Controller, type Control } from 'react-hook-form'
 
-import { CAMPO_LABORATORIO, rotuloDeOpcion, type Campo, type Valores } from './campos'
+import { BotonBalanza } from '@/features/balanza/BotonBalanza'
+import { CAMPO_LABORATORIO, esPesable, rotuloDeOpcion, type Campo, type Valores } from './campos'
 
 type Props = {
   campo: Campo
   control: Control<Valores>
   /** Los laboratorios del almacén, para el único campo que no trae sus opciones. */
   laboratorios: { id: number; nombre: string }[]
+  /**
+   * La unidad del artículo, para cotejar lo que manda la balanza. En el alta
+   * sale del campo `unidad`; en la edición, de la existencia. Vacía = no se
+   * coteja.
+   */
+  unidad?: string | null
 }
 
 /**
@@ -18,7 +25,7 @@ type Props = {
  * agregue un campo al perfil de un almacén y aparezca bien pintado sin
  * redesplegar nada.
  */
-export function CampoCaptura({ campo, control, laboratorios }: Props) {
+export function CampoCaptura({ campo, control, laboratorios, unidad }: Props) {
   return (
     <Controller
       name={campo.campo}
@@ -82,7 +89,20 @@ export function CampoCaptura({ campo, control, laboratorios }: Props) {
         if (campo.tipo_dato === 'numero') {
           // `type="number"` y no un TextField suelto: en las máquinas del
           // almacén se captura con el teclado numérico y las flechas.
-          return <TextField {...comunes} type="number" slotProps={{ htmlInput: { min: 0 } }} />
+          const numero = (
+            <TextField {...comunes} type="number" slotProps={{ htmlInput: { min: 0 } }} />
+          )
+
+          // Solo los pesos llevan balanza: qué campo lo es sale de su `destino`,
+          // que es un dato de la base, y no de una lista de nombres escrita aquí.
+          if (!esPesable(campo)) return numero
+
+          return (
+            <Stack direction="row" spacing={1} sx={{ alignItems: 'flex-start' }}>
+              {numero}
+              <BotonBalanza unidad={unidad} onPeso={(valor) => field.onChange(String(valor))} />
+            </Stack>
+          )
         }
 
         const parrafo = ES_PARRAFO.has(campo.campo)

@@ -12,6 +12,9 @@ type Props = {
   /** Los laboratorios del almacén, para el único campo que no trae sus opciones. */
   laboratorios: { id: number; nombre: string }[]
 
+  /** La unidad del artículo, para cotejar lo que manda la balanza. */
+  unidad?: string | null
+
   /**
    * Qué campos se muestran pero no se editan. En el alta no hay ninguno; en la
    * edición son los del artículo, que se comparte con los demás frascos.
@@ -38,6 +41,7 @@ export function FormularioPerfil({
   campos,
   control,
   laboratorios,
+  unidad,
   soloLectura,
   valores,
   ayudaSoloLectura,
@@ -59,7 +63,12 @@ export function FormularioPerfil({
               helperText={ayudaSoloLectura ?? ' '}
             />
           ) : (
-            <CampoCaptura campo={campo} control={control} laboratorios={laboratorios} />
+            <CampoCaptura
+              campo={campo}
+              control={control}
+              laboratorios={laboratorios}
+              unidad={unidad}
+            />
           )}
           {debajoDe?.(campo)}
         </Grid>

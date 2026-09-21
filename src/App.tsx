@@ -22,6 +22,7 @@ import {
 } from '@/features/auth/RutaProtegida'
 import { PaginaDepuracion } from '@/features/inventario/PaginaDepuracion'
 import { PaginaInventario } from '@/features/inventario/PaginaInventario'
+import { ProveedorBalanza } from '@/features/balanza/ProveedorBalanza'
 import { PaginaNuevaPractica } from '@/features/practicas/PaginaNuevaPractica'
 import { PaginaPracticas } from '@/features/practicas/PaginaPracticas'
 import { tema } from '@/tema'
@@ -47,73 +48,77 @@ export default function App() {
     <ThemeProvider theme={tema}>
       <CssBaseline />
       <QueryClientProvider client={cliente}>
-        <ProveedorSesion>
-          <BrowserRouter>
-            <Routes>
-              <Route element={<SoloInvitados />}>
-                <Route path="/entrar" element={<PantallaAcceso />} />
-              </Route>
-              <Route path="/solicitar-recuperacion" element={<PantallaRecuperarContrasena />} />
-              <Route path="/recuperar-contrasena" element={<PantallaNuevaContrasena />} />
-
-              <Route element={<RutaProtegida />}>
-                <Route element={<Layout />}>
-                  <Route path="/" element={<PaginaInicio />} />
-
-                  {/* Inventario es la bodega de quien entra, así que exige
-                      tenerla. Sin almacén propio la guardia manda a
-                      /inventario-general, que para admin y consulta ES su
-                      inventario. */}
-                  <Route element={<ConAlmacenPropio />}>
-                    <Route path="/inventario" element={<PaginaInventario />} />
-                  </Route>
-
-                  {/* Inventario general es la Unidad. El responsable no entra:
-                      su ámbito es el suyo, y la guardia lo manda a /inventario.
-                      Admin y consulta no tienen bodega, así que ésta ES su
-                      inventario. La RLS es la que de verdad oculta lo ajeno. */}
-                  <Route element={<SinAlmacenPropio />}>
-                    <Route path="/inventario-general" element={<PaginaInventarioGeneral />} />
-                  </Route>
-                  {/* Ruta propia y no pestaña dentro de /inventario: es otro
-                      trabajo (revisar y corregir, no consultar), sale de otra
-                      tabla, y sobre todo es enlazable —"ve a depurar tus 337"
-                      es un enlace, no una instrucción de dónde hacer clic—.
-                      Cuelga de /inventario para que la migaja diga de dónde
-                      viene y para que la barra lateral siga marcando Inventario. */}
-                  <Route path="/inventario/depuracion" element={<PaginaDepuracion />} />
-
-                  {/* Sin guardia de rol: los tres roles la abren. Lo que impide
-                      que un usuario de consulta registre algo es la RLS, no
-                      esconderle la pantalla. */}
-                  <Route path="/practicas" element={<PaginaPracticas />} />
-                  <Route path="/practicas/nueva" element={<PaginaNuevaPractica />} />
-                  {/* El id del borrador en la ruta es lo que hace recargable
-                      una captura a medias y direccionable cada una de las
-                      varias que puede tener una persona. */}
-                  <Route path="/practicas/nueva/:borradorId" element={<PaginaNuevaPractica />} />
-
-                  {/* Bajo /administracion y no en la raíz: es el primero de
-                      cinco bloques de catálogo que sólo toca el admin, y el
-                      prefijo es lo que evita que cada uno se invente su sitio.
-                      SoloAdmin va aquí y no dentro de la pantalla para que la
-                      redirección ocurra antes de montar nada. */}
-                  <Route element={<SoloAdmin />}>
-                    <Route path="/administracion/educativo" element={<PaginaAcademico />} />
-                  </Route>
+        {/* La balanza va arriba del enrutador: la conexion sobrevive a cambiar
+            de producto y de pantalla, y solo se abre cuando alguien la pide. */}
+        <ProveedorBalanza>
+          <ProveedorSesion>
+            <BrowserRouter>
+              <Routes>
+                <Route element={<SoloInvitados />}>
+                  <Route path="/entrar" element={<PantallaAcceso />} />
                 </Route>
-              </Route>
+                <Route path="/solicitar-recuperacion" element={<PantallaRecuperarContrasena />} />
+                <Route path="/recuperar-contrasena" element={<PantallaNuevaContrasena />} />
 
-              <Route element={<RutaProtegida />}>
-                <Route element={<SoloAdmin />}>
+                <Route element={<RutaProtegida />}>
                   <Route element={<Layout />}>
-                    <Route path="/usuarios" element={<PaginaUsuarios />} />
+                    <Route path="/" element={<PaginaInicio />} />
+
+                    {/* Inventario es la bodega de quien entra, así que exige
+                        tenerla. Sin almacén propio la guardia manda a
+                        /inventario-general, que para admin y consulta ES su
+                        inventario. */}
+                    <Route element={<ConAlmacenPropio />}>
+                      <Route path="/inventario" element={<PaginaInventario />} />
+                    </Route>
+
+                    {/* Inventario general es la Unidad. El responsable no entra:
+                        su ámbito es el suyo, y la guardia lo manda a /inventario.
+                        Admin y consulta no tienen bodega, así que ésta ES su
+                        inventario. La RLS es la que de verdad oculta lo ajeno. */}
+                    <Route element={<SinAlmacenPropio />}>
+                      <Route path="/inventario-general" element={<PaginaInventarioGeneral />} />
+                    </Route>
+                    {/* Ruta propia y no pestaña dentro de /inventario: es otro
+                        trabajo (revisar y corregir, no consultar), sale de otra
+                        tabla, y sobre todo es enlazable —"ve a depurar tus 337"
+                        es un enlace, no una instrucción de dónde hacer clic—.
+                        Cuelga de /inventario para que la migaja diga de dónde
+                        viene y para que la barra lateral siga marcando Inventario. */}
+                    <Route path="/inventario/depuracion" element={<PaginaDepuracion />} />
+
+                    {/* Sin guardia de rol: los tres roles la abren. Lo que impide
+                        que un usuario de consulta registre algo es la RLS, no
+                        esconderle la pantalla. */}
+                    <Route path="/practicas" element={<PaginaPracticas />} />
+                    <Route path="/practicas/nueva" element={<PaginaNuevaPractica />} />
+                    {/* El id del borrador en la ruta es lo que hace recargable
+                        una captura a medias y direccionable cada una de las
+                        varias que puede tener una persona. */}
+                    <Route path="/practicas/nueva/:borradorId" element={<PaginaNuevaPractica />} />
+
+                    {/* Bajo /administracion y no en la raíz: es el primero de
+                        cinco bloques de catálogo que sólo toca el admin, y el
+                        prefijo es lo que evita que cada uno se invente su sitio.
+                        SoloAdmin va aquí y no dentro de la pantalla para que la
+                        redirección ocurra antes de montar nada. */}
+                    <Route element={<SoloAdmin />}>
+                      <Route path="/administracion/educativo" element={<PaginaAcademico />} />
+                    </Route>
                   </Route>
                 </Route>
-              </Route>
-            </Routes>
-          </BrowserRouter>
-        </ProveedorSesion>
+
+                <Route element={<RutaProtegida />}>
+                  <Route element={<SoloAdmin />}>
+                    <Route element={<Layout />}>
+                      <Route path="/usuarios" element={<PaginaUsuarios />} />
+                    </Route>
+                  </Route>
+                </Route>
+              </Routes>
+            </BrowserRouter>
+          </ProveedorSesion>
+        </ProveedorBalanza>
       </QueryClientProvider>
     </ThemeProvider>
   )

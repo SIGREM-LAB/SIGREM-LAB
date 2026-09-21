@@ -251,6 +251,7 @@ function Captura({
           campos={campos}
           control={control}
           laboratorios={laboratorios.data ?? []}
+          unidad={unidad}
           soloLectura={(campo) => !esEditable(campo)}
           valores={actuales}
           ayudaSoloLectura="Del catálogo: se comparte con las demás existencias"

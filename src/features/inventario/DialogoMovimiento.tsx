@@ -19,6 +19,7 @@ import {
 } from '@mui/material'
 import { Controller, useForm, useWatch } from 'react-hook-form'
 
+import { BotonBalanza } from '@/features/balanza/BotonBalanza'
 import {
   useCambiarLaboratorio,
   useDetalleExistencia,
@@ -162,22 +163,28 @@ function Registrar({ fila, existenciaId, almacenId, onCerrar, onRegistrado }: Pr
                     name="cantidad"
                     control={control}
                     render={({ field, fieldState }) => (
-                      <TextField
-                        {...field}
-                        fullWidth
-                        size="small"
-                        required
-                        type="number"
-                        label={definicion.cantidad?.etiqueta}
-                        slotProps={{ htmlInput: { min: 0, step: 'any' } }}
-                        error={!!fieldState.error}
-                        helperText={
-                          fieldState.error?.message ??
-                          (definicion.cantidad?.modo === 'absoluto'
-                            ? `Cuánto hay de verdad; hoy el saldo dice ${saldo} ${unidad}`.trim()
-                            : ' ')
-                        }
-                      />
+                      <Stack direction="row" spacing={1} sx={{ alignItems: 'flex-start' }}>
+                        <TextField
+                          {...field}
+                          fullWidth
+                          size="small"
+                          required
+                          type="number"
+                          label={definicion.cantidad?.etiqueta}
+                          slotProps={{ htmlInput: { min: 0, step: 'any' } }}
+                          error={!!fieldState.error}
+                          helperText={
+                            fieldState.error?.message ??
+                            (definicion.cantidad?.modo === 'absoluto'
+                              ? `Cuánto hay de verdad; hoy el saldo dice ${saldo} ${unidad}`.trim()
+                              : ' ')
+                          }
+                        />
+                        <BotonBalanza
+                          unidad={unidad}
+                          onPeso={(valor) => field.onChange(String(valor))}
+                        />
+                      </Stack>
                     )}
                   />
                 </Grid>

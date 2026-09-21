@@ -200,6 +200,10 @@ function Captura({ campos, almacen, tipo, guardando, error, onGuardar }: PropsCa
   const pideLaboratorio = visibles.some((c) => c.campo === CAMPO_LABORATORIO)
   const laboratorios = useLaboratorios(almacen.id, pideLaboratorio)
 
+  // La unidad es un campo más del formulario, así que se lee de ahí: es contra
+  // ella contra la que se coteja lo que manda la balanza.
+  const unidad = useWatch({ control, name: 'unidad' })
+
   return (
     <Box
       component="form"
@@ -211,6 +215,7 @@ function Captura({ campos, almacen, tipo, guardando, error, onGuardar }: PropsCa
           campos={visibles}
           control={control}
           laboratorios={laboratorios.data ?? []}
+          unidad={typeof unidad === 'string' ? unidad : ''}
           debajoDe={(campo) =>
             campo.destino === 'articulo.nombre_canonico' ? (
               <Sugerencias campo={campo.campo} control={control} tipo={tipo} />

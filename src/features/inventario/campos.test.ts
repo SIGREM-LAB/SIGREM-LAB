@@ -3,6 +3,7 @@ import { describe, expect, test } from 'vitest'
 import {
   camposVisibles,
   esEditable,
+  esPesable,
   esquemaDeCampos,
   esquemaDeEdicion,
   grupoDe,
@@ -330,5 +331,31 @@ describe('textoDeValor', () => {
 
   test('una casilla se lee como sí o no, no como true', () => {
     expect(textoDeValor(campo({ tipo_dato: 'booleano' }), false)).toBe('No')
+  })
+})
+
+describe('esPesable', () => {
+  // Qué números se pueden pesar sale del `destino` —un dato de la base—, no de
+  // una lista de nombres de campo escrita en el componente.
+  test('los pesos del frasco y la cantidad', () => {
+    expect(esPesable(campo({ tipo_dato: 'numero', destino: 'existencia.peso_frasco_vacio' }))).toBe(
+      true,
+    )
+    expect(esPesable(campo({ tipo_dato: 'numero', destino: 'existencia.peso_total' }))).toBe(true)
+    expect(esPesable(campo({ tipo_dato: 'numero', destino: 'movimiento.carga_inicial' }))).toBe(true)
+  })
+
+  // Son números, pero una balanza ahí no dice nada.
+  test('la densidad y los grados NFPA no', () => {
+    expect(esPesable(campo({ tipo_dato: 'numero', destino: 'articulo_reactivo.densidad' }))).toBe(
+      false,
+    )
+    expect(esPesable(campo({ tipo_dato: 'numero', destino: 'articulo_reactivo.riesgo_salud' }))).toBe(
+      false,
+    )
+  })
+
+  test('un peso declarado como texto tampoco', () => {
+    expect(esPesable(campo({ tipo_dato: 'texto', destino: 'existencia.peso_total' }))).toBe(false)
   })
 })
