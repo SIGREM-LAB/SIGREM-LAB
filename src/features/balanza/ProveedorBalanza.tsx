@@ -37,7 +37,9 @@ export function ProveedorBalanza({
   const [error, setError] = useState<string | null>(null)
 
   const abortar = useRef<AbortController | null>(null)
-  const ultima = useRef<LecturaBalanza | null>(null)
+  // Numerada: `capturar` necesita distinguir una trama nueva de la de hace un
+  // rato, y el numero es lo unico que no depende del reloj.
+  const ultima = useRef<{ lectura: LecturaBalanza; n: number } | null>(null)
 
   const desconectar = useCallback(async () => {
     abortar.current?.abort()
@@ -72,7 +74,7 @@ export function ProveedorBalanza({
         for await (const trama of transporte.tramas(control.signal)) {
           const nueva = parsearTramaOptika(trama)
           if (nueva === null) continue
-          ultima.current = nueva
+          ultima.current = { lectura: nueva, n: (ultima.current?.n ?? 0) + 1 }
 
           // En continuo llegan ~10 tramas por segundo. Devolver el mismo objeto
           // cuando nada cambio hace que React no vuelva a pintar por trama.
@@ -86,16 +88,35 @@ export function ProveedorBalanza({
           )
         }
       } catch {
-        // El puerto se cerro o se aborto; `desconectar` ya dejo el estado.
+        // El flujo se rompio. Termina igual que si se hubiera acabado, y lo
+        // que sigue decide si eso fue a proposito o no.
       }
+
+      // Llegar aqui sin que nadie haya abortado significa que el puerto se
+      // murio solo: se desenchufo el cable o se apago la balanza. Sin esto la
+      // pantalla se queda en «conectada» con el ultimo peso congelado, y
+      // `capturar` lo sigue entregando como si fuera de ahora.
+      if (control.signal.aborted) return
+      if (abortar.current === control) abortar.current = null
+      ultima.current = null
+      await transporte.desconectar()
+      setLectura(null)
+      setError('Se perdió la conexión con la balanza. Revisa el cable y vuelve a conectar.')
+      setEstado('error')
     })()
   }, [transporte])
 
   const capturar = useCallback(async () => {
+    // Solo cuenta una trama llegada DESPUES de pedirla. Sin esa condicion, la
+    // ultima lectura estable se queda en memoria y se devuelve al instante
+    // aunque sea de antes de poner la muestra —o de antes de que se aflojara
+    // el cable—: un numero creible, y el que no es. En continuo llegan ~10 por
+    // segundo, asi que la espera real es de milisegundos.
+    const desde = ultima.current?.n ?? 0
     const limite = Date.now() + ESPERA_ESTABLE_MS
     while (Date.now() < limite) {
       const actual = ultima.current
-      if (actual !== null && actual.estable) return actual
+      if (actual !== null && actual.n > desde && actual.lectura.estable) return actual.lectura
       await new Promise((listo) => setTimeout(listo, SONDA_MS))
     }
     return null

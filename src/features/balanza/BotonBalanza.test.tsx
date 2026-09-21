@@ -4,29 +4,8 @@ import { describe, expect, test, vi } from 'vitest'
 
 import { BotonBalanza } from './BotonBalanza'
 import type { TransporteBalanza } from './balanza'
+import { crearBalanzaDoble } from './doble'
 import { ProveedorBalanza } from './ProveedorBalanza'
-
-/** Un puerto serie de mentira, igual que el de `ProveedorBalanza.test.tsx`. */
-function crearTransporte(tramas: string[], soportado = true): TransporteBalanza {
-  return {
-    soportado,
-    async conectar() {},
-    async desconectar() {},
-    async *tramas(senal) {
-      for (const trama of tramas) {
-        if (senal.aborted) return
-        yield trama
-      }
-      await new Promise<void>((listo) => {
-        if (senal.aborted) {
-          listo()
-          return
-        }
-        senal.addEventListener('abort', () => listo(), { once: true })
-      })
-    },
-  }
-}
 
 function montar(transporte: TransporteBalanza, unidad: string | null, onPeso = vi.fn()) {
   render(
@@ -39,7 +18,7 @@ function montar(transporte: TransporteBalanza, unidad: string | null, onPeso = v
 
 describe('BotonBalanza', () => {
   test('sin soporte del navegador queda apagado', () => {
-    montar(crearTransporte([], false), 'g')
+    montar(crearBalanzaDoble(false).transporte, 'g')
 
     expect(screen.getByRole('button', { name: /leer balanza/i })).toBeDisabled()
   })
@@ -47,7 +26,9 @@ describe('BotonBalanza', () => {
   // El primer clic es el gesto que el navegador exige para pedir el puerto: el
   // botón conecta solo y en la misma pulsación toma el peso.
   test('conecta solo y escribe el peso', async () => {
-    const onPeso = montar(crearTransporte(['   483.96 g S\r\n']), 'g')
+    const balanza = crearBalanzaDoble()
+    balanza.mantener('   483.96 g S\r\n')
+    const onPeso = montar(balanza.transporte, 'g')
 
     await userEvent.click(screen.getByRole('button', { name: /leer balanza/i }))
 
@@ -55,7 +36,9 @@ describe('BotonBalanza', () => {
   })
 
   test('sin unidad no coteja y escribe igual', async () => {
-    const onPeso = montar(crearTransporte(['   483.96 g S\r\n']), null)
+    const balanza = crearBalanzaDoble()
+    balanza.mantener('   483.96 g S\r\n')
+    const onPeso = montar(balanza.transporte, null)
 
     await userEvent.click(screen.getByRole('button', { name: /leer balanza/i }))
 
@@ -65,7 +48,9 @@ describe('BotonBalanza', () => {
   // Pasar gramos a mililitros necesita la densidad; un número convertido a ojo
   // es peor que ninguno.
   test('si la unidad no coincide, avisa y no escribe', async () => {
-    const onPeso = montar(crearTransporte(['   483.96 g S\r\n']), 'ml')
+    const balanza = crearBalanzaDoble()
+    balanza.mantener('   483.96 g S\r\n')
+    const onPeso = montar(balanza.transporte, 'ml')
 
     await userEvent.click(screen.getByRole('button', { name: /leer balanza/i }))
 

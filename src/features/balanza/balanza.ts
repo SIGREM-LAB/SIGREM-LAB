@@ -68,6 +68,28 @@ export type TransporteBalanza = {
 
 export function crearTransporteWebSerial(): TransporteBalanza {
   let puerto: SerialPort | null = null
+  let lector: ReadableStreamDefaultReader<Uint8Array> | null = null
+
+  /**
+   * Devuelve el candado de `port.readable`.
+   *
+   * Hacen falta las dos llamadas y en este orden. `cancel()` cierra el flujo y
+   * hace que la lectura en curso resuelva, pero NO suelta el candado; eso es
+   * `releaseLock()`. Y mientras el candado siga puesto, `port.close()` se
+   * rechaza: ese rechazo, tragado por el `catch`, es lo que dejaba el COM
+   * abierto con la pantalla diciendo que estaba cerrado.
+   *
+   * Es seguro llamarla dos veces: sobre un lector ya suelto las dos tiran, y
+   * las dos van atrapadas.
+   */
+  async function soltar(actual: ReadableStreamDefaultReader<Uint8Array>) {
+    await actual.cancel().catch(() => {})
+    try {
+      actual.releaseLock()
+    } catch {
+      // Ya estaba suelto. Es el caso normal cuando el flujo se murio solo.
+    }
+  }
 
   return {
     soportado: typeof navigator !== 'undefined' && navigator.serial !== undefined,
@@ -85,7 +107,12 @@ export function crearTransporteWebSerial(): TransporteBalanza {
 
     async desconectar() {
       const actual = puerto
+      const suyo = lector
       puerto = null
+      lector = null
+
+      // Soltar ANTES de cerrar. Al reves no cierra nada.
+      if (suyo !== null) await soltar(suyo)
       await actual?.close().catch(() => {})
     },
 
@@ -93,13 +120,20 @@ export function crearTransporteWebSerial(): TransporteBalanza {
       const legible = puerto?.readable
       if (legible == null) return
 
-      const lector = legible.getReader()
+      const propio = legible.getReader()
+      lector = propio
       const decodificador = new TextDecoder()
       let buffer = ''
 
+      // `read()` no mira la senal: se queda esperando bytes que pueden no
+      // llegar nunca. Cancelar el lector es lo unico que la hace resolver, asi
+      // que abortar tiene que cancelarlo aunque nadie llame a `desconectar`.
+      const alAbortar = () => void soltar(propio)
+      senal.addEventListener('abort', alAbortar, { once: true })
+
       try {
         while (!senal.aborted) {
-          const { value, done } = await lector.read()
+          const { value, done } = await propio.read()
           if (done) break
           // `stream: true` es para que un acento partido entre dos lecturas no
           // se pierda; con ASCII puro no cambia nada, pero no cuesta.
@@ -113,7 +147,13 @@ export function crearTransporteWebSerial(): TransporteBalanza {
           }
         }
       } finally {
-        await lector.cancel().catch(() => {})
+        senal.removeEventListener('abort', alAbortar)
+        // Si `desconectar` llego primero ya solto este lector y puso otro —o
+        // ninguno—; volver a tocarlo seria soltar algo que no es mio.
+        if (lector === propio) {
+          lector = null
+          await soltar(propio)
+        }
       }
     },
   }
