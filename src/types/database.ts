@@ -1595,6 +1595,38 @@ export type Database = {
         }
         Returns: string
       }
+      reporte_reposicion: {
+        Args: { p_almacen?: number; p_dias?: number }
+        Returns: {
+          almacen: string
+          articulo: string
+          clasificacion: Database["public"]["Enums"]["clasificacion_articulo"]
+          consumo: number
+          descripcion: string
+          envases: number
+          faltante: number
+          minimo: number
+          total_fisico: number
+          ubicaciones: string
+          ultima_entrada: string
+          unidad: string
+          vencido: number
+          vigente: number
+        }[]
+      }
+      reporte_sin_minimo: {
+        Args: { p_almacen?: number; p_dias?: number }
+        Returns: {
+          almacen: string
+          articulo: string
+          clasificacion: Database["public"]["Enums"]["clasificacion_articulo"]
+          consumo: number
+          descripcion: string
+          envases: number
+          unidad: string
+          vigente: number
+        }[]
+      }
       resolver_pendiente: {
         Args: {
           p_nota?: string
