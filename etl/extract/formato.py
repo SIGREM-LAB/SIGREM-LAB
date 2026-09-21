@@ -24,7 +24,7 @@ FILA_ENCABEZADO_DEFECTO = 8
 HOJAS_DE_DATOS = ("Reactivos", "Insumos", "Material", "Equipos",
                   "Materia biológica", "Electrónica")
 
-ALMACENES = ("N3", "N4", "LUM", "LE")
+ALMACENES = ("N3", "N4", "LUM", "LE", "HUJ", "ACT")
 
 # Cuando el almacén no está en el nombre del archivo, está en el de la carpeta.
 # Va como mapa explícito y no como heurística: «Almacén-Nivel-3» no se parece a
@@ -35,6 +35,8 @@ CARPETAS = {
     "almacen-nivel-4": "N4",
     "almacen-lum": "LUM",
     "almacen-le": "LE",
+    "almacen-huejutla": "HUJ",
+    "almacen-actopan": "ACT",
 }
 
 # Qué columna del formato es qué campo. Lo que no está aquí se ignora: «No.» es

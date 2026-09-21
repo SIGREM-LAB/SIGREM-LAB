@@ -55,6 +55,14 @@ class Correccion:
     # Cuantas celdas se espera cambiar. La verificacion falla si no cuadra:
     # que el archivo cambie y esto siga en silencio es justo lo que no quiero.
     esperadas: int | None = None
+    # Subcadena de la ruta del libro al que aplica. Vacio = a todos.
+    #
+    # Sin esto, una correccion nacida de un almacen se aplica sobre el libro de
+    # otro: `Gabienete -> Gabinete` existen en N3 y en Huejutla, pero el conteo
+    # esperado es de N3, asi que el segundo libro tumbaria la corrida. Y al
+    # reves: una errata de N3 corregida sobre Huejutla cambiaria datos que nadie
+    # reviso.
+    libro: str = ""
 
 
 @dataclass(frozen=True)
@@ -65,6 +73,7 @@ class Numerico:
     campo: str
     fila: int
     motivo: str
+    libro: str = ""
 
 
 # ---------------------------------------------------------------------------
@@ -78,7 +87,7 @@ class Numerico:
 MUEBLES = [
     Correccion("Material", "mueble", "Gabienete", "Gabinete",
                "Regla 5 · errata de mueble; el ETL propone el destino",
-               esperadas=74),
+               esperadas=74, libro="Nivel-3"),
 ]
 
 # 2. Regla 3 / identidad del articulo. Estos cinco pares son IDENTICOS al
@@ -92,19 +101,19 @@ MUEBLES = [
 PARTIDOS = [
     Correccion("Reactivos", "sustancia", "sólido,presentación", "sólido, presentación",
                "Identidad del articulo · falta un espacio; 2 renglones lo escriben bien",
-               filas=(222,), esperadas=1),
+               filas=(222,), esperadas=1, libro="Nivel-3"),
     Correccion("Reactivos", "sustancia", "sólido (anaerobios)", "sólido, (anaerobios)",
                "Identidad del articulo · se dobla a la forma mayoritaria (2 de 3)",
-               filas=(371,), esperadas=1),
+               filas=(371,), esperadas=1, libro="Nivel-3"),
     Correccion("Reactivos", "sustancia", "McCoy´s", "McCoy's",
                "Identidad del articulo · acento agudo usado como apostrofo (3 de 4)",
-               filas=(784,), esperadas=1),
+               filas=(784,), esperadas=1, libro="Nivel-3"),
     Correccion("Material", "articulo", "Termométro", "Termómetro",
                "Identidad del articulo · empate 1-1; manda la ortografia",
-               filas=(233,), esperadas=1),
+               filas=(233,), esperadas=1, libro="Nivel-3"),
     Correccion("Material", "articulo", "Potenciómetro portatil", "Potenciómetro portátil",
                "Identidad del articulo · empate 1-1; manda la ortografia",
-               filas=(232,), esperadas=1),
+               filas=(232,), esperadas=1, libro="Nivel-3"),
 ]
 
 # 3. Erratas de palabra con destino unico. El criterio para que una entre aqui:
@@ -118,25 +127,26 @@ PARTIDOS = [
 ERRATAS = [
     Correccion("Reactivos", "sustancia", "geado", "grado",
                "Errata · «grado» aparece cientos de veces", filas=(323, 324, 325),
-               esperadas=3),
+               esperadas=3, libro="Nivel-3"),
     Correccion("Reactivos", "sustancia", "purea", "pureza",
-               "Errata · «pureza» x423", filas=(390, 440), esperadas=2),
+               "Errata · «pureza» x423", filas=(390, 440), esperadas=2, libro="Nivel-3"),
     Correccion("Reactivos", "sustancia", "puraza", "pureza",
-               "Errata · «pureza» x423", filas=(485, 1040), esperadas=2),
+               "Errata · «pureza» x423", filas=(485, 1040), esperadas=2, libro="Nivel-3"),
     Correccion("Reactivos", "sustancia", "sólio", "sólido",
-               "Errata · «sólido» x791", filas=(769,), esperadas=1),
+               "Errata · «sólido» x791", filas=(769,), esperadas=1, libro="Nivel-3"),
     # Ergoesterol es ademas el caso de los 20 frascos: sin esta correccion se
     # queda como un articulo suelto al lado de los 23 «Ergosterol».
     Correccion("Reactivos", "sustancia", "Ergoesterol", "Ergosterol",
                "Errata · «Ergosterol» x23 en la misma hoja", filas=(610,),
-               esperadas=1),
+               esperadas=1, libro="Nivel-3"),
 ]
 
 # 4. Los siete deletreos de «presentación». Van aparte porque son la misma
 #    palabra siete veces, no siete hallazgos distintos.
 PRESENTACION = [
     Correccion("Reactivos", "sustancia", mal, "presentación",
-               "Errata · «presentación» x1046", filas=(fila,), esperadas=1)
+               "Errata · «presentación» x1046", filas=(fila,), esperadas=1,
+               libro="Nivel-3")
     for mal, fila in (
         ("resentación", 226),
         ("pesentación", 403),
@@ -154,11 +164,68 @@ PRESENTACION = [
 #    Dejarlo escrito aqui hace que el resultado no dependa de ese orden.
 MARCAS = [
     Correccion(hoja, "marca", "SIN MARCA", "Sin marca",
-               "Regla 4 · una sola grafia por marca")
+               "Regla 4 · una sola grafia por marca", libro="Nivel-3")
     for hoja in ("Reactivos", "Insumos", "Material")
 ]
 
-CORRECCIONES = MUEBLES + PARTIDOS + ERRATAS + PRESENTACION + MARCAS
+# ---------------------------------------------------------------------------
+# Las correcciones de Huejutla
+# ---------------------------------------------------------------------------
+# El libro de Huejutla se capturo sobre la plantilla de N3 y la columna
+# Sub-ubicacion quedo en «N3» en las 440 filas. La regla de sub-ubicacion
+# rechaza el renglon entero cuando no es del almacen, asi que sin esto no entra
+# uno solo: los 440 se irian a carga_pendiente. El destino es unico —el
+# responsable confirmo que el inventario es de Huejutla, no de N3— y el conteo
+# por hoja va fijo para que un archivo distinto tumbe la corrida.
+SUB_UBICACION_HUJ = [
+    Correccion(hoja, "sub_ubicacion", "N3", "HUJ",
+               "Archivo mal rotulado · el libro es de Huejutla, no de N3",
+               libro="Huejutla", esperadas=n)
+    for hoja, n in (("Reactivos", 111), ("Insumos", 82), ("Material", 247))
+]
+
+# Las mismas dos que en N3, pero acotadas a este libro. El archivo de Huejutla
+# se capturo sobre la plantilla de N3, asi que arrastra la misma errata de
+# mueble y el mismo 0.5 guardado como texto. El destino es unico y el conteo va
+# fijo: 23+13+13+13+12 = 74 «Gabienete».
+MUEBLES_HUJ = [
+    Correccion("Material", "mueble", "Gabienete", "Gabinete",
+               "Regla 5 · errata de mueble; el ETL propone el destino",
+               esperadas=74, libro="Huejutla"),
+]
+
+NUMERICOS_HUJ = [
+    Numerico("Material", "cantidad", 136,
+             "Regla 1 · numero guardado como texto", libro="Huejutla"),
+]
+
+# ---------------------------------------------------------------------------
+# Las correcciones de Actopan
+# ---------------------------------------------------------------------------
+# El libro se armo copiando hojas de distintos almacenes, asi que la columna
+# Sub-ubicacion tampoco quedo actualizada: Reactivos dice «N4» y Insumos y
+# Material dicen «N3». Sin corregirla, la regla de sub-ubicacion tira las tres
+# hojas enteras. El destino confirmado es el almacen ACT.
+SUB_UBICACION_ACT = [
+    Correccion(hoja, "sub_ubicacion", buscar, "ACT",
+               "Archivo mal rotulado · el libro es de Actopan",
+               libro="Actopan", esperadas=n)
+    for hoja, buscar, n in (("Reactivos", "N4", 64),
+                            ("Insumos", "N3", 32),
+                            ("Material", "N3", 37))
+]
+
+# La misma errata de mueble que en N3 y Huejutla, acotada a este libro:
+# 19+12+6 = 37 «Gabienete».
+MUEBLES_ACT = [
+    Correccion("Material", "mueble", "Gabienete", "Gabinete",
+               "Regla 5 · errata de mueble; el ETL propone el destino",
+               esperadas=37, libro="Actopan"),
+]
+
+CORRECCIONES = (MUEBLES + PARTIDOS + ERRATAS + PRESENTACION + MARCAS
+                + SUB_UBICACION_HUJ + MUEBLES_HUJ + SUB_UBICACION_ACT
+                + MUEBLES_ACT)
 
 # 6. Regla 1. Un numero guardado como texto. `normalizar.numero()` lo rechaza y
 #    con el se cae la hoja entera de Material.
@@ -168,8 +235,8 @@ CORRECCIONES = MUEBLES + PARTIDOS + ERRATAS + PRESENTACION + MARCAS
 #    es exactamente la clase de decision que va a la pantalla de depuracion.
 NUMERICOS = [
     Numerico("Material", "cantidad", 136,
-             "Regla 1 · numero guardado como texto"),
-]
+             "Regla 1 · numero guardado como texto", libro="Nivel-3"),
+] + NUMERICOS_HUJ
 
 
 @dataclass
@@ -249,20 +316,29 @@ def corregir(origen: Path, destino: Path) -> Bitacora:
     # el archivo de destino sigue siendo byte a byte el original.
     shutil.copy2(origen, destino)
 
-    # data_only=False a proposito. Con True, openpyxl reemplaza cada formula
-    # por su ultimo valor cacheado al guardar. Este libro no trae ninguna, pero
-    # el siguiente almacen puede traerlas y el destrozo seria silencioso.
-    libro = load_workbook(destino, data_only=False)
+    # data_only=True a proposito, aunque parezca lo contrario. openpyxl no
+    # guarda las dos cosas de una formula: con data_only=False conserva el texto
+    # «=L10-K10» pero pierde el valor cacheado, y con data_only=True conserva el
+    # valor pero convierte la formula en su resultado. El cargador lee con
+    # data_only=True, asi que la primera opcion deja la cantidad en None y la
+    # mete como cero SIN un solo error. El libro de Actopan trae exactamente esa
+    # formula en la cantidad de Reactivos; N3 y Huejutla no. Se materializa el
+    # valor y el corregido queda cargable.
+    libro = load_workbook(destino, data_only=True)
     bitacora = Bitacora()
     cuenta: dict[int, int] = {}
 
     for i, correccion in enumerate(CORRECCIONES):
+        if correccion.libro and correccion.libro.lower() not in str(origen).lower():
+            continue
         if correccion.hoja not in libro.sheetnames:
             continue
         cuenta[i] = _aplicar(libro[correccion.hoja], correccion,
                              destino.name, bitacora)
 
     for numerico in NUMERICOS:
+        if numerico.libro and numerico.libro.lower() not in str(origen).lower():
+            continue
         if numerico.hoja in libro.sheetnames:
             _aplicar_numerico(libro[numerico.hoja], numerico, destino.name,
                               bitacora)
@@ -309,8 +385,8 @@ def verificar(origen: Path, destino: Path,
     validaciones de datos —los desplegables del formato— porque si openpyxl las
     pierde, el archivo ya no sirve para devolverselo al almacen.
     """
-    a = load_workbook(origen, data_only=False)
-    b = load_workbook(destino, data_only=False)
+    a = load_workbook(origen, data_only=True)
+    b = load_workbook(destino, data_only=True)
     fallas: list[str] = []
     notas: list[str] = []
 

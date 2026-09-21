@@ -34,7 +34,7 @@ REVIEW = RAIZ / "etl" / "review"
 
 # Fijo, para que la corrida sea reproducible. El orden importa: `articulo` es
 # global, así que la deduplicación solo se ejercita con varios almacenes juntos.
-ORDEN = ("N3", "N4", "LUM", "LE")
+ORDEN = ("N3", "N4", "LUM", "LE", "HUJ", "ACT")
 ORDEN_HOJAS = ("Reactivos", "Insumos", "Material", "Equipos",
                "Materia biológica", "Electrónica")
 
