@@ -1576,6 +1576,12 @@ export type Database = {
         Args: { destino: number; origen: number }
         Returns: undefined
       }
+      inventario_formato: {
+        Args: { p_almacen: number; p_hoja: string }
+        Returns: {
+          renglon: Json
+        }[]
+      }
       metodo_de_control: {
         Args: {
           p_clasificacion: Database["public"]["Enums"]["clasificacion_articulo"]
