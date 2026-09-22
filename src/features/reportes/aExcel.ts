@@ -15,12 +15,32 @@ export type Columna = {
   /** Sale con encabezado y sin datos: es para anotar a mano. */
   vacia?: boolean
   resaltar?: (fila: Record<string, unknown>) => 'alerta' | 'aviso' | null
+
+  /**
+   * Letra de la columna en el formato unificado: «H», «AB».
+   *
+   * Solo la traen las hojas del formato, y no es decoracion. Reactivos arranca
+   * en la B, salta la O y termina en la AB: escribir las columnas seguidas
+   * desde la A produce un archivo que SE VE BIEN y que el ETL no puede leer,
+   * porque busca cada campo en su letra.
+   */
+  columna?: string
 }
 
 export type HojaLista = {
   nombre: string
   columnas: Columna[]
   filas: Record<string, unknown>[]
+
+  /**
+   * En que fila van los titulos. Las hojas del formato la traen -8, y 9 en
+   * Reactivos por las tres filas agrupadas de los apartados de la NOM-; los
+   * reportes normales no, y entonces va la 1.
+   */
+  filaEncabezado?: number
+
+  /** Lo que va ARRIBA del encabezado: responsable, periodo, fecha. */
+  preambulo?: { celda: string; valor: string }[]
 }
 
 /** Rojo y ámbar suaves: se leen impresos en blanco y negro sin taparse. */
@@ -52,38 +72,68 @@ export async function aExcel(opciones: {
   for (const hoja of opciones.hojas) {
     const ws = libro.addWorksheet(hoja.nombre)
 
-    ws.columns = hoja.columnas.map((c) => ({
-      header: c.titulo,
-      key: c.clave,
-      width: c.ancho ?? anchoDe(c),
-    }))
-    ws.getRow(1).font = { bold: true }
-    ws.views = [{ state: 'frozen', ySplit: 1 }]
-    ws.autoFilter = {
-      from: { row: 1, column: 1 },
-      to: { row: 1, column: hoja.columnas.length },
+    // Dos modos. Sin `filaEncabezado` es un reporte normal: columnas seguidas
+    // desde la A y titulos en la 1. Con ella es el formato unificado, y
+    // entonces cada columna va en SU letra y el resto se queda vacio -la A es
+    // el consecutivo «No.», que no se guarda, y hay huecos a proposito-.
+    const enFormato = hoja.filaEncabezado !== undefined
+    const filaTitulos = hoja.filaEncabezado ?? 1
+
+    for (const { celda, valor } of hoja.preambulo ?? []) {
+      ws.getCell(celda).value = valor
     }
 
-    for (const fila of hoja.filas) {
-      const agregada = ws.addRow(
-        Object.fromEntries(
-          hoja.columnas.map((c) => [
-            c.clave,
-            c.vacia ? null : convertir(fila[c.clave], c.tipo),
-          ]),
-        ),
-      )
+    if (enFormato) {
+      for (const c of hoja.columnas) {
+        if (!c.columna) continue
+        ws.getColumn(c.columna).width = c.ancho ?? anchoDe(c)
+        ws.getCell(`${c.columna}${filaTitulos}`).value = c.titulo
+      }
+    } else {
+      ws.columns = hoja.columnas.map((c) => ({
+        header: c.titulo,
+        key: c.clave,
+        width: c.ancho ?? anchoDe(c),
+      }))
+    }
 
-      hoja.columnas.forEach((c, i) => {
+    ws.getRow(filaTitulos).font = { bold: true }
+    ws.views = [{ state: 'frozen', ySplit: filaTitulos }]
+
+    if (!enFormato) {
+      ws.autoFilter = {
+        from: { row: 1, column: 1 },
+        to: { row: 1, column: hoja.columnas.length },
+      }
+    }
+
+    hoja.filas.forEach((fila, i) => {
+      const numero = filaTitulos + 1 + i
+      const agregada = ws.getRow(numero)
+
+      hoja.columnas.forEach((c, indice) => {
+        const valor = c.vacia ? null : convertir(fila[c.clave], c.tipo)
+        const celda = enFormato
+          ? c.columna
+            ? agregada.getCell(c.columna)
+            : null
+          : agregada.getCell(indice + 1)
+
+        if (celda === null) return
+        celda.value = valor
+
         const token = c.resaltar?.(fila)
-        if (!token) return
-        agregada.getCell(i + 1).fill = {
-          type: 'pattern',
-          pattern: 'solid',
-          fgColor: { argb: RELLENO[token] },
+        if (token) {
+          celda.fill = {
+            type: 'pattern',
+            pattern: 'solid',
+            fgColor: { argb: RELLENO[token] },
+          }
         }
       })
-    }
+
+      agregada.commit()
+    })
   }
 
   return libro.xlsx.writeBuffer() as Promise<ArrayBuffer>

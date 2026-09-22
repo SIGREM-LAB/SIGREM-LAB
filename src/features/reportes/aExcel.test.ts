@@ -98,3 +98,74 @@ describe('aExcel', () => {
     expect(hoja?.getCell('B2').fill?.type).toBeUndefined() // Acetona, 40.5
   })
 })
+
+/*
+ * El formato unificado no es una hoja cualquiera: sus columnas viven en letras
+ * concretas —Reactivos arranca en B, salta la O, y termina en AB—, su
+ * encabezado va en la fila 8 (9 en Reactivos, por las tres filas agrupadas de
+ * la NOM) y arriba lleva un preámbulo. Escribir las columnas seguidas desde A1
+ * produce un archivo que se ve bien y que el ETL no puede leer.
+ */
+describe('aExcel · formato unificado', () => {
+  const FORMATO = {
+    titulo: 'Inventario en formato unificado',
+    parametros: [{ etiqueta: 'Almacén', valor: 'UCL-N3' }],
+    hojas: [
+      {
+        nombre: 'Reactivos',
+        filaEncabezado: 9,
+        preambulo: [
+          { celda: 'F4', valor: 'Quien responde' },
+          { celda: 'B5', valor: 'J-D 2026' },
+          { celda: 'F5', valor: '2026-09-21' },
+        ],
+        columnas: [
+          { clave: 'sub_ubicacion', columna: 'B', titulo: 'Sub-ubicación', tipo: 'texto' as const },
+          { clave: 'sustancia', columna: 'H', titulo: 'Sustancia química', tipo: 'texto' as const },
+          { clave: 'cantidad', columna: 'M', titulo: 'Cantidad', tipo: 'numero' as const },
+          { clave: 'observaciones', columna: 'AB', titulo: 'Observaciones', tipo: 'texto' as const },
+        ],
+        filas: [{ sub_ubicacion: 'N3', sustancia: 'Acetona', cantidad: 248.54, observaciones: 'x' }],
+      },
+    ],
+  }
+
+  it('pone cada columna en SU letra, no en la siguiente libre', async () => {
+    const hoja = (await abrir(await aExcel(FORMATO))).getWorksheet('Reactivos')
+
+    expect(hoja?.getCell('B9').value).toBe('Sub-ubicación')
+    expect(hoja?.getCell('H9').value).toBe('Sustancia química')
+    expect(hoja?.getCell('AB9').value).toBe('Observaciones')
+  })
+
+  it('deja vacías las columnas que el formato no usa', async () => {
+    const hoja = (await abrir(await aExcel(FORMATO))).getWorksheet('Reactivos')
+
+    // A es el consecutivo «No.» del Excel, que no se guarda. O, Z y AA son
+    // huecos del formato.
+    expect(hoja?.getCell('A9').value).toBeFalsy()
+    expect(hoja?.getCell('O9').value).toBeFalsy()
+    expect(hoja?.getCell('Z9').value).toBeFalsy()
+  })
+
+  it('el encabezado va en su fila y los datos debajo', async () => {
+    const hoja = (await abrir(await aExcel(FORMATO))).getWorksheet('Reactivos')
+
+    expect(hoja?.getCell('H10').value).toBe('Acetona')
+    expect(hoja?.getCell('M10').value).toBe(248.54)
+  })
+
+  it('escribe el preámbulo donde el ETL lo busca', async () => {
+    const hoja = (await abrir(await aExcel(FORMATO))).getWorksheet('Reactivos')
+
+    expect(hoja?.getCell('F4').value).toBe('Quien responde')
+    expect(hoja?.getCell('B5').value).toBe('J-D 2026')
+    expect(hoja?.getCell('F5').value).toBe('2026-09-21')
+  })
+
+  it('congela por debajo del encabezado, no de la primera fila', async () => {
+    const hoja = (await abrir(await aExcel(FORMATO))).getWorksheet('Reactivos')
+
+    expect(hoja?.views?.[0]).toMatchObject({ state: 'frozen', ySplit: 9 })
+  })
+})

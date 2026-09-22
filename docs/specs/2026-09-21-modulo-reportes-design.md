@@ -238,6 +238,31 @@ que el exportador produjo.** Eso da la ida y vuelta de D5 —exportar, corregir 
 Excel, volver a subir— sin escribir un importador. Por la línea de comandos, no
 desde la app; recargar desde la app es otra entrega.
 
+> **Lo que esta prueba encontró, el 21 de septiembre.** Escribirla reveló que
+> «el exportador produce el formato» era **falso**. `aExcel` colocaba las
+> columnas seguidas desde la A; las de Reactivos arrancan en la B, saltan la O
+> y terminan en la AB. El encabezado iba en la fila 1 y no en la 8 —la 9 en
+> Reactivos—, y no había preámbulo. El archivo tenía las columnas correctas, en
+> el orden correcto, con los títulos correctos, **en las posiciones
+> equivocadas**: se veía bien y el ETL no sacaba de él un solo campo.
+>
+> Es exactamente el modo de fallo que esta decisión existía para atrapar, y lo
+> atrapó antes de la primera exportación real. `aExcel` gana un segundo modo
+> —coloca por letra, respeta la fila del encabezado, escribe el preámbulo— que
+> se activa solo cuando la hoja lo declara; los reportes normales siguen
+> saliendo desde A1.
+>
+> La prueba quedó partida en dos, porque son dos garantías distintas:
+> `etl/tests/test_ida_y_vuelta.py` comprueba que el ETL lee lo que la app
+> escribe, y `etl/tests/test_formato_alineado.py` compara `CAMPOS` contra
+> `columna_formato` campo por campo y letra por letra. La segunda necesita
+> `DATABASE_URL` y se salta sin ella.
+>
+> Para versionarlas hubo que levantar `etl/tests/` del `.gitignore`, que las
+> apartaba con la nota «todo lo de pruebas queda FUERA por ahora». Ese «por
+> ahora» terminó aquí: una prueba que vigila una divergencia sirve de poco si
+> solo existe en una máquina.
+
 ### D11 · El rol `consulta` no genera reportes
 
 Un archivo sale del sistema, se reenvía y sobrevive a la baja del usuario; una

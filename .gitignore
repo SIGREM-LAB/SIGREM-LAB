@@ -41,6 +41,15 @@ etl/Datos-Reales-JD2026/
 # la carpeta; esta cubre el descuido. Ningun .xlsx de inventario entra al repo.
 etl/*.xlsx
 
+# El libro de la prueba de ida y vuelta. Lo escribe
+# `src/features/reportes/formatoUnificado.test.ts` en cada `pnpm test`, con
+# datos inventados, y lo lee `etl/tests/test_ida_y_vuelta.py`.
+#
+# No se versiona a proposito: un fixture commiteado seguiria pasando el dia que
+# alguien rompa el exportador, que es justo lo contrario de lo que esa prueba
+# existe para hacer.
+etl/tests/fixtures/*.xlsx
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
@@ -67,8 +76,21 @@ etl/review/*.csv
 # que vive fuera del repo.
 etl/ejemplos/
 
-# Las pruebas del cargador.
-etl/tests/
+# `etl/tests/` SI se versiona desde el 21 de septiembre de 2026.
+#
+# La regla anterior lo apartaba entero -«todo lo de pruebas queda FUERA por
+# ahora»- y ese «por ahora» se acabo con el modulo de reportes: el formato
+# unificado pasa a estar descrito DOS veces, en `CAMPOS` y en la tabla
+# `columna_formato`, y lo unico que impide que se separen es
+# `test_formato_alineado.py`. Fuera del repositorio solo protege a quien la
+# corra a mano, que es tanto como no protegerlo.
+#
+# No es teorico: el mismo dia se descubrio que HOJAS_DE_DATOS buscaba «Materia
+# biologica» mientras los libros traen «Material biologico», y que por eso el
+# mapeo de esa hoja llevaba meses desfasado una columna sin que nadie lo notara.
+# Esa prueba lo habria dicho el primer dia.
+#
+# Lo que sigue fuera son los datos, no el codigo: `etl/ejemplos/` y los .xlsx.
 
 # Temporales de Word: los deja abiertos Office y no son parte de nada.
 ~$*

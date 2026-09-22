@@ -27,7 +27,11 @@ export type Peticion = {
 export async function generarLibro(v: Peticion) {
   const hojas: HojaLista[] =
     v.reporte.id === 'inventario'
-      ? await hojasDelFormato(v.parametros.p_almacen as number)
+      ? await hojasDelFormato(v.parametros.p_almacen as number, {
+          responsable: v.etiquetas.find((e) => e.etiqueta === 'Por')?.valor ?? '',
+          periodo: periodoDe(new Date()),
+          actualizado: new Date().toISOString().slice(0, 10),
+        })
       : await Promise.all(
           v.reporte.hojas.map(async (h) => ({
             nombre: h.nombre,
@@ -73,10 +77,13 @@ export function useGenerarReporte() {
  * almacenes entregan de verdad -lo dice el docstring de `leer_libro` en el ETL,
  * tras haberse tropezado con el archivo real de N3-.
  */
-async function hojasDelFormato(almacenId: number): Promise<HojaLista[]> {
+async function hojasDelFormato(
+  almacenId: number,
+  preambulo: { responsable: string; periodo: string; actualizado: string },
+): Promise<HojaLista[]> {
   const { data: definicion, error } = await supabase
     .from('hoja_formato')
-    .select('hoja, orden')
+    .select('hoja, orden, fila_encabezado, celda_responsable, celda_periodo, celda_actualizado')
     .order('orden')
   if (error) throw error
 
@@ -84,7 +91,8 @@ async function hojasDelFormato(almacenId: number): Promise<HojaLista[]> {
   // el libro tiene que ser el de `orden`, que es el mismo de HOJAS_DE_DATOS.
   const hojas: HojaLista[] = []
 
-  for (const { hoja } of definicion ?? []) {
+  for (const h of definicion ?? []) {
+    const hoja = h.hoja
     const { data: columnas, error: errorColumnas } = await supabase.rpc('formato_hoja', {
       p_hoja: hoja,
     })
@@ -98,6 +106,16 @@ async function hojasDelFormato(almacenId: number): Promise<HojaLista[]> {
 
     hojas.push({
       nombre: hoja,
+
+      // Lo que convierte esto en EL formato y no en una hoja con los mismos
+      // titulos: la fila del encabezado y las celdas del preambulo, que es
+      // donde `etl/extract/formato.py` las busca.
+      filaEncabezado: h.fila_encabezado,
+      preambulo: [
+        { celda: h.celda_responsable, valor: preambulo.responsable },
+        { celda: h.celda_periodo, valor: preambulo.periodo },
+        { celda: h.celda_actualizado, valor: preambulo.actualizado },
+      ],
       // El tipo viene de la base. Mapearlo todo a texto haria que `cantidad` y
       // `peso_vacio` salieran como cadena, que es exactamente el defecto que el
       // ETL limpio al entrar.
@@ -105,6 +123,9 @@ async function hojasDelFormato(almacenId: number): Promise<HojaLista[]> {
         clave: c.campo,
         titulo: c.titulo,
         tipo: c.tipo as Columna['tipo'],
+        // La letra, no la posicion. Reactivos arranca en B, salta la O y
+        // termina en AB; seguidas desde A, el ETL no lee ni una.
+        columna: c.columna,
       })),
       // `inventario_formato` promete un objeto por renglon -lo arma con
       // jsonb_object_agg-, pero el tipo generado es `Json`, que abarca tambien
@@ -119,4 +140,15 @@ async function hojasDelFormato(almacenId: number): Promise<HojaLista[]> {
   }
 
   return hojas
+}
+
+/**
+ * El periodo como lo escribe la casa: «E-J 2026», «J-D 2026».
+ *
+ * Es el vocabulario de las columnas de los Excel originales -«Cantidad en
+ * existencia E-J 2026»- y de `carga.periodo`, asi que el archivo exportado
+ * habla el mismo idioma que los que ya estan en la carpeta.
+ */
+function periodoDe(hoy: Date) {
+  return `${hoy.getMonth() < 6 ? 'E-J' : 'J-D'} ${hoy.getFullYear()}`
 }
