@@ -28,6 +28,9 @@ import {
 const PaginaReportes = lazy(() =>
   import('@/features/reportes/PaginaReportes').then((m) => ({ default: m.PaginaReportes })),
 )
+const PaginaMinimos = lazy(() =>
+  import('@/features/reportes/PaginaMinimos').then((m) => ({ default: m.PaginaMinimos })),
+)
 import { PaginaDepuracion } from '@/features/inventario/PaginaDepuracion'
 import { PaginaInventario } from '@/features/inventario/PaginaInventario'
 import { ProveedorBalanza } from '@/features/balanza/ProveedorBalanza'
@@ -116,6 +119,19 @@ export default function App() {
                         element={
                           <Suspense fallback={null}>
                             <PaginaReportes />
+                          </Suspense>
+                        }
+                      />
+
+                      {/* Cuelga de /reportes y no de /inventario porque se
+                          llega desde «quiero saber que comprar»: el minimo es
+                          el dato que le falta a ese reporte, no una propiedad
+                          que a nadie le apetezca capturar por si misma. */}
+                      <Route
+                        path="/reportes/minimos"
+                        element={
+                          <Suspense fallback={null}>
+                            <PaginaMinimos />
                           </Suspense>
                         }
                       />

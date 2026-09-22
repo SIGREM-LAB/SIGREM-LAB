@@ -15,7 +15,7 @@ import {
 import { useState } from 'react'
 
 import { usePerfil } from '@/features/auth/usePerfil'
-import { useGenerarReporte } from './consultas'
+import { useGenerarReporte } from './generarReporte'
 import type { Reporte } from './registro'
 
 /**
