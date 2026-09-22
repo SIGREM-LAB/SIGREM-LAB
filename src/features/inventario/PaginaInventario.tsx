@@ -3,7 +3,7 @@ import { Icon } from '@iconify/react'
 import { Alert, Button, Snackbar } from '@mui/material'
 import { Link as EnlaceRuta } from 'react-router-dom'
 
-import { AccionPendiente } from '@/app/AccionPendiente'
+import { BotonExportar } from '@/features/reportes/BotonExportar'
 import { CuerpoPagina, EncabezadoPagina } from '@/app/EncabezadoPagina'
 import { usePerfil } from '@/features/auth/usePerfil'
 import { DialogoNuevaExistencia } from './DialogoNuevaExistencia'
@@ -73,7 +73,7 @@ function Inventario({ almacen }: { almacen: Almacen }) {
                 Depurar {porDepurar.data.pendiente}
               </Button>
             )}
-            <AccionPendiente etiqueta="Exportar" icono="mdi:download-outline" variante="outlined" />
+            <BotonExportar almacenId={almacen.id} almacenClave={almacen.clave} />
             <Button
               variant="contained"
               onClick={() => setDandoDeAlta(true)}

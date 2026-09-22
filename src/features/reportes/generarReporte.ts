@@ -8,56 +8,61 @@ import { nombreDeArchivo, type Reporte } from './registro'
 
 type Fila = Record<string, unknown>
 
+export type Peticion = {
+  reporte: Reporte
+  parametros: Record<string, unknown>
+  almacenClave: string
+  etiquetas: { etiqueta: string; valor: string }[]
+}
+
 /**
  * Genera y descarga.
  *
- * Va como mutacion y no como query: no es un dato que se cachea, es una accion
- * con efecto -un archivo en Descargas- que se dispara cuando alguien pulsa el
- * boton.
+ * Funcion suelta y no solo un hook, a proposito: las dos pantallas de
+ * inventario NO son diferidas, asi que un `import` estatico desde su boton de
+ * Exportar volveria a meter exceljs -920 kB- en el bundle principal y tiraria
+ * por tierra la carga diferida de /reportes. Siendo una funcion, el boton la
+ * pide con `import()` en el momento de pulsar.
  */
-export function useGenerarReporte() {
-  return useMutation({
-    mutationFn: async (v: {
-      reporte: Reporte
-      parametros: Record<string, unknown>
-      almacenClave: string
-      etiquetas: { etiqueta: string; valor: string }[]
-    }) => {
-      const hojas: HojaLista[] =
-        v.reporte.id === 'inventario'
-          ? await hojasDelFormato(v.parametros.p_almacen as number)
-          : await Promise.all(
-              v.reporte.hojas.map(async (h) => ({
-                nombre: h.nombre,
-                columnas: h.columnas,
-                filas: await traerTodo<Fila>((desde, hasta) =>
-                  // @ts-expect-error El nombre de la RPC vive en el registro,
-                  // que es datos: supabase-js quiere un literal de su union.
-                  supabase.rpc(h.rpc, v.parametros).range(desde, hasta),
-                ),
-              })),
-            )
-
-      // Un libro con TODAS las hojas vacias no se descarga. Hoy le pasa al de
-      // caducidades: 0 de 2,526 existencias tienen fecha, porque el formato
-      // unificado no trae columna de caducidad en ninguna hoja. Un Excel en
-      // blanco parece un inventario sano; el aviso dice que no hay datos.
-      if (hojas.every((h) => h.filas.length === 0)) {
-        throw new Error(
-          `No hay datos para «${v.reporte.titulo}» con estos parámetros. ` +
-            'No se generó ningún archivo.',
+export async function generarLibro(v: Peticion) {
+  const hojas: HojaLista[] =
+    v.reporte.id === 'inventario'
+      ? await hojasDelFormato(v.parametros.p_almacen as number)
+      : await Promise.all(
+          v.reporte.hojas.map(async (h) => ({
+            nombre: h.nombre,
+            columnas: h.columnas,
+            filas: await traerTodo<Fila>((desde, hasta) =>
+              // @ts-expect-error El nombre de la RPC vive en el registro,
+              // que es datos: supabase-js quiere un literal de su union.
+              supabase.rpc(h.rpc, v.parametros).range(desde, hasta),
+            ),
+          })),
         )
-      }
 
-      const buffer = await aExcel({
-        titulo: v.reporte.titulo,
-        parametros: v.etiquetas,
-        hojas,
-      })
+  // Un libro con TODAS las hojas vacias no se descarga. Hoy le pasa al de
+  // caducidades: 0 de 2,526 existencias tienen fecha, porque el formato
+  // unificado no trae columna de caducidad en ninguna hoja. Un Excel en
+  // blanco parece un inventario sano; el aviso dice que no hay datos.
+  if (hojas.every((h) => h.filas.length === 0)) {
+    throw new Error(
+      `No hay datos para «${v.reporte.titulo}» con estos parámetros. ` +
+        'No se generó ningún archivo.',
+    )
+  }
 
-      descargar(buffer, nombreDeArchivo(v.reporte, v.almacenClave))
-    },
+  const buffer = await aExcel({
+    titulo: v.reporte.titulo,
+    parametros: v.etiquetas,
+    hojas,
   })
+
+  descargar(buffer, nombreDeArchivo(v.reporte, v.almacenClave))
+}
+
+/** El mismo trabajo, envuelto para las pantallas que ya cargan el modulo. */
+export function useGenerarReporte() {
+  return useMutation({ mutationFn: generarLibro })
 }
 
 /**

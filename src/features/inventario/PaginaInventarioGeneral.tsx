@@ -1,8 +1,9 @@
 import { useLocation } from 'react-router-dom'
 
-import { AccionPendiente } from '@/app/AccionPendiente'
+import { BotonExportar } from '@/features/reportes/BotonExportar'
 import { CuerpoPagina, EncabezadoPagina } from '@/app/EncabezadoPagina'
 import { usePerfil } from '@/features/auth/usePerfil'
+import { useAlmacenes } from './consultas'
 import { ListadoExistencias } from './ListadoExistencias'
 import { almacenDesdeNavegacion } from './menu'
 
@@ -23,6 +24,7 @@ export function PaginaInventarioGeneral() {
   // El almacén que manda el menú principal al pulsar uno de sus renglones.
   // Llega como `unknown` y se valida en `almacenDesdeNavegacion`.
   const almacenPedido = almacenDesdeNavegacion(useLocation().state)
+  const almacenes = useAlmacenes()
 
   return (
     <>
@@ -31,7 +33,14 @@ export function PaginaInventarioGeneral() {
         titulo="Inventario general"
         descripcion="Las existencias de los cuatro almacenes de la Unidad"
         acciones={
-          <AccionPendiente etiqueta="Exportar" icono="mdi:download-outline" variante="outlined" />
+          /* El formato unificado es UN LIBRO POR ALMACEN. Aqui se ven los
+             siete a la vez, asi que solo hay algo que exportar cuando se llego
+             con uno concreto desde el menu principal; si no, el boton se apaga
+             y lo dice. */
+          <BotonExportar
+            almacenId={almacenPedido}
+            almacenClave={almacenes.data?.find((a) => a.id === almacenPedido)?.clave ?? null}
+          />
         }
       />
 
