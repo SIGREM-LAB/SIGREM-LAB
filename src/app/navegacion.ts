@@ -93,21 +93,37 @@ export function menuDeNavegacion(
       color: 'secondary.main',
       disponible: true,
     },
-    {
-      ruta: '/reportes',
-      etiqueta: 'Reportes',
-      icono: 'mdi:chart-box-outline',
-      grupo: 'administracion',
-      descripcion: 'Formato NOM y consumos por periodo',
-      color: 'secondary.light',
-      disponible: false,
-    },
   ]
 
-  if (rol !== 'admin') return comunes
+  // Reportes no la ve `consulta`, ni nadie mientras el rol esta cargando.
+  //
+  // Un archivo sale del sistema, se reenvia y sobrevive a la baja del usuario;
+  // una pantalla no. Por eso `consulta` sigue viendo el inventario entero y no
+  // puede exportarlo, que es una incoherencia aparente y deliberada.
+  //
+  // Esconder la entrada es comodidad, no seguridad: quien edite el bundle llega
+  // a la ruta igual. Lo que de verdad lo impide es que cada funcion de reporte
+  // arranque comprobando `private.puede_reportar()`.
+  const conReportes: ItemMenu[] =
+    rol === undefined || rol === 'consulta'
+      ? comunes
+      : [
+          ...comunes,
+          {
+            ruta: '/reportes',
+            etiqueta: 'Reportes',
+            icono: 'mdi:chart-box-outline',
+            grupo: 'administracion',
+            descripcion: 'Compras, caducidades, conteo y el formato unificado',
+            color: 'secondary.light',
+            disponible: true,
+          },
+        ]
+
+  if (rol !== 'admin') return conReportes
 
   return [
-    ...comunes,
+    ...conReportes,
     {
       ruta: '/administracion/educativo',
       etiqueta: 'Programa educativo',

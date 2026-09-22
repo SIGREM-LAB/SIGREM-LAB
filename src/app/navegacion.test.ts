@@ -46,7 +46,7 @@ describe('menuDeNavegacion', () => {
 
   // Un item disponible sin ruta registrada en App.tsx es un enlace roto, y una
   // ruta sin item es una pantalla a la que nadie llega.
-  test('inventario, general y practicas estan disponibles; reportes sigue apagado', () => {
+  test('todas las entradas del menu apuntan a una pantalla que existe', () => {
     const responsable = menuDeNavegacion('responsable', true)
     const admin = menuDeNavegacion('admin', false)
 
@@ -54,7 +54,10 @@ describe('menuDeNavegacion', () => {
     expect(responsable.find((i) => i.ruta === '/inventario-general')).toBeUndefined()
     expect(responsable.find((i) => i.ruta === '/practicas')?.disponible).toBe(true)
     expect(admin.find((i) => i.ruta === '/inventario-general')?.disponible).toBe(true)
-    expect(admin.find((i) => i.ruta === '/reportes')?.disponible).toBe(false)
+    // Reportes dejo de estar apagada: su pantalla existe desde el 21 de
+    // septiembre de 2026. Ya no queda ninguna entrada pendiente en el menu.
+    expect(admin.find((i) => i.ruta === '/reportes')?.disponible).toBe(true)
+    expect(admin.every((i) => i.disponible)).toBe(true)
   })
 
   test('ninguna ruta se repite', () => {
@@ -84,4 +87,31 @@ describe('el panel del programa educativo', () => {
 
     expect(rutas).not.toContain('/administracion/educativo')
   })
+
+  // Un archivo sale del sistema, se reenvia y sobrevive a la baja del usuario;
+  // una pantalla no. De ahi que consulta vea el inventario y no pueda
+  // exportarlo. Esconder la entrada es comodidad: lo que de verdad lo impide es
+  // que las funciones de reporte se nieguen a correr sin puede_reportar().
+  test('reportes no lo ve un usuario de consulta', () => {
+    expect(menuDeNavegacion('consulta', false).map((i) => i.ruta)).not.toContain('/reportes')
+  })
+
+  test('reportes lo ven responsable y admin, y encendida', () => {
+    for (const [rol, tieneAlmacen] of [
+      ['responsable', true],
+      ['admin', false],
+    ] as const) {
+      const item = menuDeNavegacion(rol, tieneAlmacen).find((i) => i.ruta === '/reportes')
+
+      expect(item, rol).toBeDefined()
+      expect(item?.disponible, rol).toBe(true)
+    }
+  })
+
+  // Mientras el perfil carga no se sabe el rol, y ensenar una entrada que va a
+  // desaparecer es peor que no ensenarla todavia.
+  test('reportes no aparece mientras el rol es desconocido', () => {
+    expect(menuDeNavegacion(undefined, false).map((i) => i.ruta)).not.toContain('/reportes')
+  })
+
 })

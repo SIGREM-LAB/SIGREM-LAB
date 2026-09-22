@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, test, vi } from 'vitest'
 
 import {
   ConAlmacenPropio,
+  SoloOperacion,
   RutaProtegida,
   SinAlmacenPropio,
   SoloAdmin,
@@ -479,5 +480,66 @@ describe('SinAlmacenPropio', () => {
     montarInventarioGeneral({ isError: true })
 
     expect(screen.getByText(/No se pudo comprobar tu perfil/)).toBeInTheDocument()
+  })
+})
+
+/*
+ * ============================================================
+ * REPORTES
+ * ============================================================
+ */
+
+function montarReportes(rol: 'admin' | 'responsable' | 'consulta') {
+  usePerfil.mockReturnValue({
+    isPending: false,
+    isError: false,
+    error: null,
+    data: { rol },
+  })
+
+  const cliente = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  })
+
+  return render(
+    <QueryClientProvider client={cliente}>
+      <ContextoSesion.Provider
+        value={{ estado: 'con-sesion', usuarioId: 'u-1' } as EstadoSesion}
+      >
+        <MemoryRouter initialEntries={['/reportes']}>
+          <Routes>
+            <Route path="/" element={<p>Página principal</p>} />
+
+            <Route element={<SoloOperacion />}>
+              <Route path="/reportes" element={<p>Reportes</p>} />
+            </Route>
+          </Routes>
+        </MemoryRouter>
+      </ContextoSesion.Provider>
+    </QueryClientProvider>,
+  )
+}
+
+describe('SoloOperacion - Reportes', () => {
+  beforeEach(() => {
+    usePerfil.mockReset()
+  })
+
+  test('entran el responsable y el administrador', () => {
+    for (const rol of ['responsable', 'admin'] as const) {
+      const { unmount } = montarReportes(rol)
+      expect(screen.getByText('Reportes'), rol).toBeInTheDocument()
+      unmount()
+      usePerfil.mockReset()
+    }
+  })
+
+  // Un archivo sale del sistema, se reenvia y sobrevive a la baja del usuario;
+  // una pantalla no. Consulta sigue viendo el inventario y no puede exportarlo.
+  test('un usuario de consulta no entra', () => {
+    montarReportes('consulta')
+
+    expect(screen.queryByText('Reportes')).not.toBeInTheDocument()
+    expect(screen.getByText('Página principal')).toBeInTheDocument()
   })
 })

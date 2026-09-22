@@ -1,6 +1,7 @@
 import CssBaseline from '@mui/material/CssBaseline'
 import { ThemeProvider } from '@mui/material/styles'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { lazy, Suspense } from 'react'
 import { BrowserRouter, Route, Routes } from 'react-router-dom'
 
 import { Layout } from '@/app/Layout'
@@ -19,7 +20,14 @@ import {
   SinAlmacenPropio,
   SoloAdmin,
   SoloInvitados,
+  SoloOperacion,
 } from '@/features/auth/RutaProtegida'
+
+// Diferidas a proposito: son las unicas pantallas que arrastran exceljs, que es
+// la dependencia mas pesada del proyecto. Quien no entra al modulo no la paga.
+const PaginaReportes = lazy(() =>
+  import('@/features/reportes/PaginaReportes').then((m) => ({ default: m.PaginaReportes })),
+)
 import { PaginaDepuracion } from '@/features/inventario/PaginaDepuracion'
 import { PaginaInventario } from '@/features/inventario/PaginaInventario'
 import { ProveedorBalanza } from '@/features/balanza/ProveedorBalanza'
@@ -96,6 +104,22 @@ export default function App() {
                         una captura a medias y direccionable cada una de las
                         varias que puede tener una persona. */}
                     <Route path="/practicas/nueva/:borradorId" element={<PaginaNuevaPractica />} />
+
+                    {/* Con guardia de rol, al reves que /practicas: alli los tres
+                        roles entran y la RLS impide escribir, asi que la pantalla
+                        sigue sirviendo en modo lectura. Aqui un usuario de
+                        consulta no tiene nada que hacer, porque todas las
+                        funciones le responden con excepcion. */}
+                    <Route element={<SoloOperacion />}>
+                      <Route
+                        path="/reportes"
+                        element={
+                          <Suspense fallback={null}>
+                            <PaginaReportes />
+                          </Suspense>
+                        }
+                      />
+                    </Route>
 
                     {/* Bajo /administracion y no en la raíz: es el primero de
                         cinco bloques de catálogo que sólo toca el admin, y el

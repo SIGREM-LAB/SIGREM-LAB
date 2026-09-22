@@ -106,6 +106,43 @@ export function SoloAdmin() {
 }
 
 /**
+ * Reportes: responsable y admin, no consulta.
+ *
+ * Como `SoloAdmin`, esto es comodidad y no seguridad: quien edite el bundle
+ * llega a la ruta igual. Lo que de verdad lo impide es que cada función de
+ * reporte arranque comprobando `private.puede_reportar()`, que le responde con
+ * excepción a un usuario de consulta.
+ *
+ * La guardia existe para que no se meta a una pantalla donde todos los botones
+ * le van a fallar. Y la distinción con `/practicas` —que sí abren los tres
+ * roles— es deliberada: allá la RLS impide escribir y la pantalla sigue
+ * teniendo sentido en modo lectura; aquí no hay nada que leer, solo archivos
+ * que no se van a generar.
+ */
+export function SoloOperacion() {
+  const { data: perfil, isPending, isError } = usePerfil()
+
+  if (isPending) {
+    return <Aviso icono="mdi:chart-box-outline" texto="Comprobando tus permisos…" />
+  }
+
+  if (isError) {
+    return (
+      <Aviso
+        icono="mdi:cloud-off-outline"
+        texto="No se pudo comprobar tu perfil. Revisa la conexión y vuelve a cargar la página."
+      />
+    )
+  }
+
+  if (perfil?.rol !== 'admin' && perfil?.rol !== 'responsable') {
+    return <Navigate to="/" replace />
+  }
+
+  return <Outlet />
+}
+
+/**
  * Inventario es la pantalla de UNA bodega: la de quien entra. Quien no tiene
  * almacén asignado —admin y consulta, cuyo ámbito es la Unidad entera— no tiene
  * ahí nada que ver, y se le manda a Inventario general, que es su inventario.

@@ -7,10 +7,33 @@ import { menuDeNavegacion } from '@/app/navegacion'
 const PENDIENTES = menuDeNavegacion('admin', false).filter((item) => !item.disponible)
 
 describe('AtajosPendientes', () => {
-  test('dibuja una tarjeta por pantalla pendiente', () => {
-    render(<AtajosPendientes items={PENDIENTES} />)
+  // Reportes se entrego el 21 de septiembre de 2026 y era la ultima pendiente,
+  // asi que hoy la lista esta vacia y la fila entera desaparece de la portada.
+  // Que este componente se quede sin nada que dibujar es el final feliz, no un
+  // fallo: exactamente lo que promete la prueba de abajo.
+  test('sin pendientes no dibuja nada', () => {
+    expect(PENDIENTES).toHaveLength(0)
 
-    expect(screen.getByText('Reportes')).toBeInTheDocument()
+    const { container } = render(<AtajosPendientes items={PENDIENTES} />)
+
+    expect(container).toBeEmptyDOMElement()
+  })
+
+  test('dibuja una tarjeta por pantalla pendiente cuando las hay', () => {
+    const inventado = {
+      ruta: '/inventado',
+      etiqueta: 'Pantalla inventada',
+      icono: 'mdi:flask-outline',
+      grupo: 'operacion' as const,
+      descripcion: 'Lo que vendra',
+      color: 'grey.600',
+      disponible: false,
+    }
+
+    render(<AtajosPendientes items={[inventado]} />)
+
+    expect(screen.getByText('Pantalla inventada')).toBeInTheDocument()
+    expect(screen.getByText('Lo que vendra')).toBeInTheDocument()
   })
 
   // Practicas se entrego el 3 de septiembre y el inventario general el 9. En
