@@ -2,6 +2,12 @@ import type { Enums } from '@/types/database'
 
 export type Filtros = {
   termino: string
+  /**
+   * Código exacto, el que llega de un escaneo (`?codigo=`). Es aparte de
+   * `termino` porque aquel es un `ilike` parcial: `N3-00717` también casaría
+   * con `UCL-N3-00717`.
+   */
+  codigo: string
   clasificacion: Enums<'clasificacion_articulo'> | 'todas'
   almacenId: number | 'todos'
   estado: Enums<'estado_existencia'> | 'todos'
@@ -65,6 +71,7 @@ export function hayFiltrosActivos(filtros: Filtros, iniciales: Filtros): boolean
 export function filtrosIniciales(): Filtros {
   return {
     termino: '',
+    codigo: '',
     clasificacion: 'todas',
     almacenId: 'todos',
     estado: 'todos',

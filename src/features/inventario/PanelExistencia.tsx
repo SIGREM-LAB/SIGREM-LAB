@@ -12,6 +12,7 @@ import {
 } from '@mui/material'
 
 import { aspectoDeAlmacen } from '@/app/almacenes'
+import { BloqueQR } from '@/features/etiquetas/BloqueQR'
 import { DetalleTipo, type DatosTipo } from './DetalleTipo'
 import { aspectoDeEstado, cortarNombre } from './presentacion'
 import type { Fila } from './TablaExistencias'
@@ -168,6 +169,14 @@ export function PanelExistencia({
             </Button>
           )}
         </Stack>
+      )}
+
+      {fila.codigo === null ? null : (
+        <BloqueQR
+          codigo={fila.codigo}
+          nombre={fila.nombre_canonico ?? ''}
+          ubicacion={fila.ubicacion}
+        />
       )}
 
       <Stack spacing={1} sx={{ mb: 2 }}>

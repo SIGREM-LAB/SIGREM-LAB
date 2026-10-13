@@ -1,5 +1,23 @@
 import { useState } from 'react'
-import { Alert, Box, Card, LinearProgress, Snackbar, Stack, Typography } from '@mui/material'
+import { Icon } from '@iconify/react'
+import {
+  Alert,
+  Box,
+  Button,
+  Card,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogContentText,
+  DialogTitle,
+  LinearProgress,
+  Snackbar,
+  Stack,
+  Typography,
+} from '@mui/material'
+
+import type { DatosEtiqueta } from '@/features/etiquetas/codigo'
+import { HojaEtiquetas } from '@/features/etiquetas/HojaEtiquetas'
 
 import { DialogoEditarExistencia } from './DialogoEditarExistencia'
 import { DialogoMovimiento } from './DialogoMovimiento'
@@ -14,6 +32,7 @@ import {
   useDetalleExistencia,
   useExistencias,
   useMovimientos,
+  useLeerEtiquetas,
   useResumenAlmacenes,
 } from './consultas'
 import { filtrosIniciales, hayFiltrosActivos, type Filtros } from './filtros'
@@ -64,7 +83,17 @@ type Props = {
    * El almacén ajeno ya lo filtra el propio panel.
    */
   permiteMovimiento?: boolean
+
+  /**
+   * El código que llega de un escaneo (`?codigo=`). Como la semilla del
+   * almacén, se lee al montar: la página monta de nuevo el listado en cada
+   * escaneo. Si encuentra una sola existencia, abre su panel.
+   */
+  codigoInicial?: string
 }
+
+/** Arriba de esto, imprimir en lote pide confirmación: es mucha cinta. */
+const LOTE_SIN_CONFIRMAR = 50
 
 /**
  * La tabla de existencias con sus filtros: todo lo que comparten Inventario e
@@ -81,6 +110,7 @@ export function ListadoExistencias({
   almacenSemilla,
   permiteEditar = false,
   permiteMovimiento = false,
+  codigoInicial = '',
 }: Props) {
   const cruzaAlmacenes = almacenFijo === null
 
@@ -91,6 +121,7 @@ export function ListadoExistencias({
   const [filtros, setFiltros] = useState<Filtros>(() => ({
     ...iniciales,
     almacenId: almacenFijo ?? almacenSemilla ?? 'todos',
+    codigo: codigoInicial,
   }))
   const [pagina, setPagina] = useState(0)
   const [porPagina, setPorPagina] = useState(25)
@@ -99,6 +130,14 @@ export function ListadoExistencias({
   // está abierto detrás se entera. Con una copia guardada aquí seguiría
   // enseñando la marca y el saldo de antes de guardar.
   const [abiertaId, setAbiertaId] = useState<number | null>(null)
+
+  // Tras un escaneo el panel se abre solo, una vez. Al cerrarlo ya no vuelve.
+  const [abrirEscaneada, setAbrirEscaneada] = useState(codigoInicial !== '')
+
+  // Impresión en lote: lo que se va a imprimir, y la confirmación si es mucho.
+  const [porConfirmar, setPorConfirmar] = useState<DatosEtiqueta[] | null>(null)
+  const [imprimiendo, setImprimiendo] = useState<DatosEtiqueta[] | null>(null)
+  const leerEtiquetas = useLeerEtiquetas()
 
   // Se edita la fila que se abrió, en su propio estado: el panel se queda
   // detrás y al cerrar el diálogo se vuelve a él con el dato ya corregido.
@@ -116,11 +155,16 @@ export function ListadoExistencias({
   const resumenAlmacenes = useResumenAlmacenes(cruzaAlmacenes)
   const listado = useExistencias(filtros, pagina, porPagina)
 
-  const abierta: Fila | null =
-    abiertaId === null ? null : (listado.data?.filas.find((f) => f.id === abiertaId) ?? null)
+  const filas = listado.data?.filas ?? []
+  const escaneada =
+    abrirEscaneada && filtros.codigo !== '' && filas.length === 1 ? filas[0].id : null
+  const idAbierta = abiertaId ?? escaneada
 
-  const movimientos = useMovimientos(abiertaId)
-  const detalle = useDetalleExistencia(abiertaId)
+  const abierta: Fila | null =
+    idAbierta === null ? null : (filas.find((f) => f.id === idAbierta) ?? null)
+
+  const movimientos = useMovimientos(idAbierta)
+  const detalle = useDetalleExistencia(idAbierta)
 
   // Se aplana aqui, en un solo sitio, y no dentro del panel: la forma anidada
   // que devuelve PostgREST es un detalle de la consulta, y si el componente la
@@ -153,6 +197,20 @@ export function ListadoExistencias({
   }
 
   const total = listado.data?.total ?? 0
+  const noEncontrada = filtros.codigo !== '' && listado.isSuccess && total === 0
+
+  // Estable entre renders: `HojaEtiquetas` lo usa en la dependencia de su
+  // efecto, y uno nuevo en cada render volvería a abrir el diálogo de impresión.
+  const [terminarImpresion] = useState(() => () => setImprimiendo(null))
+
+  function imprimirLote() {
+    leerEtiquetas.mutate(filtros, {
+      onSuccess: (etiquetas) => {
+        if (etiquetas.length > LOTE_SIN_CONFIRMAR) setPorConfirmar(etiquetas)
+        else if (etiquetas.length > 0) setImprimiendo(etiquetas)
+      },
+    })
+  }
 
   return (
     <>
@@ -207,16 +265,44 @@ export function ListadoExistencias({
             {/* role="status" hace que un lector de pantalla anuncie cuántos
                 resultados quedaron después de filtrar. Sin esto, quien no ve la
                 tabla no se entera de que la búsqueda hizo algo. */}
+            <Button
+              size="small"
+              sx={{ ml: 'auto' }}
+              startIcon={<Icon icon="mdi:qrcode" width={18} />}
+              disabled={total === 0}
+              loading={leerEtiquetas.isPending}
+              onClick={imprimirLote}
+            >
+              Imprimir etiquetas
+            </Button>
+
             <Typography
               role="status"
               variant="body2"
-              sx={{ ml: 'auto', fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}
+              sx={{ fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}
             >
               {listado.isPending
                 ? 'Buscando…'
                 : `${total} ${total === 1 ? 'existencia' : 'existencias'}`}
             </Typography>
           </Stack>
+
+          {noEncontrada ? (
+            <Box sx={{ px: { xs: 1.5, md: 2.5 }, pb: 2 }}>
+              <Alert severity="warning">
+                No se encontró {filtros.codigo} en tu inventario. Puede ser de otro almacén, o
+                el código está mal escrito.
+              </Alert>
+            </Box>
+          ) : null}
+
+          {leerEtiquetas.error === null ? null : (
+            <Box sx={{ px: { xs: 1.5, md: 2.5 }, pb: 2 }}>
+              <Alert severity="error">
+                No se pudieron leer las etiquetas: {leerEtiquetas.error.message}
+              </Alert>
+            </Box>
+          )}
 
           {listado.error === null ? null : (
             <Box sx={{ px: { xs: 1.5, md: 2.5 }, pb: 2 }}>
@@ -266,7 +352,10 @@ export function ListadoExistencias({
         movimientos={movimientos.data ?? []}
         cargandoMovimientos={movimientos.isPending && abierta !== null}
         datosTipo={datosTipo}
-        onCerrar={() => setAbiertaId(null)}
+        onCerrar={() => {
+          setAbiertaId(null)
+          setAbrirEscaneada(false)
+        }}
         onEditar={permiteEditar ? () => setEditando(abierta) : undefined}
         onMovimiento={permiteMovimiento ? () => setMoviendo(abierta) : undefined}
       />
@@ -282,6 +371,32 @@ export function ListadoExistencias({
         onCerrar={() => setMoviendo(null)}
         onRegistrado={(resumen) => setAviso(`Movimiento registrado: ${resumen}`)}
       />
+
+      <Dialog open={porConfirmar !== null} onClose={() => setPorConfirmar(null)}>
+        <DialogTitle>¿Imprimir {porConfirmar?.length} etiquetas?</DialogTitle>
+        <DialogContent>
+          <DialogContentText>
+            Son todas las existencias que deja el filtro actual, no sólo las de esta página.
+            Revisa que la Brother tenga cinta suficiente.
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setPorConfirmar(null)}>Cancelar</Button>
+          <Button
+            variant="contained"
+            onClick={() => {
+              setImprimiendo(porConfirmar)
+              setPorConfirmar(null)
+            }}
+          >
+            Imprimir
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {imprimiendo === null ? null : (
+        <HojaEtiquetas etiquetas={imprimiendo} onTerminar={terminarImpresion} />
+      )}
 
       <Snackbar
         open={aviso !== null}

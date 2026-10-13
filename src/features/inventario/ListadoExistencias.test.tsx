@@ -69,6 +69,7 @@ vi.mock('./consultas', async () => {
         isPending: false,
         isFetching: false,
         isPlaceholderData: false,
+        isSuccess: true,
         error: null,
       }
     },
@@ -83,6 +84,7 @@ vi.mock('./consultas', async () => {
       return { data: [resumen(1, 'N3'), resumen(2, 'N4')], isPending: false }
     },
     useMovimientos: () => ({ data: [], isPending: false }),
+    useLeerEtiquetas: () => ({ mutate: vi.fn(), isPending: false, error: null }),
     useDetalleExistencia: () => ({ data: undefined }),
   }
 })
@@ -167,6 +169,24 @@ describe('ListadoExistencias', () => {
 
       expect(screen.getByText('Almacén: N4')).toBeInTheDocument()
       expect(screen.getByRole('button', { name: /limpiar filtros/i })).toBeInTheDocument()
+    })
+  })
+
+  describe('escaneo', () => {
+    test('el código escaneado entra como filtro exacto', () => {
+      pintar({ almacenFijo: 1, almacenPropio: 1, codigoInicial: 'N3-00001' })
+      expect(ultimosFiltros()).toMatchObject({ codigo: 'N3-00001' })
+      expect(screen.getByText('Código: N3-00001')).toBeInTheDocument()
+    })
+
+    test('si encuentra una sola existencia, abre su panel', async () => {
+      pintar({ almacenFijo: 1, almacenPropio: 1, codigoInicial: 'N3-00001' })
+      expect(await screen.findByRole('dialog', { name: 'N3-00001' })).toBeInTheDocument()
+    })
+
+    test('sin escaneo, el panel no se abre solo', () => {
+      pintar({ almacenFijo: 1, almacenPropio: 1 })
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
     })
   })
 

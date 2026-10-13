@@ -45,6 +45,14 @@ export function FiltrosActivos({
     })
   }
 
+  if (filtros.codigo !== '') {
+    chips.push({
+      clave: 'codigo',
+      etiqueta: `Código: ${filtros.codigo}`,
+      quitar: () => quitar({ codigo: '' }),
+    })
+  }
+
   if (filtros.clasificacion !== 'todas') {
     const clasificacion = CLASIFICACIONES.find((c) => c.valor === filtros.clasificacion)
     chips.push({

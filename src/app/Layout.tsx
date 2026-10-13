@@ -13,13 +13,16 @@ import {
   Typography,
 } from '@mui/material'
 import { useQueryClient } from '@tanstack/react-query'
-import { Link as EnlaceRuta, Outlet, useLocation } from 'react-router-dom'
+import { Link as EnlaceRuta, Outlet, useLocation, useNavigate } from 'react-router-dom'
 
 import { BotonTema } from '@/app/BotonTema'
 import { LogoUAEH } from '@/app/LogoUAEH'
 import { aspectoDeAlmacen } from '@/app/almacenes'
 import { GRUPOS, menuDeNavegacion, type ItemMenu } from '@/app/navegacion'
 import { usePerfil } from '@/features/auth/usePerfil'
+import { BuscadorCodigo } from '@/features/etiquetas/BuscadorCodigo'
+import { rutaDeCodigo } from '@/features/etiquetas/codigo'
+import { useLectorCodigo } from '@/features/etiquetas/useLectorCodigo'
 import { supabase } from '@/lib/supabase'
 
 // Ancho de la barra lateral. En pantallas angostas se queda solo la columna de
@@ -144,6 +147,12 @@ export function Layout() {
   const almacen = aspectoDeAlmacen(perfil?.almacen?.clave)
   const menu = menuDeNavegacion(perfil?.rol, perfil?.almacen != null)
 
+  // La pistola lectora funciona en cualquier pantalla: el código lleva a la
+  // existencia en el inventario que le toca a quien escanea.
+  const navegar = useNavigate()
+  const irACodigo = (codigo: string) => navegar(rutaDeCodigo(codigo, perfil?.almacen != null))
+  useLectorCodigo(irACodigo)
+
   async function salir() {
     await supabase.auth.signOut()
     // Sin esto, el siguiente usuario que entre en la misma pestana ve por un
@@ -211,6 +220,7 @@ export function Layout() {
               Unidad Central de Laboratorios
             </Typography>
           </Box>
+          <BuscadorCodigo onBuscar={irACodigo} />
         </Stack>
 
         {/* component="div": los items deshabilitados van envueltos en un span

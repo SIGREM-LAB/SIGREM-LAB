@@ -2,12 +2,45 @@ import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tansta
 
 import { supabase } from '@/lib/supabase'
 import type { Enums, Json, TablesInsert } from '@/types/database'
+import type { DatosEtiqueta } from '@/features/etiquetas/codigo'
 import type { Campo } from './campos'
 import type { Filtros } from './filtros'
 import type { ResumenAlmacen } from './menu'
 import type { Movimiento } from './PanelExistencia'
 import type { FiltrosPendientes } from './pendientes'
 import { normalizarTermino } from './presentacion'
+
+/**
+ * Los filtros del listado, en un solo sitio: los usan la tabla paginada y la
+ * impresión de etiquetas en lote, que tienen que ver exactamente lo mismo.
+ */
+function existenciasFiltradas(filtros: Filtros, opciones?: { count: 'exact' }) {
+  let consulta = supabase.from('existencia_listado').select('*', opciones)
+
+  if (filtros.almacenId !== 'todos') consulta = consulta.eq('almacen_id', filtros.almacenId)
+  if (filtros.clasificacion !== 'todas') {
+    consulta = consulta.eq('clasificacion', filtros.clasificacion)
+  }
+
+  // Si se pide un estado concreto, ese manda: pedir "Baja" explícitamente y
+  // que la casilla lo esconda sería absurdo.
+  if (filtros.estado !== 'todos') consulta = consulta.eq('estado', filtros.estado)
+  else if (!filtros.incluirBaja) consulta = consulta.neq('estado', 'baja')
+
+  const termino = normalizarTermino(filtros.termino)
+  if (termino !== '') {
+    // `nombre_norm` y `marca_norm` ya vienen en minúsculas y sin acentos, así
+    // que aquí va `like` y no `ilike`: es lo que deja que el predicado use el
+    // índice trigram. `codigo` no está normalizado, y ahí sí `ilike`.
+    consulta = consulta.or(
+      `nombre_norm.like.*${termino}*,marca_norm.like.*${termino}*,codigo.ilike.*${termino}*`,
+    )
+  }
+
+  if (filtros.codigo !== '') consulta = consulta.eq('codigo', filtros.codigo)
+
+  return consulta
+}
 
 /**
  * El listado. La `queryKey` lleva los filtros completos y la página: sin eso,
@@ -21,7 +54,7 @@ export function useExistencias(filtros: Filtros, pagina: number, porPagina: numb
     queryKey: ['existencias', filtros, pagina, porPagina],
     placeholderData: keepPreviousData,
     queryFn: async () => {
-      let consulta = supabase.from('existencia_listado').select('*', { count: 'exact' })
+      let consulta = existenciasFiltradas(filtros, { count: 'exact' })
 
       // El alfabético va sobre `nombre_norm` y no sobre `nombre_canonico`: es
       // la misma columna ya en minúsculas y sin acentos, así que «Zinc» no se
@@ -35,31 +68,46 @@ export function useExistencias(filtros: Filtros, pagina: number, porPagina: numb
               .order('nombre_norm', { ascending: filtros.orden === 'nombre_asc' })
               .order('codigo')
 
-      if (filtros.almacenId !== 'todos') consulta = consulta.eq('almacen_id', filtros.almacenId)
-      if (filtros.clasificacion !== 'todas') {
-        consulta = consulta.eq('clasificacion', filtros.clasificacion)
-      }
-
-      // Si se pide un estado concreto, ese manda: pedir "Baja" explícitamente y
-      // que la casilla lo esconda sería absurdo.
-      if (filtros.estado !== 'todos') consulta = consulta.eq('estado', filtros.estado)
-      else if (!filtros.incluirBaja) consulta = consulta.neq('estado', 'baja')
-
-      const termino = normalizarTermino(filtros.termino)
-      if (termino !== '') {
-        // `nombre_norm` y `marca_norm` ya vienen en minúsculas y sin acentos, así
-        // que aquí va `like` y no `ilike`: es lo que deja que el predicado use el
-        // índice trigram. `codigo` no está normalizado, y ahí sí `ilike`.
-        consulta = consulta.or(
-          `nombre_norm.like.*${termino}*,marca_norm.like.*${termino}*,codigo.ilike.*${termino}*`,
-        )
-      }
-
       const desde = pagina * porPagina
       const { data, error, count } = await consulta.range(desde, desde + porPagina - 1)
       if (error) throw error
 
       return { filas: data, total: count ?? 0 }
+    },
+  })
+}
+
+/**
+ * Todas las existencias que deja el filtro, para imprimir sus etiquetas en lote.
+ *
+ * Es una acción que se pide con un botón, no un dato que la pantalla tenga que
+ * tener a la mano: por eso `useMutation` (con su `isPending`) y no `useQuery`.
+ *
+ * PostgREST corta en 1000 renglones por respuesta, así que se pide por tramos
+ * hasta que llega uno incompleto. El orden es por código, como el papel.
+ */
+export function useLeerEtiquetas() {
+  return useMutation({
+    mutationFn: async (filtros: Filtros): Promise<DatosEtiqueta[]> => {
+      const TRAMO = 1000
+      const etiquetas: DatosEtiqueta[] = []
+
+      for (let desde = 0; ; desde += TRAMO) {
+        const { data, error } = await existenciasFiltradas(filtros)
+          .order('codigo')
+          .range(desde, desde + TRAMO - 1)
+        if (error) throw error
+
+        for (const fila of data) {
+          if (fila.codigo === null) continue
+          etiquetas.push({
+            codigo: fila.codigo,
+            nombre: fila.nombre_canonico ?? '',
+            ubicacion: fila.ubicacion,
+          })
+        }
+        if (data.length < TRAMO) return etiquetas
+      }
     },
   })
 }

@@ -3,6 +3,7 @@ import { useLocation } from 'react-router-dom'
 import { BotonExportar } from '@/features/reportes/BotonExportar'
 import { CuerpoPagina, EncabezadoPagina } from '@/app/EncabezadoPagina'
 import { usePerfil } from '@/features/auth/usePerfil'
+import { useCodigoEscaneado } from '@/features/etiquetas/useCodigoEscaneado'
 import { useAlmacenes } from './consultas'
 import { ListadoExistencias } from './ListadoExistencias'
 import { almacenDesdeNavegacion } from './menu'
@@ -25,6 +26,7 @@ export function PaginaInventarioGeneral() {
   // Llega como `unknown` y se valida en `almacenDesdeNavegacion`.
   const almacenPedido = almacenDesdeNavegacion(useLocation().state)
   const almacenes = useAlmacenes()
+  const escaneo = useCodigoEscaneado()
 
   return (
     <>
@@ -51,6 +53,8 @@ export function PaginaInventarioGeneral() {
             qué renglones se ofrece —los del almacén propio, o todos si eres
             admin— lo decide el panel con `almacenPropio`. */}
         <ListadoExistencias
+          key={escaneo.llave}
+          codigoInicial={escaneo.codigo}
           almacenFijo={null}
           almacenPropio={perfil?.almacen?.id ?? null}
           almacenSemilla={almacenPedido}

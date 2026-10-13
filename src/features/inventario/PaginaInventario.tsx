@@ -6,6 +6,7 @@ import { Link as EnlaceRuta } from 'react-router-dom'
 import { BotonExportar } from '@/features/reportes/BotonExportar'
 import { CuerpoPagina, EncabezadoPagina } from '@/app/EncabezadoPagina'
 import { usePerfil } from '@/features/auth/usePerfil'
+import { useCodigoEscaneado } from '@/features/etiquetas/useCodigoEscaneado'
 import { DialogoNuevaExistencia } from './DialogoNuevaExistencia'
 import { ListadoExistencias } from './ListadoExistencias'
 import { ResumenEstados } from './ResumenEstados'
@@ -41,6 +42,7 @@ export function PaginaInventario() {
  */
 function Inventario({ almacen }: { almacen: Almacen }) {
   const resumen = useResumenEstados(almacen.id)
+  const escaneo = useCodigoEscaneado()
 
   const [dandoDeAlta, setDandoDeAlta] = useState(false)
 
@@ -90,7 +92,13 @@ function Inventario({ almacen }: { almacen: Almacen }) {
       <CuerpoPagina>
         {/* La edición se ofrece aquí y no en Inventario general: esta pantalla
             está anclada a tu bodega, así que todo lo que se lista es tuyo. */}
-        <ListadoExistencias almacenFijo={almacen.id} almacenPropio={almacen.id} permiteEditar />
+        <ListadoExistencias
+          key={escaneo.llave}
+          almacenFijo={almacen.id}
+          almacenPropio={almacen.id}
+          permiteEditar
+          codigoInicial={escaneo.codigo}
+        />
       </CuerpoPagina>
 
       <DialogoNuevaExistencia
