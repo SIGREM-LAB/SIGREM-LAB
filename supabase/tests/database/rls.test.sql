@@ -14,7 +14,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 
-select plan(161);
+select plan(171);
 
 
 -- ---------------------------------------------------------------------------
@@ -1904,6 +1904,113 @@ select throws_ok(
   '42501',
   null,
   'Un usuario de consulta no define minimos en ningun almacen'
+);
+
+
+-- ---------------------------------------------------------------------------
+-- Administracion: el responsable manda en su almacen
+-- ---------------------------------------------------------------------------
+-- El laboratorio y la ficha NOM son dato LOCAL del almacen: quien lo surte sabe
+-- que laboratorios atiende y para que se usa la bodega. Mismo reparto que
+-- ubicacion (rls.sql:80), y por la misma razon.
+--
+-- Ojo con como falla cada clausula: USING falso deja 0 filas SIN error, asi que
+-- lo ajeno se mide comprobando el dato, no con throws_ok.
+select pg_temp.como_postgres();
+
+-- Un laboratorio de N3 con id fijo, para poder intentar moverlo desde N4.
+insert into public.laboratorio (id, almacen_id, nombre)
+overriding system value
+values (900901, pg_temp.id_almacen('N3'), 'Laboratorio de prueba RLS');
+
+
+select pg_temp.como('n4@uaeh.local');
+
+select lives_ok(
+  $$ insert into public.laboratorio (almacen_id, nombre)
+     values ((select id from public.almacen where clave = 'N4'),
+             'Laboratorio dado de alta por N4') $$,
+  'El responsable de N4 da de alta un laboratorio en su almacen'
+);
+
+select throws_ok(
+  $$ insert into public.laboratorio (almacen_id, nombre)
+     values ((select id from public.almacen where clave = 'N3'), 'Colado en N3') $$,
+  '42501', null,
+  'El responsable de N4 NO da de alta laboratorios en N3 (WITH CHECK)'
+);
+
+-- Mover uno ajeno al propio almacen: la fila de N3 no la ve el USING, asi que
+-- el update afecta cero filas y no truena.
+update public.laboratorio set almacen_id = pg_temp.id_almacen('N4')
+ where id = 900901;
+select is(
+  (select almacen_id from public.laboratorio where id = 900901),
+  pg_temp.id_almacen('N3'),
+  'El responsable de N4 no se lleva un laboratorio de N3, y falla en silencio'
+);
+
+-- La ficha NOM: la confirma quien trabaja ahi. Es lo que el comentario de
+-- 20260917120000_almacen_icsa.sql daba por hecho y no existia.
+select lives_ok(
+  $$ update public.almacen set zona_riesgo = 'Laboratorio nivel 4'
+      where clave = 'N4' $$,
+  'El responsable de N4 confirma la ficha NOM de su almacen'
+);
+
+select is(
+  (select zona_riesgo from public.almacen where clave = 'N4'),
+  'Laboratorio nivel 4',
+  'Y el valor queda guardado de verdad'
+);
+
+update public.almacen set zona_riesgo = 'Cambiada a la mala' where clave = 'N3';
+select is(
+  (select zona_riesgo from public.almacen where clave = 'N3'),
+  'Laboratorio',
+  'El responsable de N4 no toca la ficha de N3, y falla en silencio'
+);
+
+
+-- La clave no se edita desde la aplicacion, y eso ya no es convencion de la
+-- interfaz: es un privilegio que authenticated no tiene. Ni el admin.
+select pg_temp.como('admin@uaeh.local');
+
+select throws_ok(
+  $$ update public.almacen set clave = 'XX' where clave = 'N4' $$,
+  '42501', null,
+  'Ni el admin cambia la clave de un almacen desde la app: falta el privilegio'
+);
+
+select lives_ok(
+  $$ insert into public.laboratorio (almacen_id, nombre)
+     values ((select id from public.almacen where clave = 'N3'),
+             'Laboratorio dado de alta por el admin') $$,
+  'El admin si da de alta laboratorios en cualquier almacen'
+);
+
+
+-- Un consulta no tiene almacen —lo impide perfil_almacen_solo_responsable— asi
+-- que el segundo disyuntivo de la politica nunca es cierto para el.
+select pg_temp.como('lectura@uaeh.local');
+
+select throws_ok(
+  $$ insert into public.laboratorio (almacen_id, nombre)
+     values ((select id from public.almacen where clave = 'N3'), 'Colado por consulta') $$,
+  '42501', null,
+  'Un usuario de consulta no da de alta laboratorios en ningun almacen'
+);
+
+-- Los motivos son catalogo de la Unidad, no de un almacen: siguen siendo del
+-- admin y nada mas. `metodos` no va en el insert a proposito: tiene default, y
+-- lo que se prueba aqui es la politica, no la forma de la fila.
+select pg_temp.como('n4@uaeh.local');
+
+select throws_ok(
+  $$ insert into public.motivo_observacion (clave, etiqueta, orden)
+     values ('colado', 'Colado por el responsable', 99) $$,
+  '42501', null,
+  'El responsable no agrega motivos de observacion: son de la Unidad'
 );
 
 

@@ -2,10 +2,13 @@ import CssBaseline from '@mui/material/CssBaseline'
 import { ThemeProvider } from '@mui/material/styles'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { lazy, Suspense } from 'react'
-import { BrowserRouter, Route, Routes } from 'react-router-dom'
+import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 
 import { Layout } from '@/app/Layout'
 import { PaginaAcademico } from '@/features/academico/PaginaAcademico'
+import { PaginaAdministracion } from '@/features/administracion/PaginaAdministracion'
+import { PaginaAlmacenes } from '@/features/administracion/PaginaAlmacenes'
+import { PaginaMotivos } from '@/features/administracion/PaginaMotivos'
 import { PantallaAcceso } from '@/features/auth/PantallaAcceso'
 import { PantallaNuevaContrasena } from '@/features/auth/PantallaNuevaContrasena'
 import { PantallaRecuperarContrasena } from '@/features/auth/PantallaRecuperarContrasena'
@@ -135,6 +138,15 @@ export default function App() {
                           </Suspense>
                         }
                       />
+
+                      {/* Bajo SoloOperacion y no SoloAdmin: el responsable
+                          administra los laboratorios y la ficha NOM de SU
+                          almacén. Un usuario de consulta no tiene almacén —lo
+                          impide perfil_almacen_solo_responsable— así que no
+                          habría una sola fila que pudiera escribir: mejor
+                          mandarlo a / que enseñarle una pantalla muerta. */}
+                      <Route path="/administracion" element={<PaginaAdministracion />} />
+                      <Route path="/administracion/almacenes" element={<PaginaAlmacenes />} />
                     </Route>
 
                     {/* Bajo /administracion y no en la raíz: es el primero de
@@ -144,16 +156,21 @@ export default function App() {
                         redirección ocurra antes de montar nada. */}
                     <Route element={<SoloAdmin />}>
                       <Route path="/administracion/educativo" element={<PaginaAcademico />} />
+                      <Route path="/administracion/motivos" element={<PaginaMotivos />} />
+                      <Route path="/administracion/usuarios" element={<PaginaUsuarios />} />
                     </Route>
                   </Route>
-                </Route>
 
-                <Route element={<RutaProtegida />}>
-                  <Route element={<SoloAdmin />}>
-                    <Route element={<Layout />}>
-                      <Route path="/usuarios" element={<PaginaUsuarios />} />
-                    </Route>
-                  </Route>
+                  {/* La pantalla de usuarios se mudó a /administracion/usuarios
+                      el 21 de septiembre de 2026. La redirección se queda: un
+                      enlace que alguien guardó no tiene por qué morir con la
+                      mudanza. Fuera del Layout porque un <Navigate> no pinta
+                      nada, y envolverlo haría parpadear la barra lateral antes
+                      de irse. */}
+                  <Route
+                    path="/usuarios"
+                    element={<Navigate to="/administracion/usuarios" replace />}
+                  />
                 </Route>
               </Routes>
             </BrowserRouter>

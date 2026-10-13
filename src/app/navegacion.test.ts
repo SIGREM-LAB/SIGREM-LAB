@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest'
 
-import { menuDeNavegacion } from './navegacion'
+import { menuDeNavegacion, tarjetasDeAdministracion } from './navegacion'
 
 describe('menuDeNavegacion', () => {
   // El responsable trabaja solo su bodega. Admin y consulta no tienen ninguna,
@@ -27,12 +27,21 @@ describe('menuDeNavegacion', () => {
     expect(menuDeNavegacion('admin', false).map((i) => i.ruta)).not.toContain('/inventario')
   })
 
-  test('la administracion de usuarios sigue siendo solo del admin', () => {
-    expect(menuDeNavegacion('admin', false).map((i) => i.ruta)).toContain('/usuarios')
+  // El menu deja de listar cada pantalla administrativa por separado: con los
+  // catalogos que faltan llegaria a nueve entradas y dejaria de servir para
+  // navegar. Ahora son tarjetas del indice.
+  test('el menu ya no lista las pantallas administrativas una por una', () => {
+    const rutas = menuDeNavegacion('admin', false).map((i) => i.ruta)
 
-    for (const rol of ['responsable', 'consulta'] as const) {
-      expect(menuDeNavegacion(rol, true).map((i) => i.ruta)).not.toContain('/usuarios')
-    }
+    expect(rutas).toContain('/administracion')
+    expect(rutas).not.toContain('/usuarios')
+    expect(rutas).not.toContain('/administracion/educativo')
+  })
+
+  test('administracion la ven admin y responsable, no consulta', () => {
+    expect(menuDeNavegacion('admin', false).map((i) => i.ruta)).toContain('/administracion')
+    expect(menuDeNavegacion('responsable', true).map((i) => i.ruta)).toContain('/administracion')
+    expect(menuDeNavegacion('consulta', false).map((i) => i.ruta)).not.toContain('/administracion')
   })
 
   // Mientras carga el perfil no hay rol todavia. Si en ese hueco se colara una
@@ -40,8 +49,8 @@ describe('menuDeNavegacion', () => {
   test('sin perfil todavia, las administrativas no se cuelan', () => {
     const rutas = menuDeNavegacion(undefined, false).map((i) => i.ruta)
 
+    expect(rutas).not.toContain('/administracion')
     expect(rutas).not.toContain('/usuarios')
-    expect(rutas).not.toContain('/administracion/educativo')
   })
 
   // Un item disponible sin ruta registrada en App.tsx es un enlace roto, y una
@@ -68,8 +77,10 @@ describe('menuDeNavegacion', () => {
 })
 
 describe('el panel del programa educativo', () => {
+  // Dejo de ser una entrada del menu para ser una tarjeta del indice, pero
+  // sigue siendo del admin y sigue estando disponible.
   test('solo lo ve el admin, y ya está disponible', () => {
-    const panel = menuDeNavegacion('admin', false).find(
+    const panel = tarjetasDeAdministracion('admin').find(
       (i) => i.ruta === '/administracion/educativo',
     )
 
@@ -77,13 +88,13 @@ describe('el panel del programa educativo', () => {
   })
 
   test('un responsable no lo ve', () => {
-    const rutas = menuDeNavegacion('responsable', true).map((i) => i.ruta)
+    const rutas = tarjetasDeAdministracion('responsable').map((i) => i.ruta)
 
     expect(rutas).not.toContain('/administracion/educativo')
   })
 
   test('sin perfil todavía, tampoco', () => {
-    const rutas = menuDeNavegacion(undefined, false).map((i) => i.ruta)
+    const rutas = tarjetasDeAdministracion(undefined).map((i) => i.ruta)
 
     expect(rutas).not.toContain('/administracion/educativo')
   })
@@ -114,4 +125,36 @@ describe('el panel del programa educativo', () => {
     expect(menuDeNavegacion(undefined, false).map((i) => i.ruta)).not.toContain('/reportes')
   })
 
+})
+
+describe('tarjetasDeAdministracion', () => {
+  test('el admin ve las cuatro secciones', () => {
+    const rutas = tarjetasDeAdministracion('admin').map((t) => t.ruta)
+
+    expect(rutas).toEqual([
+      '/administracion/almacenes',
+      '/administracion/motivos',
+      '/administracion/educativo',
+      '/administracion/usuarios',
+    ])
+  })
+
+  // Un responsable administra lo suyo: los laboratorios y la ficha de su
+  // almacen. Los motivos, el plan de estudios y los usuarios son de la Unidad.
+  test('el responsable ve solo almacenes y laboratorios', () => {
+    expect(tarjetasDeAdministracion('responsable').map((t) => t.ruta)).toEqual([
+      '/administracion/almacenes',
+    ])
+  })
+
+  test('consulta no ve ninguna, y sin perfil tampoco', () => {
+    expect(tarjetasDeAdministracion('consulta')).toEqual([])
+    expect(tarjetasDeAdministracion(undefined)).toEqual([])
+  })
+
+  // Una tarjeta apagada en el indice seria un enlace roto: aqui no hay nada
+  // pendiente, todas las pantallas existen.
+  test('todas las tarjetas estan disponibles', () => {
+    expect(tarjetasDeAdministracion('admin').every((t) => t.disponible)).toBe(true)
+  })
 })

@@ -120,10 +120,65 @@ export function menuDeNavegacion(
           },
         ]
 
-  if (rol !== 'admin') return conReportes
+  // El responsable tambien entra: administra los laboratorios y la ficha de su
+  // almacen. `rol === undefined` queda fuera por los dos lados, que es lo que
+  // impide que la entrada parpadee mientras el perfil carga.
+  if (rol !== 'admin' && rol !== 'responsable') return conReportes
 
   return [
     ...conReportes,
+    {
+      ruta: '/administracion',
+      etiqueta: 'Administración',
+      icono: 'mdi:cog-outline',
+      grupo: 'administracion',
+      descripcion: 'Almacenes, laboratorios y catálogos del sistema',
+      color: 'grey.600',
+      disponible: true,
+    },
+  ]
+}
+
+/**
+ * Las secciones del índice de Administración.
+ *
+ * Viven aquí y no en la pantalla por lo mismo que el menú: son la identidad de
+ * cada sección —icono, color, de qué va— y repartidas por los componentes
+ * acabarían distintas en cada sitio. El índice las dibuja con el mismo molde de
+ * tarjeta que el menú principal.
+ *
+ * Una entrada de menú y no seis: con los catálogos que faltan —ubicaciones,
+ * curación del catálogo, el formulario de alta— la barra lateral llegaría a
+ * nueve entradas. Aquí crecen sin volver a tocarla.
+ *
+ * El responsable ve una sola: los laboratorios y la ficha NOM son dato de su
+ * almacén. Los motivos, el plan de estudios y los usuarios son de la Unidad.
+ */
+export function tarjetasDeAdministracion(rol: Enums<'rol_usuario'> | undefined): ItemMenu[] {
+  const almacenes: ItemMenu = {
+    ruta: '/administracion/almacenes',
+    etiqueta: 'Almacenes y laboratorios',
+    icono: 'mdi:warehouse',
+    grupo: 'administracion',
+    descripcion: 'Los datos del almacén y los laboratorios a los que surte',
+    color: 'institucional.main',
+    disponible: true,
+  }
+
+  if (rol === 'responsable') return [almacenes]
+  if (rol !== 'admin') return []
+
+  return [
+    almacenes,
+    {
+      ruta: '/administracion/motivos',
+      etiqueta: 'Motivos de observación',
+      icono: 'mdi:comment-alert-outline',
+      grupo: 'administracion',
+      descripcion: 'Por qué se marca una práctica o un producto',
+      color: 'secondary.main',
+      disponible: true,
+    },
     {
       ruta: '/administracion/educativo',
       etiqueta: 'Programa educativo',
@@ -134,8 +189,8 @@ export function menuDeNavegacion(
       disponible: true,
     },
     {
-      ruta: '/usuarios',
-      etiqueta: 'Administración de usuarios',
+      ruta: '/administracion/usuarios',
+      etiqueta: 'Usuarios',
       icono: 'mdi:account-cog-outline',
       grupo: 'administracion',
       descripcion: 'Gestionar usuarios, roles y accesos del sistema',
