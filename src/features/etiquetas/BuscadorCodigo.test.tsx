@@ -23,6 +23,6 @@ describe('BuscadorCodigo', () => {
     await user.type(screen.getByRole('textbox', { name: 'Buscar código' }), 'sulfato{Enter}')
 
     expect(onBuscar).not.toHaveBeenCalled()
-    expect(screen.getByText('Escribe un código como N3-00717')).toBeInTheDocument()
+    expect(screen.getByText('Escribe un código como UCL-N3-00717')).toBeInTheDocument()
   })
 })

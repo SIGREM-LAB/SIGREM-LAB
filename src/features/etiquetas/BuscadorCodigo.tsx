@@ -20,7 +20,7 @@ type Props = {
   onBuscar: (codigo: string) => void
 }
 
-const MENSAJE = 'Escribe un código como N3-00717'
+const MENSAJE = 'Escribe un código como UCL-N3-00717'
 
 /**
  * «Buscar código» en la barra lateral: para teclearlo a mano o para escanear con
