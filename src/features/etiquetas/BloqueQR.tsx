@@ -3,6 +3,7 @@ import { Icon } from '@iconify/react'
 import { Box, Button, Stack } from '@mui/material'
 import { QRCodeSVG } from 'qrcode.react'
 
+import { AyudaImpresion } from './AyudaImpresion'
 import type { DatosEtiqueta } from './codigo'
 import { HojaEtiquetas } from './HojaEtiquetas'
 
@@ -30,6 +31,7 @@ export function BloqueQR(datos: DatosEtiqueta) {
       >
         Imprimir etiqueta
       </Button>
+      <AyudaImpresion />
       {imprimiendo ? <HojaEtiquetas etiquetas={[datos]} onTerminar={terminar} /> : null}
     </Stack>
   )
