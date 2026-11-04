@@ -17,6 +17,7 @@ import {
 } from '@mui/material'
 
 import type { DatosEtiqueta } from '@/features/etiquetas/codigo'
+import { AyudaImpresion } from '@/features/etiquetas/AyudaImpresion'
 import { HojaEtiquetas } from '@/features/etiquetas/HojaEtiquetas'
 
 import { DialogoEditarExistencia } from './DialogoEditarExistencia'
@@ -92,7 +93,7 @@ type Props = {
   codigoInicial?: string
 }
 
-/** Arriba de esto, imprimir en lote pide confirmación: es mucha cinta. */
+/** Arriba de esto, imprimir en lote pide confirmación: son muchas etiquetas. */
 const LOTE_SIN_CONFIRMAR = 50
 
 /**
@@ -275,6 +276,7 @@ export function ListadoExistencias({
             >
               Imprimir etiquetas
             </Button>
+            <AyudaImpresion />
 
             <Typography
               role="status"
@@ -377,7 +379,7 @@ export function ListadoExistencias({
         <DialogContent>
           <DialogContentText>
             Son todas las existencias que deja el filtro actual, no sólo las de esta página.
-            Revisa que la Brother tenga cinta suficiente.
+            Revisa que la impresora tenga etiquetas suficientes.
           </DialogContentText>
         </DialogContent>
         <DialogActions>

@@ -66,13 +66,25 @@ export function interpretarTecla(
 }
 
 /**
- * Medida de la etiqueta: Brother QL con cinta continua de 62 mm. Si cambian de
- * cinta, sólo se toca aquí.
+ * Medida de la etiqueta: rollo precortado de 2 × 1 pulgadas en la Vretti D463B
+ * (térmica directa, 203 dpi). El ancho va a lo largo del cabezal; el alto, en
+ * el sentido en que avanza el papel. Si cambian de rollo, sólo se toca aquí y
+ * el tamaño de papel del driver.
  */
-export const ETIQUETA_MM = { ancho: 62, alto: 29 } as const
+export const ETIQUETA_MM = { ancho: 50.8, alto: 25.4 } as const
 
 export type DatosEtiqueta = {
   codigo: string
   nombre: string
   ubicacion: string | null
+}
+
+/**
+ * Lleva el formato de un código real para que la pistola lo reconozca, pero
+ * ningún almacén tiene la clave PRUEBA: al escanearlo la app dirá que no lo encontró.
+ */
+export const ETIQUETA_PRUEBA: DatosEtiqueta = {
+  codigo: 'PRUEBA-00000',
+  nombre: 'Etiqueta de prueba',
+  ubicacion: 'Si se lee completa, ya puedes imprimir',
 }

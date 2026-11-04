@@ -13,8 +13,10 @@ type Props = {
 
 /**
  * Imprime las etiquetas con la impresión del navegador: sin servidor ni driver
- * especial. En el diálogo se elige la Brother, y su driver toma cada página
- * como una etiqueta y corta la cinta.
+ * especial. En el diálogo se elige la Vretti, y su driver toma cada página
+ * como una etiqueta. No tiene cortador: el rollo viene precortado y el sensor
+ * de separación alinea cada página con su etiqueta, así que la página tiene que
+ * medir exactamente lo mismo que la etiqueta.
  *
  * Mientras está montada, la impresión enseña sólo esta hoja: el resto de la app
  * se esconde con `@media print`. En pantalla no se ve.

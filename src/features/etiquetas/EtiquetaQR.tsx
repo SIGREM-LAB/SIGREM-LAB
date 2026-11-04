@@ -9,7 +9,8 @@ import { ETIQUETA_MM, type DatosEtiqueta } from './codigo'
  * térmica y no para la pantalla: no sigue el tema claro/oscuro.
  *
  * El QR lleva sólo el código. Nivel M de corrección: sigue leyéndose con un
- * rayón o una mancha de reactivo.
+ * rayón o una mancha de reactivo. Lleva dos módulos de margen blanco propio:
+ * con menos, la pistola a veces no distingue dónde empieza el código.
  */
 export function EtiquetaQR({ codigo, nombre, ubicacion }: DatosEtiqueta) {
   return (
@@ -18,9 +19,9 @@ export function EtiquetaQR({ codigo, nombre, ubicacion }: DatosEtiqueta) {
         width: `${ETIQUETA_MM.ancho}mm`,
         height: `${ETIQUETA_MM.alto}mm`,
         boxSizing: 'border-box',
-        p: '1.5mm',
+        p: '1.2mm',
         display: 'flex',
-        gap: '2mm',
+        gap: '1mm',
         alignItems: 'center',
         bgcolor: '#fff',
         color: '#000',
@@ -33,19 +34,28 @@ export function EtiquetaQR({ codigo, nombre, ubicacion }: DatosEtiqueta) {
       <QRCodeSVG
         value={codigo}
         level="M"
-        marginSize={0}
+        marginSize={2}
         title={codigo}
-        style={{ width: '25mm', height: '25mm', flexShrink: 0 }}
+        style={{ width: '23mm', height: '23mm', flexShrink: 0 }}
       />
       <Box sx={{ minWidth: 0, flex: 1, lineHeight: 1.15 }}>
-        <Box sx={{ fontFamily: 'monospace', fontWeight: 700, fontSize: '11pt' }}>{codigo}</Box>
         <Box
           sx={{
-            fontSize: '7.5pt',
+            fontFamily: 'monospace',
+            fontWeight: 700,
+            fontSize: '8pt',
+            wordBreak: 'break-all',
+          }}
+        >
+          {codigo}
+        </Box>
+        <Box
+          sx={{
+            fontSize: '6.5pt',
             fontWeight: 600,
-            mt: '0.8mm',
+            mt: '0.6mm',
             display: '-webkit-box',
-            WebkitLineClamp: 2,
+            WebkitLineClamp: 3,
             WebkitBoxOrient: 'vertical',
             overflow: 'hidden',
           }}
@@ -55,8 +65,8 @@ export function EtiquetaQR({ codigo, nombre, ubicacion }: DatosEtiqueta) {
         {ubicacion ? (
           <Box
             sx={{
-              fontSize: '6.5pt',
-              mt: '0.8mm',
+              fontSize: '6pt',
+              mt: '0.6mm',
               whiteSpace: 'nowrap',
               overflow: 'hidden',
               textOverflow: 'ellipsis',
