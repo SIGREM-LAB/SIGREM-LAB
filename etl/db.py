@@ -56,20 +56,42 @@ def perfil_de_carga(cur) -> uuid.UUID:
     return fila[0]
 
 
+# La base nombra los almacenes con la clave institucional («UCL-LUM»); los
+# libros, sus carpetas y sus sub-ubicaciones, con la corta («LUM», «LUM-2»). El
+# ETL trabaja con la corta y traduce aquí, al leer la base, para que la
+# comparación de sub-ubicaciones siga hablando el idioma del Excel. La base
+# local (supabase/seed.sql) todavía usa la corta y pasa sin cambio.
+PREFIJO_INSTITUCIONAL = "UCL-"
+
+
+def clave_de_libro(clave_en_base: str) -> str:
+    return clave_en_base.removeprefix(PREFIJO_INSTITUCIONAL)
+
+
 def almacenes(cur) -> dict[str, int]:
+    """Clave corta -> id. Truena si dos almacenes de la base caen en la misma."""
     cur.execute("select clave, id from public.almacen")
-    return dict(cur.fetchall())
+    salida: dict[str, int] = {}
+    for clave_base, ident in cur.fetchall():
+        corta = clave_de_libro(clave_base)
+        if corta in salida:
+            raise ValueError(
+                f"Dos almacenes de la base se leen como «{corta}». Renombra uno "
+                f"antes de cargar: el ETL no puede decidir a cuál va el libro.")
+        salida[corta] = ident
+    return salida
 
 
 def laboratorios(cur) -> dict[tuple[str, str], int]:
-    """(clave de almacén, nombre normalizado) -> id."""
+    """(clave corta de almacén, nombre normalizado) -> id."""
     cur.execute(
         """
         select a.clave, l.nombre, l.id
           from public.laboratorio l
           join public.almacen a on a.id = l.almacen_id
         """)
-    return {(c, clave(nombre)): ident for c, nombre, ident in cur.fetchall()}
+    return {(clave_de_libro(c), clave(nombre)): ident
+            for c, nombre, ident in cur.fetchall()}
 
 
 def catalogos(cur) -> Catalogos:

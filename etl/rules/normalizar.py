@@ -179,13 +179,24 @@ def numero_opcional(v: Any, regla: str = R_NUMERO) -> Valor:
     raise Rechazo(regla, f"«{' '.join(str(v).split())}» no es un número")
 
 
+def identificador(v: Any) -> Valor:
+    """Una serie o un inventario, que Excel pudo guardar como número.
+
+    openpyxl lee esas celdas como float y `str(8000.0)` es «8000.0»: un número
+    de serie que no está en la placa de ningún equipo.
+    """
+    if isinstance(v, float) and v.is_integer():
+        v = int(v)
+    return texto(v)
+
+
 def numero_inventario(v: Any) -> Valor:
     """Regla 10: 5311300206 y 05311300206 son el mismo número.
 
     Normalizar ANTES de validar es lo que permite que la regla 10 vea el
     duplicado. Al revés, los dos entrarían y el índice único no los atraparía.
     """
-    t = texto(v)
+    t = identificador(v)
     if t.dato is None or not t.dato.isdigit():
         return t
     sin_ceros = t.dato.lstrip("0") or "0"
