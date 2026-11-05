@@ -123,8 +123,8 @@ def _clasificacion(hoja: Hoja, campos: dict[str, Any]) -> str:
 
 
 def _existencia_previa(cur, hoja: Hoja, almacen_id: int, articulo_id: int,
-                       ubicacion_id: int | None,
-                       campos: dict[str, Any]) -> tuple[int, int | None] | None:
+                       ubicacion_id: int | None, campos: dict[str, Any],
+                       carga_id: int) -> tuple[int, int | None] | None:
     """Punto 9 del contrato: la llave natural de una existencia. Solo Equipos.
 
     Devuelve (id, carga_id) del equipo ya cargado, o None si no lo hay.
@@ -160,8 +160,9 @@ def _existencia_previa(cur, hoja: Hoja, almacen_id: int, articulo_id: int,
     else:
         # Un equipo sin serie NI inventario no tiene identidad propia. Lo mejor
         # disponible es dónde está y qué es; sin esto, cada corrida lo vuelve a
-        # crear. Dos equipos así, iguales y en el mismo mueble, se colapsarían
-        # en uno: es justo lo que la regla 10 pide evitar poniéndoles serie.
+        # crear. Solo cuenta lo de OTRA carga: dentro de un mismo libro, cada
+        # renglón es un equipo físico (regla 9), y LUM tiene dos filtros de vacío
+        # idénticos, uno que funciona y otro con fallas.
         cur.execute(
             """
             select id, carga_id from public.existencia
@@ -169,10 +170,11 @@ def _existencia_previa(cur, hoja: Hoja, almacen_id: int, articulo_id: int,
                and ubicacion_id is not distinct from %s
                and marca  is not distinct from %s
                and modelo is not distinct from %s
+               and carga_id is distinct from %s
              limit 1
             """,
             (articulo_id, almacen_id, ubicacion_id, campos.get("marca"),
-             campos.get("modelo")))
+             campos.get("modelo"), carga_id))
     fila = cur.fetchone()
     return (fila[0], fila[1]) if fila else None
 
@@ -316,7 +318,8 @@ def escribir_hoja(cur, hoja: Hoja, resultado: Resultado,
 
         ubicacion_id = upsert_ubicacion(cur, almacen_id, c)
         previa = _existencia_previa(cur, hoja, almacen_id,
-                                    resolucion.articulo_id, ubicacion_id, c)
+                                    resolucion.articulo_id, ubicacion_id, c,
+                                    carga_id)
         # Solo Equipos devuelve algo aqui: es la unica hoja donde un renglon
         # repetido significa el mismo objeto, porque la regla 10 le exige serie
         # propia a cada equipo fisico. Un reactivo repetido es otro frasco.

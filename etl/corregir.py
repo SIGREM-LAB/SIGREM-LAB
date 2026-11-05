@@ -25,6 +25,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from openpyxl import load_workbook
+from openpyxl.utils import column_index_from_string, get_column_letter
 
 from etl.extract.formato import CAMPOS, HOJAS_DE_DATOS
 
@@ -223,9 +224,105 @@ MUEBLES_ACT = [
                esperadas=37, libro="Actopan"),
 ]
 
+# ---------------------------------------------------------------------------
+# Las correcciones de los equipos de LUM
+# ---------------------------------------------------------------------------
+# «Almacen 3» y «Almacen 4» no son sub-ubicaciones de LUM, y la regla tiraria los
+# 14 renglones. Decision del 5 de noviembre de 2026: no se inventa «LUM-3»; el
+# lugar se conserva tal cual en el mueble y la sub-ubicacion queda vacia (ver
+# VACIADOS). Las filas van fijas porque «Rack 1» es igual en los dos almacenes.
+MUEBLES_EQUIPOS_LUM = [
+    Correccion("Equipos", "mueble", "Rack 1", f"{almacen} Rack 1",
+               "Ubicación · el lugar pasa de la sub-ubicación al mueble",
+               filas=filas, esperadas=len(filas), libro="equipos_maquinaría")
+    for almacen, filas in (("Almacen 3", tuple(range(106, 116))),
+                           ("Almacen 4", (104, 105, 117, 118)))
+]
+
+# Mismo criterio que las erratas de N3: una sola forma posible de escribirlas.
+NOMBRES_EQUIPOS_LUM = [
+    Correccion("Equipos", "articulo", mal, bien,
+               "Errata en el nombre del equipo", esperadas=n,
+               libro="equipos_maquinaría")
+    for mal, bien, n in (
+        ("Cortadora de presición", "Cortadora de precisión", 2),
+        ("Filtro de vacio", "Filtro de vacío", 2),
+        ("Quedradora de rodillos", "Quebradora de rodillos", 1),
+        ("Sistema fijadorde muestras", "Sistema fijador de muestras", 1),
+        ("Espectrometro de chispa", "Espectrómetro de chispa", 1),
+        ("Baño ultrasonico", "Baño ultrasónico", 1),
+        ("Minitunel de viento", "Minitúnel de viento", 1),
+        ("Agitador Rotatorio", "Agitador rotatorio", 1),
+    )
+]
+
 CORRECCIONES = (MUEBLES + PARTIDOS + ERRATAS + PRESENTACION + MARCAS
                 + SUB_UBICACION_HUJ + MUEBLES_HUJ + SUB_UBICACION_ACT
-                + MUEBLES_ACT)
+                + MUEBLES_ACT + MUEBLES_EQUIPOS_LUM + NOMBRES_EQUIPOS_LUM)
+
+
+@dataclass(frozen=True)
+class Corrimiento:
+    """Renglones capturados una columna a la izquierda de donde van.
+
+    Desde `campo` y por `columnas` columnas, cada valor pasa a la de su derecha
+    y `campo` queda vacio. Solo se mueve el renglon cuyo `campo` trae algo que
+    pertenece a la columna siguiente —`delata`— y cuya ultima columna destino
+    esta vacia, asi que no se pisa nada.
+    """
+
+    hoja: str
+    campo: str
+    columnas: int
+    delata: frozenset[str]
+    motivo: str
+    esperadas: int
+    libro: str
+
+
+@dataclass(frozen=True)
+class Vaciado:
+    """Un valor que se quita entero de una columna. No se reemplaza por nada."""
+
+    hoja: str
+    campo: str
+    valor: str
+    motivo: str
+    esperadas: int
+    libro: str
+
+
+# ---------------------------------------------------------------------------
+# Las correcciones de LUM
+# ---------------------------------------------------------------------------
+# En 923 de los 926 Reactivos, a partir de «Peligro especial» todo quedo una
+# columna a la izquierda: X trae el «no» de «¿Implica actividad peligrosa?», Y
+# la zona de riesgo («Laboratorio») y Z las personas expuestas (80). Los
+# encabezados estan bien; solo los datos se corrieron. Sin esto, la regla Si/No
+# lee «Laboratorio» y rechaza los 923. El .ods del mismo almacen trae lo mismo.
+CORRIMIENTOS = [
+    Corrimiento("Reactivos", "peligro_especial", 3, frozenset({"si", "sí", "no"}),
+                "Columnas corridas · desde Peligro especial los datos van una "
+                "columna a la izquierda", esperadas=923, libro="reactivosLUM"),
+]
+
+# En esos mismos 923, «Característica tóxica» dice «Sensibilización
+# respiratoria y cutánea» en todos, y la química esta vacia en todos: es un valor
+# arrastrado hacia abajo, no una clasificacion renglon por renglon. Decision
+# del 4 de noviembre de 2026: se carga vacia y el responsable de LUM la captura.
+# Una ficha de seguridad con un dato faltante es mejor que una con uno falso.
+VACIADOS = [
+    Vaciado("Reactivos", "caracteristica_toxica",
+            "Sensibilización respiratoria y cutánea",
+            "Valor arrastrado · el mismo en 923 renglones; lo captura el "
+            "responsable", esperadas=923, libro="reactivosLUM"),
+    Vaciado("Equipos", "sub_ubicacion", "Almacen 3",
+            "Ubicación · no es una sub-ubicación de LUM; pasa al mueble",
+            esperadas=10, libro="equipos_maquinaría"),
+    Vaciado("Equipos", "sub_ubicacion", "Almacen 4",
+            "Ubicación · no es una sub-ubicación de LUM; pasa al mueble",
+            esperadas=4, libro="equipos_maquinaría"),
+]
 
 # 6. Regla 1. Un numero guardado como texto. `normalizar.numero()` lo rechaza y
 #    con el se cae la hoja entera de Material.
@@ -246,12 +343,17 @@ class Bitacora:
     def anotar(self, **campos: str) -> None:
         self.filas.append(campos)
 
-    def a_csv(self, ruta: Path) -> None:
+    def a_csv(self, ruta: Path, agregar: bool = False) -> None:
+        """`agregar` es para el segundo libro de una misma carpeta: LUM tiene dos."""
         # utf-8-sig por lo mismo que informe.py: este archivo lo abre gente en
-        # Excel, y sin BOM los acentos salen rotos.
-        with ruta.open("w", encoding="utf-8-sig", newline="") as f:
+        # Excel, y sin BOM los acentos salen rotos. Al agregar no se repite: el
+        # BOM va una sola vez, al principio del archivo.
+        codificacion = "utf-8" if agregar else "utf-8-sig"
+        with ruta.open("a" if agregar else "w", encoding=codificacion,
+                       newline="") as f:
             escritor = csv.DictWriter(f, fieldnames=COLUMNAS)
-            escritor.writeheader()
+            if not agregar:
+                escritor.writeheader()
             escritor.writerows(self.filas)
 
 
@@ -307,6 +409,53 @@ def _aplicar_numerico(ws, numerico: Numerico, archivo: str,
                     despues=f"{celda.value} (número)",
                     motivo=numerico.motivo)
     return 1
+
+
+def _aplicar_corrimiento(ws, corrimiento: Corrimiento, archivo: str,
+                         bitacora: Bitacora) -> int:
+    inicio = column_index_from_string(_letra(corrimiento.hoja, corrimiento.campo))
+    ultima = inicio + corrimiento.columnas
+    movidos = 0
+    for fila in range(1, ws.max_row + 1):
+        valor = ws.cell(row=fila, column=inicio).value
+        if not (isinstance(valor, str)
+                and valor.strip().lower() in corrimiento.delata):
+            continue
+        if ws.cell(row=fila, column=ultima).value is not None:
+            raise SystemExit(f"{archivo} {corrimiento.hoja} fila {fila}: el "
+                             f"corrimiento pisaria «{get_column_letter(ultima)}», "
+                             f"que trae dato")
+        # De derecha a izquierda, para no pisar lo que falta mover.
+        for col in range(ultima, inicio - 1, -1):
+            destino = ws.cell(row=fila, column=col)
+            nuevo = ws.cell(row=fila, column=col - 1).value if col > inicio else None
+            if isinstance(nuevo, str) and nuevo.startswith("="):
+                raise SystemExit(f"{archivo} {corrimiento.hoja}!{destino.coordinate}: "
+                                 f"no se mueve una formula de columna")
+            antes, destino.value = destino.value, nuevo
+            bitacora.anotar(archivo=archivo, hoja=corrimiento.hoja,
+                            celda=destino.coordinate, campo=corrimiento.campo,
+                            antes="" if antes is None else str(antes),
+                            despues="" if nuevo is None else str(nuevo),
+                            motivo=corrimiento.motivo)
+        movidos += 1
+    return movidos
+
+
+def _aplicar_vaciado(ws, vaciado: Vaciado, archivo: str,
+                     bitacora: Bitacora) -> int:
+    letra = _letra(vaciado.hoja, vaciado.campo)
+    vaciadas = 0
+    for fila in range(1, ws.max_row + 1):
+        celda = ws[f"{letra}{fila}"]
+        if celda.value != vaciado.valor:
+            continue
+        celda.value = None
+        vaciadas += 1
+        bitacora.anotar(archivo=archivo, hoja=vaciado.hoja,
+                        celda=f"{letra}{fila}", campo=vaciado.campo,
+                        antes=vaciado.valor, despues="", motivo=vaciado.motivo)
+    return vaciadas
 
 
 def _materializar(libro, valores, archivo: str, bitacora: Bitacora) -> int:
@@ -391,6 +540,25 @@ def corregir(origen: Path, destino: Path) -> Bitacora:
         if numerico.hoja in libro.sheetnames:
             _aplicar_numerico(libro[numerico.hoja], numerico, destino.name,
                               bitacora)
+
+    def es_del_libro(c) -> bool:
+        return c.libro.lower() in str(origen).lower() and c.hoja in libro.sheetnames
+
+    for c in CORRIMIENTOS:
+        if es_del_libro(c):
+            hechos = _aplicar_corrimiento(libro[c.hoja], c, destino.name, bitacora)
+            if hechos != c.esperadas:
+                raise SystemExit(f"El archivo no es el que se reviso: {c.hoja}·"
+                                 f"{c.campo} corrimiento esperaba {c.esperadas}, "
+                                 f"movio {hechos}")
+
+    for c in VACIADOS:
+        if es_del_libro(c):
+            hechos = _aplicar_vaciado(libro[c.hoja], c, destino.name, bitacora)
+            if hechos != c.esperadas:
+                raise SystemExit(f"El archivo no es el que se reviso: {c.hoja}·"
+                                 f"{c.campo} «{c.valor}» esperaba {c.esperadas}, "
+                                 f"vacio {hechos}")
 
     libro.save(destino)
 
@@ -517,12 +685,17 @@ def verificar(origen: Path, destino: Path,
     return fallas, notas
 
 
-def _tocadas(ruta: Path) -> set[tuple[str, str]]:
-    """Las celdas que la bitacora dice haber cambiado."""
+def _tocadas(ruta: Path, archivo: str) -> set[tuple[str, str]]:
+    """Las celdas que la bitacora dice haber cambiado en ese libro.
+
+    Se filtra por libro porque la bitacora es por carpeta: sin esto, una celda
+    corregida en un libro disculparia la misma celda cambiada en otro.
+    """
     if not ruta.exists():
         return set()
     with ruta.open(encoding="utf-8-sig", newline="") as f:
-        return {(fila["hoja"], fila["celda"]) for fila in csv.DictReader(f)}
+        return {(fila["hoja"], fila["celda"]) for fila in csv.DictReader(f)
+                if fila["archivo"] == archivo}
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -536,6 +709,7 @@ def main(argv: list[str] | None = None) -> int:
         return 2
 
     total = fallas_totales = 0
+    bitacoras_escritas: set[Path] = set()
     for origen in sorted(ORIGINAL.rglob("*.xlsx")):
         if origen.name.startswith("~$"):
             continue
@@ -544,7 +718,9 @@ def main(argv: list[str] | None = None) -> int:
 
         if not args.verificar:
             bitacora = corregir(origen, destino)
-            bitacora.a_csv(destino.parent / BITACORA)
+            ruta_bitacora = destino.parent / BITACORA
+            bitacora.a_csv(ruta_bitacora, agregar=ruta_bitacora in bitacoras_escritas)
+            bitacoras_escritas.add(ruta_bitacora)
             total += len(bitacora.filas)
             print(f"    {len(bitacora.filas)} celdas corregidas → {BITACORA}")
 
@@ -553,7 +729,7 @@ def main(argv: list[str] | None = None) -> int:
             return 1
 
         fallas, notas = verificar(origen, destino,
-                                  _tocadas(destino.parent / BITACORA))
+                                  _tocadas(destino.parent / BITACORA, destino.name))
         for nota in notas:
             print(f"    ok · {nota}")
         for falla in fallas:

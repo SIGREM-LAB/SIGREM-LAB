@@ -233,7 +233,7 @@ def validar(hoja: Hoja, informe: Informe, catalogos: Catalogos,
 
         if hoja.nombre == "Equipos":
             aplica("funcionamiento", n.funcionamiento)
-            aplica("numero_serie", n.texto)
+            aplica("numero_serie", n.identificador)
             aplica("numero_inventario", n.numero_inventario)
 
             lab = campos.get("laboratorio")
