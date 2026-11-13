@@ -27,6 +27,10 @@ describe('esCodigo', () => {
     expect(esCodigo(c)).toBe(true)
   })
 
+  test('acepta el apóstrofo en lugar del guion', () => {
+    expect(esCodigo("ucl'n3'00717")).toBe(true)
+  })
+
   test.each(['', 'N3', 'N3-717', 'N3-007170', 'sulfato', 'N3 00717'])('rechaza «%s»', (c) => {
     expect(esCodigo(c)).toBe(false)
   })
@@ -49,6 +53,11 @@ describe('interpretarTecla', () => {
 
   test('alguien tecleando despacio no cuenta como escaneo', () => {
     expect(teclear('N3-00717', PAUSA_MAXIMA_MS + 50)).toBeNull()
+  })
+
+  test('con el teclado en español, el guion de la pistola llega como apóstrofo', () => {
+    // La pistola teclea como teclado de EE. UU.; en es-MX esa tecla da «'».
+    expect(teclear("UCL'LUM'00001", 5)).toBe('UCL-LUM-00001')
   })
 
   test('una ráfaga que no tiene forma de código se ignora', () => {
