@@ -24,6 +24,21 @@ describe('cortarNombre', () => {
     })
   })
 
+  test('tampoco cuando el localizador lleva espacio tras la coma', () => {
+    // Así viene en el libro de LUM: «1, 4-Fenilendiamina».
+    expect(
+      cortarNombre('1, 4-Fenilendiamina, líquido, grado reactivo, presentación 4 L, CAS: 106-50-3'),
+    ).toEqual({
+      cabeza: '1, 4-Fenilendiamina',
+      resto: 'líquido · grado reactivo · presentación 4 L',
+    })
+    expect(cortarNombre('1, 2, 4-Triclorobenceno, líquido').cabeza).toBe('1, 2, 4-Triclorobenceno')
+  })
+
+  test('una coma seguida de una cifra que no es localizador sí corta', () => {
+    expect(cortarNombre('Acetona, 99.5%, líquido').cabeza).toBe('Acetona')
+  })
+
   test('deja intacto un nombre sin comas', () => {
     expect(cortarNombre('Matraz volumétrico')).toEqual({
       cabeza: 'Matraz volumétrico',

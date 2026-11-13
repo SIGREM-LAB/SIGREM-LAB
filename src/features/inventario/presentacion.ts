@@ -12,9 +12,13 @@ import type { Enums } from '@/types/database'
  * La coma que separa NO es la primera: los nombres químicos traen las suyas
  * ("1,10-Fenantrolina", "2,4-D"). Se busca la primera coma que no venga seguida
  * de un dígito. Cortar en la primera a secas deja la cabeza en "1".
+ *
+ * LUM escribe los localizadores con espacio ("1, 4-Fenilendiamina"). Con
+ * espacio sólo se salta si sigue un localizador —dígitos y luego guion o
+ * coma—, para no tragarse la coma de "Acetona, 99.5%".
  */
 export function cortarNombre(nombre: string): { cabeza: string; resto: string } {
-  const corte = nombre.search(/,(?!\d)/)
+  const corte = nombre.search(/,(?!\d|\s\d+[-,])/)
   if (corte === -1) return { cabeza: nombre.trim(), resto: '' }
 
   const resto = nombre
