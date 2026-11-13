@@ -13,6 +13,7 @@ import {
   Typography,
 } from '@mui/material'
 import { useQueryClient } from '@tanstack/react-query'
+import { useState } from 'react'
 import { Link as EnlaceRuta, Outlet, useLocation, useNavigate } from 'react-router-dom'
 
 import { BotonTema } from '@/app/BotonTema'
@@ -21,6 +22,7 @@ import { aspectoDeAlmacen } from '@/app/almacenes'
 import { GRUPOS, menuDeNavegacion, type ItemMenu } from '@/app/navegacion'
 import { usePerfil } from '@/features/auth/usePerfil'
 import { BuscadorCodigo } from '@/features/etiquetas/BuscadorCodigo'
+import { CapturaCodigoContexto, crearCaptura } from '@/features/etiquetas/capturaCodigo'
 import { rutaDeCodigo } from '@/features/etiquetas/codigo'
 import { useLectorCodigo } from '@/features/etiquetas/useLectorCodigo'
 import { supabase } from '@/lib/supabase'
@@ -148,10 +150,15 @@ export function Layout() {
   const menu = menuDeNavegacion(perfil?.rol, perfil?.almacen != null)
 
   // La pistola lectora funciona en cualquier pantalla: el código lleva a la
-  // existencia en el inventario que le toca a quien escanea.
+  // existencia en el inventario que le toca a quien escanea. Salvo si la
+  // pantalla lo tomó (Nueva práctica lo agrega a la captura): salir de ahí a
+  // media práctica es perder lo capturado.
   const navegar = useNavigate()
   const irACodigo = (codigo: string) => navegar(rutaDeCodigo(codigo, perfil?.almacen != null))
-  useLectorCodigo(irACodigo)
+  const [captura] = useState(crearCaptura)
+  useLectorCodigo((codigo) => {
+    if (!captura.atender(codigo)) irACodigo(codigo)
+  })
 
   async function salir() {
     await supabase.auth.signOut()
@@ -345,7 +352,9 @@ export function Layout() {
           y el respiro lo pone `CuerpoPagina`. tabIndex -1 es lo que deja que el
           enlace de salto aterrice aqui. */}
       <Box component="main" id="contenido" tabIndex={-1} sx={{ flex: 1, minWidth: 0, outline: 'none' }}>
-        <Outlet />
+        <CapturaCodigoContexto.Provider value={captura}>
+          <Outlet />
+        </CapturaCodigoContexto.Provider>
       </Box>
     </Box>
   )

@@ -2,6 +2,7 @@ import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tansta
 import { useEffect, useState } from 'react'
 
 import { usePerfil } from '@/features/auth/usePerfil'
+import { esCodigo, normalizarCodigo } from '@/features/etiquetas/codigo'
 import { normalizarTermino } from '@/features/inventario/presentacion'
 import { supabase } from '@/lib/supabase'
 import type { Json } from '@/types/database'
@@ -267,12 +268,18 @@ function useTerminoDiferido(termino: string, espera = 300): string {
  * y la ventana del debounce tampoco cuenta como carga para TanStack, aunque
  * desde la pantalla sea exactamente eso.
  */
+const COLUMNAS_PRODUCTO =
+  'id, codigo, nombre_canonico, clasificacion, unidad_base, almacen_clave, cantidad, ubicacion, metodo_control'
+
 export function useBuscarExistencias(termino: string, abierto: boolean) {
   const { data: perfil } = usePerfil()
   const almacenId = perfil?.almacen?.id ?? null
   const esAdmin = perfil?.rol === 'admin'
   const diferido = useTerminoDiferido(termino)
-  const normalizado = normalizarTermino(diferido)
+  // Un código escaneado aquí llega con «'» en vez de guion (ver
+  // `normalizarCodigo`). Sólo se trata como código si tiene su forma: en un
+  // nombre el apóstrofo es legítimo («McCoy's»).
+  const normalizado = esCodigo(diferido) ? normalizarCodigo(diferido) : normalizarTermino(diferido)
 
   const consulta = useQuery({
     queryKey: ['practicas', 'existencias', normalizado, esAdmin ? 'todos' : almacenId],
@@ -282,9 +289,7 @@ export function useBuscarExistencias(termino: string, abierto: boolean) {
     queryFn: async (): Promise<FilaUtilizable[]> => {
       let consulta = supabase
         .from('existencia_listado')
-        .select(
-          'id, codigo, nombre_canonico, clasificacion, unidad_base, almacen_clave, cantidad, ubicacion, metodo_control',
-        )
+        .select(COLUMNAS_PRODUCTO)
         .neq('estado', 'baja')
         .order('codigo')
         .limit(40)
@@ -318,6 +323,40 @@ export function useBuscarExistencias(termino: string, abierto: boolean) {
     cargando: consulta.isFetching || diferido !== termino,
     error: consulta.error,
   }
+}
+
+/**
+ * Lo que la pistola escaneó en Nueva práctica. Con las mismas reglas que la
+ * búsqueda —el almacén de quien captura y nada dado de baja—: un código de otro
+ * almacén devuelve `null` en vez de dejar capturar algo que la RPC rechazaría
+ * al final.
+ *
+ * Devuelve una función y no un `useQuery` porque el código llega por evento, no
+ * por estado de la pantalla. `fetchQuery` lo deja en la misma caché.
+ */
+export function useExistenciaPorCodigo(): (codigo: string) => Promise<FilaUtilizable | null> {
+  const qc = useQueryClient()
+  const { data: perfil } = usePerfil()
+  const almacenId = perfil?.almacen?.id ?? null
+  const esAdmin = perfil?.rol === 'admin'
+
+  return (codigo) =>
+    qc.fetchQuery({
+      queryKey: ['practicas', 'codigo', codigo, esAdmin ? 'todos' : almacenId],
+      retry: debeReintentar,
+      queryFn: async () => {
+        let consulta = supabase
+          .from('existencia_listado')
+          .select(COLUMNAS_PRODUCTO)
+          .eq('codigo', codigo)
+          .neq('estado', 'baja')
+        if (!esAdmin) consulta = consulta.eq('almacen_id', almacenId ?? -1)
+
+        const { data, error } = await consulta.maybeSingle()
+        if (error) throw error
+        return data !== null && esFilaUtilizable(data) ? data : null
+      },
+    })
 }
 
 // ---------------------------------------------------------------------------

@@ -1,12 +1,27 @@
-import { render, screen, waitForElementToBeRemoved } from '@testing-library/react'
+import { act, render, screen, waitFor, waitForElementToBeRemoved } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import { beforeEach, describe, expect, test, vi } from 'vitest'
+
+import { CapturaCodigoContexto, crearCaptura, type Captura } from '@/features/etiquetas/capturaCodigo'
 
 const registrar = vi.fn()
 const guardarBorrador = vi.fn()
 const borrarBorrador = vi.fn()
 const consultarAsignaturas = vi.fn()
+const porCodigo = vi.fn()
+
+const ETANOL = {
+  id: 12,
+  codigo: 'N3-00042',
+  nombre_canonico: 'Etanol 96%',
+  clasificacion: 'reactivo',
+  unidad_base: 'ml',
+  almacen_clave: 'N3',
+  cantidad: 2000,
+  ubicacion: 'Lab 2',
+  metodo_control: 'peso',
+}
 
 // El doble reemplaza la capa de datos entera. Lo que se prueba aquí son las
 // reglas de estado de la pantalla, no las consultas: ésas se ejercitan en el
@@ -27,23 +42,8 @@ vi.mock('./consultas', async () => {
     useMotivos: () => ({
       data: [{ clave: 'otro', etiqueta: 'Otro', metodos: ['peso', 'cantidad', 'prestamo'] }],
     }),
-    useBuscarExistencias: () => ({
-      filas: [
-        {
-          id: 12,
-          codigo: 'N3-00042',
-          nombre_canonico: 'Etanol 96%',
-          clasificacion: 'reactivo',
-          unidad_base: 'ml',
-          almacen_clave: 'N3',
-          cantidad: 2000,
-          ubicacion: 'Lab 2',
-          metodo_control: 'peso',
-        },
-      ],
-      cargando: false,
-      error: null,
-    }),
+    useBuscarExistencias: () => ({ filas: [ETANOL], cargando: false, error: null }),
+    useExistenciaPorCodigo: () => porCodigo,
     useBorrador: () => ({ data: null, isPending: false }),
     useGuardarBorrador: () => ({ mutate: guardarBorrador, isPending: false }),
     useBorrarBorrador: () => ({ mutate: borrarBorrador, isPending: false }),
@@ -53,12 +53,23 @@ vi.mock('./consultas', async () => {
 
 const { PaginaNuevaPractica } = await import('./PaginaNuevaPractica')
 
-function montar() {
+/** Devuelve la pistola: `captura.atender(codigo)` es lo que hace `Layout` al escanear. */
+function montar(): Captura {
+  const captura = crearCaptura()
   render(
-    <MemoryRouter>
-      <PaginaNuevaPractica />
-    </MemoryRouter>,
+    <CapturaCodigoContexto.Provider value={captura}>
+      <MemoryRouter>
+        <PaginaNuevaPractica />
+      </MemoryRouter>
+    </CapturaCodigoContexto.Provider>,
   )
+  return captura
+}
+
+async function escanear(captura: Captura, codigo: string) {
+  await act(async () => {
+    captura.atender(codigo)
+  })
 }
 
 /** Llena la cascada completa: es el prerrequisito de casi todo lo demás. */
@@ -90,6 +101,7 @@ beforeEach(() => {
   guardarBorrador.mockClear()
   borrarBorrador.mockClear()
   consultarAsignaturas.mockClear()
+  porCodigo.mockReset()
 })
 
 describe('PaginaNuevaPractica', () => {
@@ -123,6 +135,64 @@ describe('PaginaNuevaPractica', () => {
 
     expect(screen.getByRole('row', { name: /etanol 96%/i })).toBeInTheDocument()
     expect(screen.getByText('Control por Peso')).toBeInTheDocument()
+  })
+
+  describe('con la pistola', () => {
+    test('la pantalla toma la pistola: escanear agrega y selecciona', async () => {
+      porCodigo.mockResolvedValue(ETANOL)
+      const captura = montar()
+      await llenarCabecera()
+      await escanear(captura, 'N3-00042')
+
+      expect(porCodigo).toHaveBeenCalledWith('N3-00042')
+      expect(await screen.findByRole('row', { name: /etanol 96%/i })).toBeInTheDocument()
+      expect(screen.getByText('Control por Peso')).toBeInTheDocument()
+      expect(screen.getByText('Agregado N3-00042')).toBeInTheDocument()
+    })
+
+    test('sin laboratorio avisa y no busca', async () => {
+      const captura = montar()
+      await escanear(captura, 'N3-00042')
+
+      expect(porCodigo).not.toHaveBeenCalled()
+      expect(screen.getByText(/elige primero el laboratorio/i)).toBeInTheDocument()
+      expect(screen.getByText('Sin productos')).toBeInTheDocument()
+    })
+
+    test('un código que no es del almacén avisa y no agrega', async () => {
+      porCodigo.mockResolvedValue(null)
+      const captura = montar()
+      await llenarCabecera()
+      await escanear(captura, 'N4-00001')
+
+      expect(await screen.findByText(/N4-00001 no está en tu almacén/)).toBeInTheDocument()
+      expect(screen.getByText('Sin productos')).toBeInTheDocument()
+    })
+
+    test('escanear dos veces el mismo no lo duplica', async () => {
+      porCodigo.mockResolvedValue(ETANOL)
+      const captura = montar()
+      await llenarCabecera()
+      await escanear(captura, 'N3-00042')
+      await screen.findByRole('row', { name: /etanol 96%/i })
+      await escanear(captura, 'N3-00042')
+
+      expect(await screen.findByText('N3-00042 ya está en la práctica')).toBeInTheDocument()
+      expect(screen.getAllByRole('row', { name: /etanol 96%/i })).toHaveLength(1)
+    })
+
+    test('Escanear QR espera la pistola y se cierra al agregar', async () => {
+      porCodigo.mockResolvedValue(ETANOL)
+      const captura = montar()
+      await llenarCabecera()
+      await userEvent.click(screen.getByRole('button', { name: /escanear qr/i }))
+      expect(screen.getByRole('dialog', { name: 'Escanear QR' })).toBeInTheDocument()
+
+      await escanear(captura, 'N3-00042')
+
+      await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Escanear QR' })).toBeNull())
+      expect(screen.getByRole('row', { name: /etanol 96%/i })).toBeInTheDocument()
+    })
   })
 
   test('quitar un producto lo saca de la tabla y vacía el panel', async () => {

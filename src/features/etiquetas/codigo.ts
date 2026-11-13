@@ -7,9 +7,17 @@
  */
 const PATRON_CODIGO = /^[A-Z0-9]+(?:-[A-Z0-9]+)*-\d{5}$/
 
-/** Mayúsculas y sin espacios: la pistola o quien teclea pueden mandar cualquiera de los dos. */
+/**
+ * Mayúsculas y sin espacios: la pistola o quien teclea pueden mandar cualquiera
+ * de los dos.
+ *
+ * El apóstrofo vuelve a ser guion. La pistola (Eyoyo EYH2) teclea como teclado
+ * de EE. UU. y Windows lo traduce con la distribución en español, donde la
+ * tecla del guion da «'». Un código nunca lleva apóstrofo, así que no hay nada
+ * que confundir, y escanear funciona aunque nadie configure la pistola.
+ */
 export function normalizarCodigo(texto: string): string {
-  return texto.trim().toUpperCase()
+  return texto.trim().toUpperCase().replaceAll("'", '-')
 }
 
 export function esCodigo(texto: string): boolean {

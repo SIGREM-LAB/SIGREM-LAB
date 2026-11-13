@@ -14,6 +14,7 @@ import { useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 
 import { CuerpoPagina, EncabezadoPagina } from '@/app/EncabezadoPagina'
+import { useCapturarCodigo } from '@/features/etiquetas/capturaCodigo'
 import { AgregarProductos } from './AgregarProductos'
 import { restaurarBorrador, serializarBorrador, type CabeceraParcial } from './borrador'
 import {
@@ -22,6 +23,7 @@ import {
   useBorrador,
   useBorrarBorrador,
   useBuscarExistencias,
+  useExistenciaPorCodigo,
   useGuardarBorrador,
   useLaboratorios,
   useMotivos,
@@ -31,6 +33,7 @@ import {
 } from './consultas'
 import { DatosPractica } from './DatosPractica'
 import { DialogoBuscar } from './DialogoBuscar'
+import { DialogoEscanear } from './DialogoEscanear'
 import {
   aPayloadElementos,
   elementoDesdeExistencia,
@@ -64,6 +67,7 @@ function Captura({ borradorId, inicial }: { borradorId: number | null; inicial: 
     inicial?.elementos[0]?.existenciaId ?? null,
   )
   const [buscando, setBuscando] = useState(false)
+  const [escaneando, setEscaneando] = useState(false)
   const [termino, setTermino] = useState('')
   const [aviso, setAviso] = useState<Aviso | null>(null)
 
@@ -76,6 +80,7 @@ function Captura({ borradorId, inicial }: { borradorId: number | null; inicial: 
   const laboratorios = useLaboratorios()
   const motivos = useMotivos()
   const existencias = useBuscarExistencias(termino, buscando)
+  const porCodigo = useExistenciaPorCodigo()
 
   const guardar = useGuardarBorrador()
   const borrar = useBorrarBorrador()
@@ -87,11 +92,52 @@ function Captura({ borradorId, inicial }: { borradorId: number | null; inicial: 
   const cabeceraValida = esquemaCabecera.safeParse(cabecera).success
 
   function agregar(fila: FilaUtilizable) {
-    if (elementos.some((e) => e.existenciaId === fila.id)) return
     const nuevo = elementoDesdeExistencia(fila)
-    setElementos([...elementos, nuevo])
+    // Con la forma funcional: dos escaneos seguidos llegan antes de que la
+    // pantalla vuelva a pintar, y con la lista del cierre el segundo pisaría al
+    // primero.
+    setElementos((actuales) =>
+      actuales.some((e) => e.existenciaId === fila.id) ? actuales : [...actuales, nuevo],
+    )
     setSeleccionado(nuevo.existenciaId)
   }
+
+  // La pistola, en esta pantalla, agrega en vez de llevar al inventario: salir
+  // a media captura sería perderla. Mismas reglas que «Buscar producto».
+  async function alEscanear(codigo: string) {
+    if (registrar.isPending) return
+    if (cabecera.laboratorioId === undefined) {
+      setAviso({ tipo: 'info', texto: 'Elige primero el laboratorio para agregar productos' })
+      return
+    }
+
+    let fila: FilaUtilizable | null
+    try {
+      fila = await porCodigo(codigo)
+    } catch (error) {
+      setAviso({ tipo: 'error', texto: mensajeDeError(error) })
+      return
+    }
+
+    if (fila === null) {
+      setAviso({
+        tipo: 'error',
+        texto: `${codigo} no está en tu almacén o está dado de baja`,
+      })
+      return
+    }
+
+    setEscaneando(false)
+    if (elementos.some((e) => e.existenciaId === fila.id)) {
+      setSeleccionado(fila.id)
+      setAviso({ tipo: 'info', texto: `${codigo} ya está en la práctica` })
+      return
+    }
+    agregar(fila)
+    setAviso({ tipo: 'success', texto: `Agregado ${codigo}` })
+  }
+
+  useCapturarCodigo((codigo) => void alEscanear(codigo))
 
   function quitar(existenciaId: number) {
     setElementos(elementos.filter((e) => e.existenciaId !== existenciaId))
@@ -218,6 +264,7 @@ function Captura({ borradorId, inicial }: { borradorId: number | null; inicial: 
                     Agregar productos
                   </Typography>
                   <AgregarProductos
+                    onEscanear={() => setEscaneando(true)}
                     onBuscar={() => setBuscando(true)}
                     // Sin laboratorio no hay almacén, y la búsqueda sale
                     // filtrada por almacén.
@@ -269,6 +316,8 @@ function Captura({ borradorId, inicial }: { borradorId: number | null; inicial: 
         onAgregar={agregar}
         onCerrar={() => setBuscando(false)}
       />
+
+      <DialogoEscanear abierto={escaneando} onCerrar={() => setEscaneando(false)} />
 
       <Snackbar
         open={aviso !== null}
