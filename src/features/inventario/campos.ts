@@ -294,6 +294,101 @@ export function esPesable(campo: Campo): boolean {
 }
 
 /**
+ * Los dos pesos del frasco y la densidad, por su `destino`. Igual que la
+ * cantidad: qué campo es cuál lo dice la base, no el nombre del campo.
+ */
+const DESTINO_PESO_VACIO = 'existencia.peso_frasco_vacio'
+const DESTINO_PESO_LLENO = 'existencia.peso_total'
+const DESTINO_DENSIDAD = 'articulo_reactivo.densidad'
+
+export type CamposDePeso = { vacio: Campo; lleno: Campo; cantidad: Campo }
+
+/**
+ * Los tres campos que entran en «lleno menos vacío», si este perfil los pide
+ * todos. N4 captura la cantidad directa y no pide los pesos: ahí no hay nada
+ * que calcular y esto devuelve `undefined`.
+ */
+export function camposDePeso(campos: Campo[]): CamposDePeso | undefined {
+  const visibles = camposVisibles(campos)
+  const vacio = visibles.find((c) => c.destino === DESTINO_PESO_VACIO)
+  const lleno = visibles.find((c) => c.destino === DESTINO_PESO_LLENO)
+  const cantidad = visibles.find((c) => c.destino === DESTINO_CANTIDAD)
+  if (vacio === undefined || lleno === undefined || cantidad === undefined) return undefined
+  return { vacio, lleno, cantidad }
+}
+
+export function campoDeDensidad(campos: Campo[]): Campo | undefined {
+  return camposVisibles(campos).find((c) => c.destino === DESTINO_DENSIDAD)
+}
+
+/**
+ * Cuánto vale un gramo en cada unidad del artículo. Los pesos del frasco son
+ * lo que marca la balanza, en gramos; la cantidad se lleva en la unidad del
+ * artículo. Para masa basta el factor; para volumen hace falta la densidad
+ * (g/mL), que es propiedad de la sustancia y no siempre está capturada.
+ */
+const POR_GRAMO_MASA: Record<string, number> = { g: 1, kg: 1 / 1000, mg: 1000 }
+const MILILITROS_POR_UNIDAD: Record<string, number> = { ml: 1, l: 1000 }
+
+export type CantidadDesdePesos =
+  | { tipo: 'calculada'; cantidad: string }
+  | { tipo: 'sin-calculo'; razon: string }
+
+/**
+ * La cantidad que dicen los pesos: lleno menos vacío, en la unidad del
+ * artículo.
+ *
+ * Es una SUGERENCIA para el formulario, no una regla de la base: quien captura
+ * puede corregirla, y si difiere del saldo entra como `ajuste_conteo` con su
+ * motivo, igual que un conteo a mano. Por eso no se calcula cuando falta algo
+ * —se deja la cantidad como estaba y se dice por qué— en vez de adivinar.
+ *
+ * `null` = falta alguno de los dos pesos; no hay nada que sugerir ni que avisar.
+ */
+export function cantidadDesdePesos(
+  lleno: string,
+  vacio: string,
+  unidad: string,
+  densidad: string,
+): CantidadDesdePesos | null {
+  if (lleno.trim() === '' || vacio.trim() === '') return null
+
+  const neto = Number(lleno) - Number(vacio)
+  if (!Number.isFinite(neto)) return null
+  if (neto < 0) {
+    return { tipo: 'sin-calculo', razon: 'El frasco vacío pesa más que el lleno: revisa los dos pesos' }
+  }
+
+  const clave = unidad.trim().toLowerCase()
+  let cantidad: number
+
+  if (clave in POR_GRAMO_MASA) {
+    cantidad = neto * POR_GRAMO_MASA[clave]
+  } else if (clave in MILILITROS_POR_UNIDAD) {
+    const d = Number(densidad)
+    if (densidad.trim() === '' || !Number.isFinite(d) || d <= 0) {
+      return {
+        tipo: 'sin-calculo',
+        razon: `Para pasar de gramos a ${unidad.trim()} hace falta la densidad del reactivo`,
+      }
+    }
+    cantidad = neto / d / MILILITROS_POR_UNIDAD[clave]
+  } else {
+    return {
+      tipo: 'sin-calculo',
+      razon:
+        clave === ''
+          ? 'Sin unidad no se puede pasar de gramos a cantidad'
+          : `Los pesos están en gramos y la cantidad en ${unidad.trim()}: no se convierte sola`,
+    }
+  }
+
+  // Cuatro decimales, los de `numeric(14,4)`. Redondear aquí evita que una
+  // resta de flotantes deje 407.84000000000003 en el campo.
+  return { tipo: 'calculada', cantidad: String(Math.round(cantidad * 10_000) / 10_000) }
+}
+
+/**
  * El esquema de la edición: el de los campos editables más el motivo.
  *
  * El motivo es obligatorio **solo cuando la cantidad cambia**, porque solo

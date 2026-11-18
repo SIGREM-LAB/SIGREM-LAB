@@ -1,7 +1,9 @@
 import { describe, expect, test } from 'vitest'
 
 import {
+  camposDePeso,
   camposVisibles,
+  cantidadDesdePesos,
   esEditable,
   esPesable,
   esquemaDeCampos,
@@ -357,5 +359,57 @@ describe('esPesable', () => {
 
   test('un peso declarado como texto tampoco', () => {
     expect(esPesable(campo({ tipo_dato: 'texto', destino: 'existencia.peso_total' }))).toBe(false)
+  })
+})
+
+describe('cantidadDesdePesos', () => {
+  test('en gramos es lleno menos vacío', () => {
+    expect(cantidadDesdePesos('528.14', '120.3', 'g', '')).toEqual({
+      tipo: 'calculada',
+      cantidad: '407.84',
+    })
+  })
+
+  test('en kg y mg convierte desde los gramos de la balanza', () => {
+    expect(cantidadDesdePesos('1200', '200', 'kg', '')).toEqual({ tipo: 'calculada', cantidad: '1' })
+    expect(cantidadDesdePesos('200.5', '200', 'mg', '')).toEqual({ tipo: 'calculada', cantidad: '500' })
+  })
+
+  test('en volumen usa la densidad', () => {
+    expect(cantidadDesdePesos('279', '200', 'mL', '0.79')).toEqual({ tipo: 'calculada', cantidad: '100' })
+    expect(cantidadDesdePesos('990', '200', 'L', '0.79')).toEqual({ tipo: 'calculada', cantidad: '1' })
+  })
+
+  test('en volumen sin densidad no calcula', () => {
+    expect(cantidadDesdePesos('279', '200', 'mL', '')).toMatchObject({ tipo: 'sin-calculo' })
+    expect(cantidadDesdePesos('279', '200', 'mL', '0')).toMatchObject({ tipo: 'sin-calculo' })
+  })
+
+  test('con una unidad que no es masa ni volumen no calcula', () => {
+    expect(cantidadDesdePesos('279', '200', 'pieza', '')).toMatchObject({ tipo: 'sin-calculo' })
+  })
+
+  test('el vacío más pesado que el lleno se avisa, no se vuelve negativo', () => {
+    expect(cantidadDesdePesos('100', '200', 'g', '')).toMatchObject({ tipo: 'sin-calculo' })
+  })
+
+  test('si falta un peso no hay nada que decir', () => {
+    expect(cantidadDesdePesos('', '200', 'g', '')).toBeNull()
+    expect(cantidadDesdePesos('300', ' ', 'g', '')).toBeNull()
+  })
+})
+
+describe('camposDePeso', () => {
+  const vacio = campo({ campo: 'peso_frasco_vacio', tipo_dato: 'numero', destino: 'existencia.peso_frasco_vacio' })
+  const lleno = campo({ campo: 'peso_total', tipo_dato: 'numero', destino: 'existencia.peso_total' })
+  const cantidad = campo({ campo: 'cantidad', tipo_dato: 'numero', destino: 'movimiento.carga_inicial' })
+
+  test('los encuentra por destino', () => {
+    expect(camposDePeso([vacio, lleno, cantidad])).toEqual({ vacio, lleno, cantidad })
+  })
+
+  // N4 captura la cantidad directa: sin los pesos no hay nada que calcular.
+  test('sin los pesos en el perfil no hay cálculo', () => {
+    expect(camposDePeso([cantidad])).toBeUndefined()
   })
 })

@@ -246,3 +246,110 @@ describe('DialogoEditarExistencia', () => {
     expect(screen.getByText('N3-00042')).toBeInTheDocument()
   })
 })
+
+/** El perfil de los almacenes que pesan el frasco: N3 y LUM. */
+const PESADO: Campo[] = [
+  {
+    campo: 'densidad',
+    etiqueta: 'Densidad (g/mL)',
+    tipo_dato: 'numero',
+    destino: 'articulo_reactivo.densidad',
+    opciones: null,
+    ayuda: null,
+    obligatorio: false,
+    orden: 1,
+  },
+  {
+    campo: 'peso_frasco_vacio',
+    etiqueta: 'Peso del frasco vacío',
+    tipo_dato: 'numero',
+    destino: 'existencia.peso_frasco_vacio',
+    opciones: null,
+    ayuda: null,
+    obligatorio: false,
+    orden: 2,
+  },
+  {
+    campo: 'peso_total',
+    etiqueta: 'Peso del frasco lleno',
+    tipo_dato: 'numero',
+    destino: 'existencia.peso_total',
+    opciones: null,
+    ayuda: null,
+    obligatorio: false,
+    orden: 3,
+  },
+  {
+    campo: 'cantidad',
+    etiqueta: 'Cantidad en existencia',
+    tipo_dato: 'numero',
+    destino: 'movimiento.carga_inicial',
+    opciones: null,
+    ayuda: null,
+    obligatorio: true,
+    orden: 4,
+  },
+]
+
+// La observación que dio pie a esto: «cuando edito el peso del frasco lleno, el
+// peso final no se cambia». La cantidad se sugiere desde los pesos; se puede
+// corregir a mano y, si difiere del saldo, entra como ajuste con su motivo.
+describe('DialogoEditarExistencia: la cantidad desde los pesos', () => {
+  beforeEach(() => {
+    campos = PESADO
+    // Acetona en mL: 110.442 g / 0.79 g/mL = 139.8 mL, que es el saldo.
+    actuales = { densidad: 0.79, peso_frasco_vacio: 200, peso_total: 310.442, cantidad: 139.8 }
+  })
+
+  test('abrir el diálogo no recalcula nada', () => {
+    pintar()
+    expect(screen.getByLabelText(/Cantidad/)).toHaveValue(139.8)
+    expect(screen.queryByLabelText(/Motivo del ajuste/)).not.toBeInTheDocument()
+  })
+
+  test('cambiar el peso del frasco lleno recalcula la cantidad y pide el motivo', async () => {
+    const usuario = userEvent.setup()
+    pintar()
+
+    await usuario.clear(screen.getByLabelText(/frasco lleno/))
+    await usuario.type(screen.getByLabelText(/frasco lleno/), '279')
+
+    // 79 g / 0.79 g/mL
+    expect(screen.getByLabelText(/Cantidad/)).toHaveValue(100)
+    expect(await screen.findByLabelText(/Motivo del ajuste/)).toBeInTheDocument()
+  })
+
+  test('cambiar el frasco vacío también recalcula', async () => {
+    const usuario = userEvent.setup()
+    pintar()
+
+    await usuario.clear(screen.getByLabelText(/frasco vacío/))
+    await usuario.type(screen.getByLabelText(/frasco vacío/), '231.442')
+
+    expect(screen.getByLabelText(/Cantidad/)).toHaveValue(100)
+  })
+
+  test('la cantidad sugerida se puede corregir a mano', async () => {
+    const usuario = userEvent.setup()
+    pintar()
+
+    await usuario.clear(screen.getByLabelText(/frasco lleno/))
+    await usuario.type(screen.getByLabelText(/frasco lleno/), '279')
+    await usuario.clear(screen.getByLabelText(/Cantidad/))
+    await usuario.type(screen.getByLabelText(/Cantidad/), '98')
+
+    expect(screen.getByLabelText(/Cantidad/)).toHaveValue(98)
+  })
+
+  test('en mL y sin densidad no adivina: deja la cantidad y dice por qué', async () => {
+    actuales = { ...actuales, densidad: null }
+    const usuario = userEvent.setup()
+    pintar()
+
+    await usuario.clear(screen.getByLabelText(/frasco lleno/))
+    await usuario.type(screen.getByLabelText(/frasco lleno/), '279')
+
+    expect(screen.getByLabelText(/Cantidad/)).toHaveValue(139.8)
+    expect(screen.getByText(/hace falta la densidad/)).toBeInTheDocument()
+  })
+})

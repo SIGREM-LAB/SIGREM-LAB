@@ -17,10 +17,12 @@ import {
 } from '@mui/material'
 import { Controller, useForm, useWatch } from 'react-hook-form'
 
+import { AvisoPesos } from './AvisoPesos'
 import {
   CAMPO_LABORATORIO,
   CAMPO_MOTIVO,
   campoDeCantidad,
+  campoDeDensidad,
   camposVisibles,
   esEditable,
   esquemaDeEdicion,
@@ -33,6 +35,7 @@ import { FormularioPerfil } from './FormularioPerfil'
 import { mensajeDe } from './presentacion'
 import type { Fila } from './TablaExistencias'
 import { useActualizarExistencia, useFormulario, useLaboratorios, useValoresExistencia } from './consultas'
+import { useCantidadDesdePesos } from './useCantidadDesdePesos'
 
 type Props = {
   /** La existencia que se está corrigiendo. `null` = el diálogo no está abierto. */
@@ -212,9 +215,20 @@ function Captura({
 }: PropsCaptura) {
   const esquema = useMemo(() => esquemaDeEdicion(campos, saldo), [campos, saldo])
 
-  const { control, handleSubmit } = useForm<Valores>({
+  const { control, handleSubmit, watch, setValue } = useForm<Valores>({
     resolver: zodResolver(esquema),
     defaultValues: { ...valoresDe(campos, actuales), [CAMPO_MOTIVO]: '' },
+  })
+
+  // La densidad es del artículo: se pinta bloqueada y no está en el estado del
+  // formulario, así que llega de lo que hoy vale la existencia.
+  const densidad = campoDeDensidad(campos)
+  const avisoPesos = useCantidadDesdePesos({
+    campos,
+    watch,
+    setValue,
+    unidad,
+    densidadFija: densidad === undefined ? undefined : actuales[densidad.campo],
   })
 
   const pideLaboratorio = campos.some((c) => c.campo === CAMPO_LABORATORIO)
@@ -255,6 +269,11 @@ function Captura({
           soloLectura={(campo) => !esEditable(campo)}
           valores={actuales}
           ayudaSoloLectura="Del catálogo: se comparte con las demás existencias"
+          debajoDe={(campo) =>
+            avisoPesos !== null && campo.campo === cantidad?.campo ? (
+              <AvisoPesos texto={avisoPesos} />
+            ) : null
+          }
         />
 
         {ajusta ? (

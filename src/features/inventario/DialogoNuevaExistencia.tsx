@@ -20,8 +20,10 @@ import {
 import { useForm, useWatch } from 'react-hook-form'
 
 import type { Enums } from '@/types/database'
+import { AvisoPesos } from './AvisoPesos'
 import {
   CAMPO_LABORATORIO,
+  campoDeCantidad,
   camposVisibles,
   esquemaDeCampos,
   payloadDe,
@@ -33,6 +35,7 @@ import {
 import { FormularioPerfil } from './FormularioPerfil'
 import { mensajeDe } from './presentacion'
 import { useBuscarArticulo, useCrearExistencia, useFormulario, useLaboratorios } from './consultas'
+import { useCantidadDesdePesos } from './useCantidadDesdePesos'
 
 type Props = {
   abierto: boolean
@@ -191,7 +194,7 @@ type PropsCaptura = {
 function Captura({ campos, almacen, tipo, guardando, error, onGuardar }: PropsCaptura) {
   const esquema = useMemo(() => esquemaDeCampos(campos), [campos])
 
-  const { control, handleSubmit } = useForm<Valores>({
+  const { control, handleSubmit, watch, setValue } = useForm<Valores>({
     resolver: zodResolver(esquema),
     defaultValues: valoresIniciales(campos),
   })
@@ -203,6 +206,11 @@ function Captura({ campos, almacen, tipo, guardando, error, onGuardar }: PropsCa
   // La unidad es un campo más del formulario, así que se lee de ahí: es contra
   // ella contra la que se coteja lo que manda la balanza.
   const unidad = useWatch({ control, name: 'unidad' })
+  const unidadTexto = typeof unidad === 'string' ? unidad : ''
+
+  // En el alta la densidad sí es un campo del formulario, y el hook la lee de ahí.
+  const avisoPesos = useCantidadDesdePesos({ campos, watch, setValue, unidad: unidadTexto })
+  const cantidad = campoDeCantidad(campos)
 
   return (
     <Box
@@ -215,10 +223,12 @@ function Captura({ campos, almacen, tipo, guardando, error, onGuardar }: PropsCa
           campos={visibles}
           control={control}
           laboratorios={laboratorios.data ?? []}
-          unidad={typeof unidad === 'string' ? unidad : ''}
+          unidad={unidadTexto}
           debajoDe={(campo) =>
             campo.destino === 'articulo.nombre_canonico' ? (
               <Sugerencias campo={campo.campo} control={control} tipo={tipo} />
+            ) : avisoPesos !== null && campo.campo === cantidad?.campo ? (
+              <AvisoPesos texto={avisoPesos} />
             ) : null
           }
         />
