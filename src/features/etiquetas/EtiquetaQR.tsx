@@ -67,9 +67,15 @@ export function EtiquetaQR({ codigo, nombre, ubicacion }: DatosEtiqueta) {
             sx={{
               fontSize: '6pt',
               mt: '0.6mm',
-              whiteSpace: 'nowrap',
+              // Varios renglones: la ubicación es lo que se busca en el anaquel
+              // y cortarla con «…» deja fuera justo la repisa o el cajón. Con
+              // 3 renglones de nombre caben 4 de ubicación en los 25.4 mm.
+              // `anywhere` parte también claves largas sin espacios.
+              overflowWrap: 'anywhere',
+              display: '-webkit-box',
+              WebkitLineClamp: 4,
+              WebkitBoxOrient: 'vertical',
               overflow: 'hidden',
-              textOverflow: 'ellipsis',
             }}
           >
             {ubicacion}
