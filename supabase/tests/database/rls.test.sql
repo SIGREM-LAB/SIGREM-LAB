@@ -14,7 +14,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 
-select plan(171);
+select plan(178);
 
 
 -- ---------------------------------------------------------------------------
@@ -1667,19 +1667,62 @@ select is(
   'Un campo fuera del perfil se descarta en el servidor, no solo en la pantalla'
 );
 
--- La raya de esta funcion. El articulo lo comparten todos los frascos de la
--- misma sustancia, y su RLS es de admin: corregir el nombre «del frasco que
--- tengo abierto» se lo cambiaria a los catorce sin que nadie lo pida.
+-- El NOMBRE del articulo si lo corrige el responsable, y cambia para todos
+-- (20261119120000_responsable_renombra_articulo.sql). El resto de la ficha
+-- -CAS, unidad, NFPA- sigue siendo de admin y se descarta.
 select lives_ok(
   $$ select * from public.actualizar_existencia(900011,
-       '{"nombre_articulo": "Otra cosa", "cas": "99-99-9"}'::jsonb) $$,
-  'Los campos del articulo no hacen fallar la edicion: se ignoran'
+       '{"nombre_articulo": "  Acido succinico, solido, grado R.A.  ", "cas": "99-99-9"}'::jsonb) $$,
+  'El responsable corrige el nombre del articulo desde la edicion'
 );
 
 select is(
   (select nombre_canonico from public.articulo where id = 900001),
-  'Acido succinico, solido, grado reactivo',
-  'Editar una existencia NO le cambia el nombre al articulo que comparte'
+  'Acido succinico, solido, grado R.A.',
+  'El nombre del articulo quedo corregido, sin los espacios de las orillas'
+);
+
+select is(
+  (select count(*)::int from public.articulo_reactivo where cas = '99-99-9'),
+  0,
+  'El CAS sigue siendo de admin: viene en el mismo envio y se descarta'
+);
+
+-- 900012 es de N4 y apunta al mismo articulo. Renombrar es para todos: es lo
+-- que se decidio, y es lo que esta prueba fija.
+select is(
+  (select a.nombre_canonico from public.existencia e
+     join public.articulo a on a.id = e.articulo_id
+    where e.id = 900012),
+  'Acido succinico, solido, grado R.A.',
+  'El nombre nuevo se ve tambien en el frasco de otro almacen'
+);
+
+select throws_ok(
+  $$ select * from public.actualizar_existencia(900011, '{"nombre_articulo": "   "}'::jsonb) $$,
+  '22023',
+  null,
+  'El nombre del articulo no se puede vaciar'
+);
+
+select pg_temp.como_postgres();
+insert into public.articulo (id, nombre_canonico, clasificacion, unidad_base, verificado)
+overriding system value
+values (900013, 'Acido succinico duplicado', 'reactivo', 'g', true);
+select pg_temp.como('n3@uaeh.local');
+
+select throws_ok(
+  $$ select * from public.actualizar_existencia(900011,
+       '{"nombre_articulo": "Acido succinico duplicado", "marca": "NO-DEBE"}'::jsonb) $$,
+  '23505',
+  null,
+  'Renombrar a otro articulo que ya existe con la misma unidad se rechaza'
+);
+
+select isnt(
+  (select coalesce(marca, '') from public.existencia where id = 900011),
+  'NO-DEBE',
+  'Y la correccion del frasco que venia junto se deshace con el renombre'
 );
 
 -- El conteo fisico. La cantidad no se escribe: entra como movimiento, que es lo
@@ -1721,6 +1764,22 @@ select throws_ok(
   '42501',
   null,
   'El responsable de N3 NO puede corregir una existencia de N4'
+);
+
+select throws_ok(
+  $$ select * from public.actualizar_existencia(900012, '{"nombre_articulo": "Robado"}'::jsonb) $$,
+  '42501',
+  null,
+  'Ni renombrar el articulo entrando por una existencia de N4'
+);
+
+-- El renombre es SECURITY DEFINER: sus comprobaciones no pueden depender de
+-- que la envoltura corra primero la correccion del frasco.
+select throws_ok(
+  $$ select private.renombrar_articulo(900012, 'Robado') $$,
+  '42501',
+  null,
+  'Llamado directo, el renombre tambien niega una existencia de otro almacen'
 );
 
 select pg_temp.como('lectura@uaeh.local');

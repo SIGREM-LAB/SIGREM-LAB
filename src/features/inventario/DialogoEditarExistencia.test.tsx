@@ -170,7 +170,6 @@ describe('DialogoEditarExistencia', () => {
   test('los campos del artículo se enseñan bloqueados, con la razón', () => {
     pintar()
 
-    expect(screen.getByLabelText(/Artículo/)).toBeDisabled()
     expect(screen.getByLabelText(/Número CAS/)).toBeDisabled()
     expect(screen.getByLabelText(/Marca/)).toBeEnabled()
     expect(screen.getAllByText(/se comparte con las demás existencias/i).length).toBeGreaterThan(0)
@@ -192,8 +191,28 @@ describe('DialogoEditarExistencia', () => {
       motivo: null,
     })
     // Lo del artículo no viaja aunque esté pintado en la pantalla.
-    expect(mutar.mock.calls[0][0].valores).not.toHaveProperty('nombre_articulo')
     expect(mutar.mock.calls[0][0].valores).not.toHaveProperty('cas')
+  })
+
+  // El nombre es la excepción: el responsable lo corrige, y el aviso dice que
+  // el cambio es para todos los almacenes.
+  test('el nombre del artículo se corrige y avisa que es para todos', async () => {
+    const usuario = userEvent.setup()
+    pintar()
+
+    const nombre = screen.getByLabelText(/Artículo/)
+    expect(nombre).toBeEnabled()
+    expect(nombre).toHaveValue('Acetona, líquido, pureza 99.5%')
+    expect(screen.getByText(/todos los almacenes/i)).toBeInTheDocument()
+
+    await usuario.clear(nombre)
+    await usuario.type(nombre, 'Acetona, líquido, grado A.C.S.')
+    await usuario.click(screen.getByRole('button', { name: /Guardar cambios/ }))
+
+    expect(mutar).toHaveBeenCalledTimes(1)
+    expect(mutar.mock.calls[0][0].valores).toMatchObject({
+      nombre_articulo: 'Acetona, líquido, grado A.C.S.',
+    })
   })
 
   // El saldo se mueve con un movimiento, y un renglón de bitácora que dice

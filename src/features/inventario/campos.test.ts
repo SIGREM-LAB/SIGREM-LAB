@@ -201,11 +201,16 @@ describe('esEditable', () => {
   // el CAS «del frasco que tengo abierto» se lo cambiaría a los catorce. Y su
   // RLS es de admin, así que ni siquiera llegaría.
   test('lo del artículo y su ficha NOM, no', () => {
-    expect(esEditable(campo())).toBe(false)
+    expect(esEditable(campo({ campo: 'unidad', destino: 'articulo.unidad_base' }))).toBe(false)
     expect(esEditable(campo({ campo: 'cas', destino: 'articulo_reactivo.cas' }))).toBe(false)
     expect(
       esEditable(campo({ campo: 'origen_especie', destino: 'articulo_biologico.origen_especie' })),
     ).toBe(false)
+  })
+
+  // La excepción: el responsable corrige el nombre, y cambia para todos.
+  test('el nombre del artículo sí', () => {
+    expect(esEditable(campo())).toBe(true)
   })
 
   // No es una columna: el saldo lo mantiene el trigger desde `movimiento`. Se
@@ -235,7 +240,14 @@ describe('valoresDe', () => {
   })
 
   test('los campos del artículo no entran al formulario: no se editan', () => {
-    expect(valoresDe([campo()], { nombre_articulo: 'Acetona' })).toEqual({})
+    const cas = campo({ campo: 'cas', destino: 'articulo_reactivo.cas' })
+    expect(valoresDe([cas], { cas: '67-64-1' })).toEqual({})
+  })
+
+  test('el nombre del artículo sí entra, con lo que vale hoy', () => {
+    expect(valoresDe([campo()], { nombre_articulo: 'Acetona' })).toEqual({
+      nombre_articulo: 'Acetona',
+    })
   })
 })
 
@@ -266,7 +278,8 @@ describe('payloadDeEdicion', () => {
   // Si el payload saliera del estado del formulario, un campo del artículo
   // pintado en la pantalla se colaría en el envío.
   test('lo que no se edita no se manda, aunque esté en el estado', () => {
-    expect(payloadDeEdicion([campo(), ...lista], { nombre_articulo: 'Otra cosa', marca: 'MEYER', modelo: '' })).toEqual(
+    const cas = campo({ campo: 'cas', destino: 'articulo_reactivo.cas' })
+    expect(payloadDeEdicion([cas, ...lista], { cas: '99-99-9', marca: 'MEYER', modelo: '' })).toEqual(
       { marca: 'MEYER', modelo: '' },
     )
   })

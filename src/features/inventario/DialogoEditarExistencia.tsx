@@ -21,6 +21,7 @@ import { AvisoPesos } from './AvisoPesos'
 import {
   CAMPO_LABORATORIO,
   CAMPO_MOTIVO,
+  DESTINO_NOMBRE,
   campoDeCantidad,
   campoDeDensidad,
   camposVisibles,
@@ -56,11 +57,12 @@ type Props = {
  * Lo que sí cambia respecto del alta son dos cosas, y las dos salen del
  * `destino` del campo, no de una lista escrita aquí:
  *
- * 1. **Los campos del ARTÍCULO se ven pero no se editan.** El artículo lo
- *    comparten todos los frascos de la misma sustancia: corregir el CAS del
- *    frasco que tengo abierto se lo cambiaría a los catorce. Se pintan
+ * 1. **Los campos del ARTÍCULO se ven pero no se editan**, salvo el nombre. El
+ *    artículo lo comparten todos los frascos de la misma sustancia: corregir el
+ *    CAS del frasco que tengo abierto se lo cambiaría a los catorce. Se pintan
  *    bloqueados, con su valor a la vista y la razón escrita debajo, porque son
  *    la ficha de seguridad del reactivo y quien corrige tiene que poder leerla.
+ *    El nombre sí se corrige, y el aviso bajo el campo dice que es para todos.
  *
  * 2. **La cantidad es un conteo.** No se escribe el saldo: si lo contado
  *    difiere, la base registra un `ajuste_conteo` y el trigger mueve el saldo.
@@ -334,15 +336,20 @@ function Captura({
  */
 function paraEditar(campos: Campo[], saldo: number | null, unidad: string): Campo[] {
   const cantidad = campoDeCantidad(campos)
-  if (cantidad === undefined) return campos
 
-  return campos.map((campo) =>
-    campo.campo === cantidad.campo
-      ? {
-          ...campo,
-          etiqueta: 'Cantidad contada',
-          ayuda: `Hoy el saldo dice ${saldo ?? 0} ${unidad}`.trim(),
-        }
-      : campo,
-  )
+  return campos.map((campo) => {
+    if (cantidad !== undefined && campo.campo === cantidad.campo) {
+      return {
+        ...campo,
+        etiqueta: 'Cantidad contada',
+        ayuda: `Hoy el saldo dice ${saldo ?? 0} ${unidad}`.trim(),
+      }
+    }
+    // La ayuda del alta habla de la búsqueda difusa, que aquí no corre. Lo que
+    // quien corrige tiene que saber es que el nombre es del catálogo.
+    if (campo.destino === DESTINO_NOMBRE) {
+      return { ...campo, ayuda: 'Cambia el nombre en todos los almacenes que usan este artículo' }
+    }
+    return campo
+  })
 }

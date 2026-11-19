@@ -174,6 +174,9 @@ export function payloadDe(campos: Campo[], valores: Valores): Record<string, str
  */
 const DESTINO_CANTIDAD = 'movimiento.carga_inicial'
 
+/** El nombre del artículo: lo único del catálogo que se corrige al editar. */
+export const DESTINO_NOMBRE = 'articulo.nombre_canonico'
+
 /**
  * Qué se puede corregir una vez que la existencia ya está dada de alta.
  *
@@ -181,6 +184,10 @@ const DESTINO_CANTIDAD = 'movimiento.carga_inicial'
  * y su ubicación se edita; lo del ARTÍCULO no, porque el artículo se comparte
  * con los demás frascos de la misma sustancia. Corregir el CAS «del frasco que
  * tengo abierto» se lo cambiaría a los catorce, y además su RLS es de admin.
+ *
+ * La excepción es el NOMBRE: desde noviembre de 2026 el responsable lo corrige,
+ * y el cambio vale para todos los almacenes que usan ese artículo
+ * (`20261119120000_responsable_renombra_articulo.sql`).
  *
  * El servidor sostiene lo mismo por su cuenta: `actualizar_existencia` filtra
  * por destino antes de escribir. Esto no es el candado, es no pintar controles
@@ -190,7 +197,8 @@ export function esEditable(campo: Campo): boolean {
   return (
     campo.destino.startsWith('existencia.') ||
     campo.destino.startsWith('ubicacion.') ||
-    campo.destino === DESTINO_CANTIDAD
+    campo.destino === DESTINO_CANTIDAD ||
+    campo.destino === DESTINO_NOMBRE
   )
 }
 
