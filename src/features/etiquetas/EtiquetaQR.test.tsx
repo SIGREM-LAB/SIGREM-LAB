@@ -20,6 +20,15 @@ describe('EtiquetaQR', () => {
     expect(screen.getByTitle('N3-00717').closest('svg')).not.toBeNull()
   })
 
+  test('la ubicación larga se reparte en renglones en vez de cortarse', () => {
+    const ubicacion = 'Laboratorio de Química Analítica / Gabinete 301 / Repisa 2 / Caja B'
+    render(<EtiquetaQR codigo="N3-00718" nombre="Acetona" ubicacion={ubicacion} />)
+
+    const renglon = screen.getByText(ubicacion)
+    expect(renglon).not.toHaveStyle({ whiteSpace: 'nowrap' })
+    expect(renglon).not.toHaveStyle({ textOverflow: 'ellipsis' })
+  })
+
   test('sin ubicación no deja un renglón vacío', () => {
     const { container } = render(<EtiquetaQR codigo="N4-00001" nombre="Matraz" ubicacion={null} />)
     // El primero es el título del SVG del QR.
