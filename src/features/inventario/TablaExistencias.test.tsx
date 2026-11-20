@@ -25,6 +25,8 @@ function fila(cambios: Partial<Fila> = {}): Fila {
     ubicacion: 'N3 · Anaquel 2 · Repisa 3',
     nombre_norm: '1,10-fenantrolina monohidrato, solido, pureza 99%, cas: 5144-89-8',
     marca_norm: 'sigma',
+    ubicacion_componentes: { sub_ubicacion: 'N3', mueble: 'Anaquel 2', repisa: '3' },
+    ubicacion_norm: 'n3 · anaquel 2 · repisa 3',
     ...cambios,
   }
 }

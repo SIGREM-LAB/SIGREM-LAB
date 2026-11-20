@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { describe, expect, test, vi } from 'vitest'
 
 import { FiltrosActivos } from './FiltrosActivos'
-import { filtrosIniciales, type Filtros } from './filtros'
+import { filtrosIniciales, SIN_UBICACION, type Filtros } from './filtros'
 
 const ALMACENES = [
   { id: 1, clave: 'N3' },
@@ -92,5 +92,41 @@ describe('FiltrosActivos', () => {
   test('sin onLimpiar no se ofrece limpiar', () => {
     pintar({ termino: 'acetona' })
     expect(screen.queryByRole('button', { name: /limpiar filtros/i })).not.toBeInTheDocument()
+  })
+
+  describe('mueble y repisa', () => {
+    test('se anuncian con su nombre', () => {
+      pintar({ almacenId: 1, mueble: 'Anaquel 4', repisa: '2' })
+
+      expect(screen.getByText('Mueble: Anaquel 4')).toBeInTheDocument()
+      expect(screen.getByText('Repisa: 2')).toBeInTheDocument()
+    })
+
+    test('"sin ubicacion" se dice en palabras, no con el valor interno', () => {
+      pintar({ almacenId: 1, mueble: SIN_UBICACION })
+
+      expect(screen.getByText('Sin ubicación')).toBeInTheDocument()
+    })
+
+    // Sin mueble la repisa no significa nada.
+    test('quitar el mueble quita tambien la repisa', async () => {
+      const { onCambio } = pintar({ almacenId: 1, mueble: 'Anaquel 4', repisa: '2' })
+
+      screen.getByLabelText('Quitar filtro. Mueble: Anaquel 4').focus()
+      await userEvent.keyboard('{Backspace}')
+
+      expect(onCambio).toHaveBeenCalledWith(expect.objectContaining({ mueble: '', repisa: '' }))
+    })
+
+    test('quitar el almacen suelta mueble y repisa', async () => {
+      const { onCambio } = pintar({ almacenId: 1, mueble: 'Anaquel 4', repisa: '2' })
+
+      screen.getByLabelText('Quitar filtro. Almacén: N3').focus()
+      await userEvent.keyboard('{Backspace}')
+
+      expect(onCambio).toHaveBeenCalledWith(
+        expect.objectContaining({ almacenId: 'todos', mueble: '', repisa: '' }),
+      )
+    })
   })
 })

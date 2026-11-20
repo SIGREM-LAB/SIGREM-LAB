@@ -30,13 +30,14 @@ import { TiraAlmacenes } from './TiraAlmacenes'
 import type { DatosTipo } from './DetalleTipo'
 import {
   useAlmacenes,
+  useMuebles,
   useDetalleExistencia,
   useExistencias,
   useMovimientos,
   useLeerEtiquetas,
   useResumenAlmacenes,
 } from './consultas'
-import { filtrosIniciales, hayFiltrosActivos, type Filtros } from './filtros'
+import { conAlmacen, filtrosIniciales, hayFiltrosActivos, type Filtros } from './filtros'
 
 type Props = {
   /**
@@ -153,6 +154,7 @@ export function ListadoExistencias({
   const [aviso, setAviso] = useState<string | null>(null)
 
   const almacenes = useAlmacenes()
+  const muebles = useMuebles(filtros.almacenId)
   const resumenAlmacenes = useResumenAlmacenes(cruzaAlmacenes)
   const listado = useExistencias(filtros, pagina, porPagina)
 
@@ -222,7 +224,7 @@ export function ListadoExistencias({
             seleccionado={filtros.almacenId}
             almacenPropio={almacenPropio}
             cargando={resumenAlmacenes.isPending}
-            onSeleccionar={(almacenId) => cambiarFiltros({ ...filtros, almacenId })}
+            onSeleccionar={(almacenId) => cambiarFiltros(conAlmacen(filtros, almacenId))}
           />
         ) : null}
 
@@ -235,6 +237,7 @@ export function ListadoExistencias({
               filtros={filtros}
               almacenes={almacenes.data ?? []}
               mostrarAlmacen={cruzaAlmacenes}
+              muebles={muebles.data ?? []}
               onCambio={cambiarFiltros}
             />
           </Box>

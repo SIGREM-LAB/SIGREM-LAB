@@ -2,7 +2,7 @@ import { Icon } from '@iconify/react'
 import { Button, Chip, Stack } from '@mui/material'
 
 import { ESTADO } from './presentacion'
-import { CLASIFICACIONES, ORDENES, type Filtros } from './filtros'
+import { CLASIFICACIONES, conAlmacen, ORDENES, SIN_UBICACION, type Filtros } from './filtros'
 
 type Props = {
   filtros: Filtros
@@ -67,8 +67,27 @@ export function FiltrosActivos({
     chips.push({
       clave: 'almacen',
       etiqueta: `Almacén: ${almacen?.clave ?? filtros.almacenId}`,
-      quitar: () => quitar({ almacenId: 'todos' }),
+      quitar: () => onCambio(conAlmacen(filtros, 'todos')),
     })
+  }
+
+  // Sin almacén el filtro no se aplica (ver `existenciasFiltradas`), así que
+  // tampoco se anuncia.
+  if (filtros.almacenId !== 'todos' && filtros.mueble !== '') {
+    chips.push({
+      clave: 'mueble',
+      etiqueta:
+        filtros.mueble === SIN_UBICACION ? 'Sin ubicación' : `Mueble: ${filtros.mueble}`,
+      // Sin mueble la repisa no significa nada: se van juntos.
+      quitar: () => quitar({ mueble: '', repisa: '' }),
+    })
+    if (filtros.mueble !== SIN_UBICACION && filtros.repisa !== '') {
+      chips.push({
+        clave: 'repisa',
+        etiqueta: `Repisa: ${filtros.repisa}`,
+        quitar: () => quitar({ repisa: '' }),
+      })
+    }
   }
 
   if (filtros.estado !== 'todos') {

@@ -64,6 +64,8 @@ function existencia(cambios: Partial<Fila> = {}): Fila {
     ubicacion: 'N3 · Gaveta 4',
     nombre_norm: 'ergosterol, solido, pureza 95%',
     marca_norm: 'sigma',
+    ubicacion_componentes: { sub_ubicacion: 'N3', mueble: 'Gaveta 4' },
+    ubicacion_norm: 'n3 · gaveta 4',
     ...cambios,
   }
 }

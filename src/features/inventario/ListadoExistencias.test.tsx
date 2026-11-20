@@ -33,6 +33,8 @@ const FILA: Fila = {
   ubicacion: 'Anaquel 2 · Repisa 3',
   nombre_norm: 'acetona',
   marca_norm: 'sigma',
+  ubicacion_componentes: { mueble: 'Anaquel 2', repisa: '3' },
+  ubicacion_norm: 'anaquel 2 · repisa 3',
 }
 
 /**
@@ -83,6 +85,7 @@ vi.mock('./consultas', async () => {
       espias.resumenAlmacenes(habilitado)
       return { data: [resumen(1, 'N3'), resumen(2, 'N4')], isPending: false }
     },
+    useMuebles: () => ({ data: [] }),
     useMovimientos: () => ({ data: [], isPending: false }),
     useLeerEtiquetas: () => ({ mutate: vi.fn(), isPending: false, error: null }),
     useDetalleExistencia: () => ({ data: undefined }),

@@ -4,7 +4,7 @@ import { supabase } from '@/lib/supabase'
 import type { Enums, Json, TablesInsert } from '@/types/database'
 import type { DatosEtiqueta } from '@/features/etiquetas/codigo'
 import type { Campo } from './campos'
-import type { Filtros } from './filtros'
+import { mueblesDe, SIN_UBICACION, type Filtros } from './filtros'
 import type { ResumenAlmacen } from './menu'
 import type { Movimiento } from './PanelExistencia'
 import type { FiltrosPendientes } from './pendientes'
@@ -33,8 +33,26 @@ function existenciasFiltradas(filtros: Filtros, opciones?: { count: 'exact' }) {
     // que aquí va `like` y no `ilike`: es lo que deja que el predicado use el
     // índice trigram. `codigo` no está normalizado, y ahí sí `ilike`.
     consulta = consulta.or(
-      `nombre_norm.like.*${termino}*,marca_norm.like.*${termino}*,codigo.ilike.*${termino}*`,
+      `nombre_norm.like.*${termino}*,marca_norm.like.*${termino}*,` +
+        `ubicacion_norm.like.*${termino}*,codigo.ilike.*${termino}*`,
     )
+  }
+
+  // Mueble y repisa van contra las partes de la ubicación, no contra su
+  // etiqueta: buscar "Repisa 2" en el texto también traería la 21. Sin almacén
+  // elegido no se aplican: el selector está apagado y "Anaquel 4" existe en
+  // varios almacenes.
+  if (filtros.almacenId !== 'todos') {
+    if (filtros.mueble === SIN_UBICACION) {
+      consulta = consulta.is('ubicacion_id', null)
+    } else if (filtros.mueble !== '') {
+      consulta = consulta.contains(
+        'ubicacion_componentes',
+        filtros.repisa === ''
+          ? { mueble: filtros.mueble }
+          : { mueble: filtros.mueble, repisa: filtros.repisa },
+      )
+    }
   }
 
   if (filtros.codigo !== '') consulta = consulta.eq('codigo', filtros.codigo)
@@ -372,8 +390,12 @@ export function useExistenciaResumen(existenciaId: number | null) {
  * listado y las dos cabeceras de cifras. Van juntas porque toda mutación que
  * mueva existencias tiene que invalidar lo mismo, y repartirlas fue siempre el
  * camino a que una de ellas se olvide de una.
+ *
+ * `muebles` también: el alta, la edición y resolver un pendiente pueden crear
+ * una ubicación, y su mueble tiene que salir en el filtro sin esperar a que
+ * caduque la caché.
  */
-const INVENTARIO = [['existencias'], ['resumen-estados'], ['resumen-almacenes']]
+const INVENTARIO = [['existencias'], ['resumen-estados'], ['resumen-almacenes'], ['muebles']]
 
 /**
  * Lo anterior más la cola de depuración, que solo cambia cuando el renglón que
@@ -449,6 +471,29 @@ export function useActualizarPendiente() {
     },
     onSuccess: () => {
       for (const queryKey of AFECTADAS) qc.invalidateQueries({ queryKey })
+    },
+  })
+}
+
+/**
+ * Los muebles de un almacén con sus repisas, para los selectores del conteo
+ * físico. Salen de la tabla `ubicacion` y no del listado: el listado está
+ * paginado y filtrado, y los selectores tienen que ofrecer el almacén entero.
+ *
+ * Sin almacén elegido no se pide nada: los selectores están apagados.
+ */
+export function useMuebles(almacenId: number | 'todos') {
+  return useQuery({
+    queryKey: ['muebles', almacenId],
+    enabled: almacenId !== 'todos',
+    staleTime: 5 * 60 * 1000,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('ubicacion')
+        .select('componentes')
+        .eq('almacen_id', almacenId as number)
+      if (error) throw error
+      return mueblesDe(data.map((u) => u.componentes))
     },
   })
 }
