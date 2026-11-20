@@ -7,7 +7,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 
-select plan(90);
+select plan(92);
 
 -- Las pruebas corren como postgres, que se salta la RLS. Es lo correcto aqui:
 -- este archivo prueba la forma del esquema, no quien puede ver que. Eso es
@@ -723,6 +723,12 @@ select is(
 
 select has_column('public', 'existencia_listado', 'metodo_control',
   'existencia_listado expone metodo_control, que es lo que elige el panel');
+
+select has_column('public', 'existencia_listado', 'ubicacion_componentes',
+  'existencia_listado expone las partes de la ubicacion, para filtrar por mueble y repisa');
+
+select has_column('public', 'existencia_listado', 'ubicacion_norm',
+  'existencia_listado expone la ubicacion normalizada, para el buscador');
 
 -- ---------------------------------------------------------------------------
 -- motivo_observacion.metodos

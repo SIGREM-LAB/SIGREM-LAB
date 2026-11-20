@@ -84,6 +84,8 @@ const FILA: Fila = {
   ubicacion: 'N3 · Anaquel 2',
   nombre_norm: 'acetona',
   marca_norm: 'sigma',
+  ubicacion_componentes: { sub_ubicacion: 'N3', mueble: 'Anaquel 2' },
+  ubicacion_norm: 'n3 · anaquel 2',
 }
 
 const mutar = vi.fn()

@@ -1,18 +1,26 @@
 import { Icon } from '@iconify/react'
 import {
+  Box,
   Checkbox,
   FormControl,
   FormControlLabel,
+  FormHelperText,
   InputAdornment,
   InputLabel,
   MenuItem,
   Select,
-  Stack,
   TextField,
 } from '@mui/material'
 
 import { ESTADO } from './presentacion'
-import { CLASIFICACIONES, ORDENES, type Filtros } from './filtros'
+import {
+  CLASIFICACIONES,
+  conAlmacen,
+  ORDENES,
+  SIN_UBICACION,
+  type Filtros,
+  type Mueble,
+} from './filtros'
 
 type Props = {
   filtros: Filtros
@@ -23,29 +31,58 @@ type Props = {
    * está, y el selector aparecería un instante después que el resto de la fila.
    */
   mostrarAlmacen: boolean
+  /** Los muebles del almacén elegido. Vacío mientras no hay almacén. */
+  muebles: Mueble[]
   onCambio: (filtros: Filtros) => void
 }
 
-export function FiltrosInventario({ filtros, almacenes, mostrarAlmacen, onCambio }: Props) {
+export function FiltrosInventario({
+  filtros,
+  almacenes,
+  mostrarAlmacen,
+  muebles,
+  onCambio,
+}: Props) {
   // Un solo camino para publicar cambios: así ningún control se olvida de
   // conservar el resto del estado. Sin esto, cambiar el tipo borraría el término
   // ya tecleado.
   const cambiar = (parche: Partial<Filtros>) => onCambio({ ...filtros, ...parche })
 
+  // Las ubicaciones son de cada almacén: sin uno elegido no hay qué ofrecer.
+  const sinAlmacen = filtros.almacenId === 'todos'
+  const repisas = muebles.find((m) => m.nombre === filtros.mueble)?.repisas ?? []
+  // Un mueble que ya no está en la lista (la consulta todavía en vuelo, o un
+  // dato que cambió) se deja como opción: un Select con un valor fuera de sus
+  // opciones queda en blanco y MUI lo reporta en consola.
+  const repisaActiva = !sinAlmacen && filtros.mueble !== '' && filtros.mueble !== SIN_UBICACION
+  const huerfano =
+    filtros.mueble !== '' &&
+    filtros.mueble !== SIN_UBICACION &&
+    !muebles.some((m) => m.nombre === filtros.mueble)
+
   return (
-    <Stack
-      direction={{ xs: 'column', md: 'row' }}
-      spacing={2}
-      sx={{ alignItems: { md: 'center' }, flexWrap: 'wrap' }}
+    // Rejilla y no `Stack` con `flexWrap`: Stack separa con márgenes, y al
+    // partirse en dos renglones el primero del segundo queda con sangría y
+    // pegado al de arriba. Aquí cada control cae en una columna, los renglones
+    // quedan alineados y el buscador no se encoge cuando un mueble trae un
+    // nombre largo. En teléfono queda una sola columna.
+    <Box
+      sx={{
+        display: 'grid',
+        gridTemplateColumns: 'repeat(auto-fill, minmax(170px, 1fr))',
+        gap: 2,
+        alignItems: 'start',
+      }}
     >
       <TextField
         label="Buscar"
         type="search"
         value={filtros.termino}
         onChange={(e) => cambiar({ termino: e.target.value })}
-        placeholder="Nombre, marca o código"
+        placeholder="Nombre, marca, código o ubicación"
         size="small"
-        sx={{ flex: 1, minWidth: 220 }}
+        // Dos columnas: es el control que más se usa y el placeholder es largo.
+        sx={{ gridColumn: { xs: '1 / -1', sm: 'span 2' } }}
         slotProps={{
           input: {
             startAdornment: (
@@ -58,7 +95,7 @@ export function FiltrosInventario({ filtros, almacenes, mostrarAlmacen, onCambio
         }}
       />
 
-      <FormControl size="small" sx={{ minWidth: 170 }}>
+      <FormControl size="small">
         <InputLabel id="filtro-tipo">Tipo</InputLabel>
         <Select
           labelId="filtro-tipo"
@@ -76,16 +113,19 @@ export function FiltrosInventario({ filtros, almacenes, mostrarAlmacen, onCambio
       </FormControl>
 
       {mostrarAlmacen ? (
-        <FormControl size="small" sx={{ minWidth: 170 }}>
+        <FormControl size="small">
           <InputLabel id="filtro-almacen">Almacén</InputLabel>
           <Select
             labelId="filtro-almacen"
             label="Almacén"
             value={filtros.almacenId}
             onChange={(e) =>
-              cambiar({
-                almacenId: e.target.value === 'todos' ? 'todos' : Number(e.target.value),
-              })
+              onCambio(
+                conAlmacen(
+                  filtros,
+                  e.target.value === 'todos' ? 'todos' : Number(e.target.value),
+                ),
+              )
             }
           >
             <MenuItem value="todos">Todos los almacenes</MenuItem>
@@ -98,7 +138,63 @@ export function FiltrosInventario({ filtros, almacenes, mostrarAlmacen, onCambio
         </FormControl>
       ) : null}
 
-      <FormControl size="small" sx={{ minWidth: 170 }}>
+      <FormControl size="small" disabled={sinAlmacen}>
+        {/* `''` es "todos" y se pinta con su texto: sin `shrink` y `notched`
+            la etiqueta quedaría encima de él. Apagado no se pinta nada y la
+            etiqueta vuelve a su sitio. */}
+        <InputLabel id="filtro-mueble" shrink={!sinAlmacen}>
+          Mueble
+        </InputLabel>
+        <Select
+          labelId="filtro-mueble"
+          label="Mueble"
+          value={sinAlmacen ? '' : filtros.mueble}
+          displayEmpty={!sinAlmacen}
+          notched={!sinAlmacen}
+          // Cambiar de mueble suelta la repisa: la 2 de un anaquel no es la
+          // del otro.
+          onChange={(e) => cambiar({ mueble: e.target.value, repisa: '' })}
+        >
+          <MenuItem value="">Todos los muebles</MenuItem>
+          <MenuItem value={SIN_UBICACION}>Sin ubicación</MenuItem>
+          {huerfano ? <MenuItem value={filtros.mueble}>{filtros.mueble}</MenuItem> : null}
+          {muebles.map((m) => (
+            <MenuItem key={m.nombre} value={m.nombre}>
+              {m.nombre}
+            </MenuItem>
+          ))}
+        </Select>
+        {sinAlmacen ? <FormHelperText>Elige un almacén</FormHelperText> : null}
+      </FormControl>
+
+      <FormControl
+        size="small"
+        disabled={!repisaActiva}
+      >
+        <InputLabel id="filtro-repisa" shrink={repisaActiva}>
+          Repisa
+        </InputLabel>
+        <Select
+          labelId="filtro-repisa"
+          label="Repisa"
+          value={repisaActiva ? filtros.repisa : ''}
+          displayEmpty={repisaActiva}
+          notched={repisaActiva}
+          onChange={(e) => cambiar({ repisa: e.target.value })}
+        >
+          <MenuItem value="">Todas las repisas</MenuItem>
+          {filtros.repisa !== '' && !repisas.includes(filtros.repisa) ? (
+            <MenuItem value={filtros.repisa}>{filtros.repisa}</MenuItem>
+          ) : null}
+          {repisas.map((r) => (
+            <MenuItem key={r} value={r}>
+              {r}
+            </MenuItem>
+          ))}
+        </Select>
+      </FormControl>
+
+      <FormControl size="small">
         <InputLabel id="filtro-estado">Estado</InputLabel>
         <Select
           labelId="filtro-estado"
@@ -115,7 +211,7 @@ export function FiltrosInventario({ filtros, almacenes, mostrarAlmacen, onCambio
         </Select>
       </FormControl>
 
-      <FormControl size="small" sx={{ minWidth: 170 }}>
+      <FormControl size="small">
         <InputLabel id="filtro-orden">Ordenar por</InputLabel>
         <Select
           labelId="filtro-orden"
@@ -139,7 +235,10 @@ export function FiltrosInventario({ filtros, almacenes, mostrarAlmacen, onCambio
           />
         }
         label="Incluir bajas"
+        // El alto de un control `small`: así la casilla queda centrada con los
+        // selectores de su renglón y no pegada arriba.
+        sx={{ height: 40 }}
       />
-    </Stack>
+    </Box>
   )
 }

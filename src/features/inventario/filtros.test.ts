@@ -1,6 +1,13 @@
 import { describe, expect, test } from 'vitest'
 
-import { CLASIFICACIONES, filtrosIniciales, hayFiltrosActivos, ORDENES } from './filtros'
+import {
+  CLASIFICACIONES,
+  conAlmacen,
+  filtrosIniciales,
+  hayFiltrosActivos,
+  mueblesDe,
+  ORDENES,
+} from './filtros'
 
 describe('filtrosIniciales', () => {
   // Ya no mira el rol. Que almacen se ve lo decide la pantalla: Inventario
@@ -85,5 +92,62 @@ describe('hayFiltrosActivos', () => {
   // filtros al arranque pero dejaria la tabla ordenada por nombre.
   test('detecta el orden alfabetico', () => {
     expect(hayFiltrosActivos({ ...iniciales, orden: 'nombre_asc' }, iniciales)).toBe(true)
+  })
+
+  test('detecta un mueble elegido', () => {
+    expect(hayFiltrosActivos({ ...iniciales, mueble: 'Anaquel 4' }, iniciales)).toBe(true)
+  })
+})
+
+describe('conAlmacen', () => {
+  test('cambia el almacen y suelta mueble y repisa', () => {
+    const antes = { ...filtrosIniciales(), almacenId: 1, mueble: 'Anaquel 4', repisa: '2' }
+    expect(conAlmacen(antes, 2)).toEqual({ ...antes, almacenId: 2, mueble: '', repisa: '' })
+  })
+
+  test('conserva el resto de los filtros', () => {
+    const antes = { ...filtrosIniciales(), termino: 'acetona', almacenId: 1 }
+    expect(conAlmacen(antes, 'todos').termino).toBe('acetona')
+  })
+})
+
+describe('mueblesDe', () => {
+  test('agrupa las repisas por mueble, sin repetir', () => {
+    expect(
+      mueblesDe([
+        { mueble: 'Anaquel 4', repisa: '2', fila_cajon: '1' },
+        { mueble: 'Anaquel 4', repisa: '2', fila_cajon: '3' },
+        { mueble: 'Anaquel 4', repisa: '1' },
+      ]),
+    ).toEqual([{ nombre: 'Anaquel 4', repisas: ['1', '2'] }])
+  })
+
+  // Asi se recorre el almacen: "Anaquel 2" antes que "Anaquel 10".
+  test('ordena muebles y repisas como numeros', () => {
+    const muebles = mueblesDe([
+      { mueble: 'Anaquel 10', repisa: '10' },
+      { mueble: 'Anaquel 10', repisa: '9' },
+      { mueble: 'Anaquel 2', repisa: '1' },
+    ])
+    expect(muebles.map((m) => m.nombre)).toEqual(['Anaquel 2', 'Anaquel 10'])
+    expect(muebles[1].repisas).toEqual(['9', '10'])
+  })
+
+  test('un mueble sin repisas aparece con la lista vacia', () => {
+    expect(mueblesDe([{ mueble: 'Refrigerador' }])).toEqual([
+      { nombre: 'Refrigerador', repisas: [] },
+    ])
+  })
+
+  // Una ubicacion con solo sub-ubicacion no tiene mueble que ofrecer; y el
+  // jsonb puede traer cualquier cosa.
+  test('ignora lo que no trae mueble', () => {
+    expect(mueblesDe([{ sub_ubicacion: 'LUM-2' }, null, 'x', [], { mueble: '' }])).toEqual([])
+  })
+
+  // El filtro es un `contains` exacto. Unificar aqui "Anaquel 4" con
+  // "anaquel 4" ofreceria una opcion que no casa con la mitad de los datos.
+  test('no unifica variantes de escritura', () => {
+    expect(mueblesDe([{ mueble: 'Anaquel 4' }, { mueble: 'anaquel 4' }])).toHaveLength(2)
   })
 })

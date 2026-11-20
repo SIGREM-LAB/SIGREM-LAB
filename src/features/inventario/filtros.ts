@@ -10,6 +10,15 @@ export type Filtros = {
   codigo: string
   clasificacion: Enums<'clasificacion_articulo'> | 'todas'
   almacenId: number | 'todos'
+  /**
+   * Para el conteo físico: qué hay en un mueble y, dentro de él, en una
+   * repisa. `''` es "todos"; `SIN_UBICACION` pide lo que no tiene ubicación,
+   * que también hay que contar y encontrar. Solo tiene sentido con un almacén
+   * elegido: las ubicaciones son de cada almacén.
+   */
+  mueble: string
+  /** `''` es "todas". Solo se usa con un mueble concreto. */
+  repisa: string
   estado: Enums<'estado_existencia'> | 'todos'
   incluirBaja: boolean
   orden: Orden
@@ -74,8 +83,61 @@ export function filtrosIniciales(): Filtros {
     codigo: '',
     clasificacion: 'todas',
     almacenId: 'todos',
+    mueble: '',
+    repisa: '',
     estado: 'todos',
     incluirBaja: false,
     orden: 'codigo',
   }
+}
+
+/**
+ * El valor del selector de mueble que pide lo que no tiene ubicación. Ningún
+ * mueble real se escribe así en el formato.
+ */
+export const SIN_UBICACION = '__sin_ubicacion__'
+
+/**
+ * Cambiar de almacén suelta el mueble y la repisa: el "Anaquel 4" de N3 no es
+ * el de N4, y conservarlo dejaría la tabla vacía sin que se entienda por qué.
+ * Es un solo camino para los tres sitios que cambian el almacén: el selector,
+ * su chip y la tira de almacenes.
+ */
+export function conAlmacen(filtros: Filtros, almacenId: Filtros['almacenId']): Filtros {
+  return { ...filtros, almacenId, mueble: '', repisa: '' }
+}
+
+export type Mueble = { nombre: string; repisas: string[] }
+
+const COMPARAR = new Intl.Collator('es', { numeric: true, sensitivity: 'base' }).compare
+
+/**
+ * Los muebles de un almacén con sus repisas, a partir de los `componentes` de
+ * sus ubicaciones.
+ *
+ * Los valores se comparan tal cual vienen, sin recortar ni pasar a minúsculas:
+ * el filtro es un `contains` exacto sobre el jsonb, y una opción que no casa
+ * con el dato guardado devolvería la tabla vacía. Si en el formato conviven
+ * "Anaquel 4" y "anaquel 4", aquí salen las dos, y eso hay que corregirlo en
+ * los datos, no esconderlo aquí.
+ *
+ * El orden es numérico ("Anaquel 2" antes que "Anaquel 10"), que es como se
+ * recorre el almacén.
+ */
+export function mueblesDe(componentes: unknown[]): Mueble[] {
+  const porMueble = new Map<string, Set<string>>()
+
+  for (const c of componentes) {
+    if (c === null || typeof c !== 'object' || Array.isArray(c)) continue
+    const { mueble, repisa } = c as Record<string, unknown>
+    if (typeof mueble !== 'string' || mueble === '') continue
+
+    const repisas = porMueble.get(mueble) ?? new Set<string>()
+    if (typeof repisa === 'string' && repisa !== '') repisas.add(repisa)
+    porMueble.set(mueble, repisas)
+  }
+
+  return [...porMueble]
+    .map(([nombre, repisas]) => ({ nombre, repisas: [...repisas].sort(COMPARAR) }))
+    .sort((a, b) => COMPARAR(a.nombre, b.nombre))
 }

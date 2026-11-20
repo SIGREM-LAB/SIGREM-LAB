@@ -25,6 +25,8 @@ const FILA: Fila = {
   ubicacion: 'N3 · Anaquel 2 · Repisa 3',
   nombre_norm: 'acetona, liquido, pureza 99.5%, cas: 67-64-1',
   marca_norm: 'sigma',
+  ubicacion_componentes: { sub_ubicacion: 'N3', mueble: 'Anaquel 2', repisa: '3' },
+  ubicacion_norm: 'n3 · anaquel 2 · repisa 3',
 }
 
 const MOVIMIENTOS: Movimiento[] = [

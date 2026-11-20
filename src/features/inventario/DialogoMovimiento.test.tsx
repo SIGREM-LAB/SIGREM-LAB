@@ -26,6 +26,8 @@ const FILA: Fila = {
   ubicacion: 'N3 · Anaquel 2',
   nombre_norm: 'acido sulfurico',
   marca_norm: 'merck',
+  ubicacion_componentes: { sub_ubicacion: 'N3', mueble: 'Anaquel 2' },
+  ubicacion_norm: 'n3 · anaquel 2',
 }
 
 const registrar = vi.fn()
