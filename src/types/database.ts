@@ -1720,6 +1720,7 @@ export type Database = {
         | "prestamo"
         | "devolucion"
         | "baja"
+        | "reactivacion"
       veredicto_pendiente: "nueva" | "duplicado"
     }
     CompositeTypes: {
@@ -1891,6 +1892,7 @@ export const Constants = {
         "prestamo",
         "devolucion",
         "baja",
+        "reactivacion",
       ],
       veredicto_pendiente: ["nueva", "duplicado"],
     },
