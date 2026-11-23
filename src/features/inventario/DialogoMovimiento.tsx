@@ -49,7 +49,7 @@ type Props = {
 /**
  * Registrar un movimiento de inventario.
  *
- * Seis tipos, y cada uno pregunta lo suyo: una entrada pide el proveedor, una
+ * Cada tipo pregunta lo suyo: una entrada pide el proveedor, una
  * merma exige el motivo, y el ajuste no pregunta cuánto cambió sino cuánto HAY
  * —la diferencia con el saldo es lo que va a la bitácora—. Esas reglas viven en
  * `movimientos.ts`, no aquí: este archivo pinta lo que aquel decide.
@@ -57,6 +57,10 @@ type Props = {
  * Dos de los seis no son movimientos del enum y se explican allá: «Producto
  * caducado» se guarda como merma con su motivo, y «Cambio de laboratorio» no
  * toca la bitácora porque no mueve cantidad.
+ *
+ * «Dar de baja» no pide cantidad: sale el frasco completo, y la cantidad la
+ * pone la base. Sobre algo ya dado de baja lo único que se ofrece es
+ * reactivarlo, y el diálogo abre directo ahí.
  *
  * Quién puede registrar lo decide la RLS: `movimiento_alta` exige
  * `puede_escribir()` y el almacén propio. La pantalla no ofrece el botón donde
@@ -99,7 +103,10 @@ function Registrar({ fila, existenciaId, almacenId, onCerrar, onRegistrado }: Pr
   const nombreLaboratorio =
     (laboratorios.data ?? []).find((l) => l.id === laboratorioActual)?.nombre ?? null
 
-  const tipos = useMemo(() => tiposPara(fila.clasificacion), [fila.clasificacion])
+  const tipos = useMemo(
+    () => tiposPara(fila.clasificacion, fila.estado),
+    [fila.clasificacion, fila.estado],
+  )
 
   const esquema = useMemo(
     () => esquemaDeMovimiento({ saldo, unidad, laboratorioActual }),
@@ -108,7 +115,9 @@ function Registrar({ fila, existenciaId, almacenId, onCerrar, onRegistrado }: Pr
 
   const { control, handleSubmit } = useForm<ValoresMovimiento>({
     resolver: zodResolver(esquema),
-    defaultValues: { tipo: 'entrada', cantidad: '', motivo: '', fecha: hoy(), laboratorio: '' },
+    // El primero de la lista: `entrada` casi siempre, y `reactivar` si está
+    // dado de baja, que es lo único que se le ofrece.
+    defaultValues: { tipo: tipos[0], cantidad: '', motivo: '', fecha: hoy(), laboratorio: '' },
   })
 
   const tipo = useWatch({ control, name: 'tipo' }) as TipoMovimiento
@@ -283,6 +292,19 @@ function Registrar({ fila, existenciaId, almacenId, onCerrar, onRegistrado }: Pr
               </Alert>
             )}
 
+            {tipo === 'baja' && (
+              <Alert severity="warning">
+                Sale el frasco completo: {`${saldo} ${unidad}`.trim()}. Deja de aparecer en el
+                inventario, en Prácticas y en los reportes. Se puede deshacer con «Reactivar».
+              </Alert>
+            )}
+
+            {tipo === 'reactivar' && (
+              <Alert severity="info">
+                Vuelve al inventario con la cantidad que tenía cuando se dio de baja.
+              </Alert>
+            )}
+
             {error === null || error === undefined ? null : (
               <Alert severity="error">No se pudo registrar. {mensajeDe(error)}</Alert>
             )}
@@ -297,9 +319,10 @@ function Registrar({ fila, existenciaId, almacenId, onCerrar, onRegistrado }: Pr
             type="submit"
             variant="contained"
             loading={guardando}
-            startIcon={<Icon icon="mdi:swap-horizontal" width={20} />}
+            color={tipo === 'baja' ? 'error' : 'primary'}
+            startIcon={<Icon icon={BOTON[tipo]?.icono ?? 'mdi:swap-horizontal'} width={20} />}
           >
-            Guardar movimiento
+            {BOTON[tipo]?.texto ?? 'Guardar movimiento'}
           </Button>
         </DialogActions>
       </Box>
@@ -328,7 +351,10 @@ function Registrar({ fila, existenciaId, almacenId, onCerrar, onRegistrado }: Pr
       {
         onSuccess: () =>
           avisar(
-            `${MOVIMIENTOS[valores.tipo].etiqueta}: ${registro.cantidad > 0 ? '+' : ''}${registro.cantidad} ${unidad}`.trim(),
+            // Sin cantidad capturada no hay cifra que anunciar: la puso la base.
+            definicion.cantidad === null
+              ? MOVIMIENTOS[valores.tipo].etiqueta
+              : `${MOVIMIENTOS[valores.tipo].etiqueta}: ${registro.cantidad > 0 ? '+' : ''}${registro.cantidad} ${unidad}`.trim(),
           ),
       },
     )
@@ -346,6 +372,15 @@ function Registrar({ fila, existenciaId, almacenId, onCerrar, onRegistrado }: Pr
     cambio.reset()
     onCerrar()
   }
+}
+
+/**
+ * El botón de guardar dice lo que va a pasar donde no es un movimiento más:
+ * «Guardar movimiento» sobre una baja esconde que el frasco sale del almacén.
+ */
+const BOTON: Partial<Record<TipoMovimiento, { texto: string; icono: string }>> = {
+  baja: { texto: 'Dar de baja', icono: 'mdi:archive-arrow-down-outline' },
+  reactivar: { texto: 'Reactivar', icono: 'mdi:archive-arrow-up-outline' },
 }
 
 /**

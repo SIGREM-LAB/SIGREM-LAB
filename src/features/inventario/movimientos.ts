@@ -3,7 +3,7 @@ import { z } from 'zod'
 import type { Enums } from '@/types/database'
 
 /**
- * Los seis tipos que ofrece el diálogo, que NO son los ocho del enum
+ * Los tipos que ofrece el diálogo, que NO son los nueve del enum
  * `tipo_movimiento` de la base.
  *
  * Son dos vocabularios distintos a propósito. El enum dice qué le pasó al
@@ -18,11 +18,26 @@ import type { Enums } from '@/types/database'
  *   Se guarda como un cambio de `existencia.laboratorio_id`, y por eso no deja
  *   renglón en la bitácora: la bitácora es de cantidades.
  *
+ * `baja` y `reactivar` sí se guardan con su tipo del enum (`baja` y
+ * `reactivacion`), pero la cantidad no la decide la pantalla: la pone el
+ * trigger, que lee el saldo bajo bloqueo. La baja es siempre el frasco
+ * completo, y la reactivación devuelve lo que se llevó la baja. Sobre algo dado
+ * de baja la base no acepta otro movimiento, así que ahí solo se ofrece
+ * reactivar.
+ *
  * `carga_inicial` tampoco está: la escribe el alta y solo puede haber una.
  * `prestamo` y `devolucion` sí existen en el enum pero no tienen pantalla
  * todavía; el préstamo entre almacenes se diseña aparte.
  */
-export type TipoMovimiento = 'entrada' | 'consumo' | 'ajuste' | 'merma' | 'caducado' | 'cambio_lab'
+export type TipoMovimiento =
+  | 'entrada'
+  | 'consumo'
+  | 'ajuste'
+  | 'merma'
+  | 'caducado'
+  | 'cambio_lab'
+  | 'baja'
+  | 'reactivar'
 
 /**
  * Cómo se lee la cantidad que se teclea.
@@ -48,6 +63,12 @@ type Definicion = {
   motivo: { etiqueta: string; ayuda: string; obligatorio: boolean } | null
   /** A qué tipos de producto se ofrece. `null` = a todos. */
   clasificaciones: Enums<'clasificacion_articulo'>[] | null
+  /**
+   * Si se ofrece a lo que está dado de baja (`solo`) o a lo que no (`nunca`).
+   * Es excluyente a propósito: la base rechaza cualquier otro movimiento
+   * sobre una baja, y no se reactiva lo que no lo está.
+   */
+  dadoDeBaja: 'solo' | 'nunca'
 }
 
 export const MOVIMIENTOS: Record<TipoMovimiento, Definicion> = {
@@ -57,6 +78,7 @@ export const MOVIMIENTOS: Record<TipoMovimiento, Definicion> = {
     cantidad: { etiqueta: 'Cantidad recibida', modo: 'suma' },
     motivo: { etiqueta: 'Observaciones', ayuda: 'Proveedor, lote, etc.', obligatorio: false },
     clasificaciones: null,
+    dadoDeBaja: 'nunca',
   },
   consumo: {
     etiqueta: 'Salida por consumo interno',
@@ -64,6 +86,7 @@ export const MOVIMIENTOS: Record<TipoMovimiento, Definicion> = {
     cantidad: { etiqueta: 'Cantidad', modo: 'resta' },
     motivo: { etiqueta: 'Motivo', ayuda: 'Motivo del consumo', obligatorio: true },
     clasificaciones: null,
+    dadoDeBaja: 'nunca',
   },
   ajuste: {
     etiqueta: 'Ajuste de inventario',
@@ -75,6 +98,7 @@ export const MOVIMIENTOS: Record<TipoMovimiento, Definicion> = {
       obligatorio: false,
     },
     clasificaciones: null,
+    dadoDeBaja: 'nunca',
   },
   merma: {
     etiqueta: 'Merma',
@@ -82,6 +106,7 @@ export const MOVIMIENTOS: Record<TipoMovimiento, Definicion> = {
     cantidad: { etiqueta: 'Cantidad dañada', modo: 'resta' },
     motivo: { etiqueta: 'Motivo', ayuda: 'Derrame, rotura, etc.', obligatorio: true },
     clasificaciones: null,
+    dadoDeBaja: 'nunca',
   },
   caducado: {
     etiqueta: 'Producto caducado',
@@ -97,6 +122,7 @@ export const MOVIMIENTOS: Record<TipoMovimiento, Definicion> = {
     // Un osciloscopio no caduca. Una muestra biológica sí, aunque el prototipo
     // solo listara reactivos e insumos.
     clasificaciones: ['reactivo', 'insumo', 'materia_biologica'],
+    dadoDeBaja: 'nunca',
   },
   cambio_lab: {
     etiqueta: 'Cambio de laboratorio',
@@ -104,6 +130,32 @@ export const MOVIMIENTOS: Record<TipoMovimiento, Definicion> = {
     cantidad: null,
     motivo: null,
     clasificaciones: null,
+    dadoDeBaja: 'nunca',
+  },
+  baja: {
+    etiqueta: 'Dar de baja',
+    tipo: 'baja',
+    // Sin cantidad: sale el frasco completo, y lo pone el trigger.
+    cantidad: null,
+    motivo: {
+      etiqueta: 'Motivo de la baja',
+      ayuda: 'Se desechó, ya no sirve, salió del almacén, etc.',
+      obligatorio: true,
+    },
+    clasificaciones: null,
+    dadoDeBaja: 'nunca',
+  },
+  reactivar: {
+    etiqueta: 'Reactivar (deshacer la baja)',
+    tipo: 'reactivacion',
+    cantidad: null,
+    motivo: {
+      etiqueta: 'Motivo de la reactivación',
+      ayuda: 'Se dio de baja el frasco equivocado, etc.',
+      obligatorio: true,
+    },
+    clasificaciones: null,
+    dadoDeBaja: 'solo',
   },
 }
 
@@ -111,10 +163,16 @@ export const MOVIMIENTOS: Record<TipoMovimiento, Definicion> = {
 export const POR_CADUCIDAD = 'Producto caducado'
 
 /** Los tipos que aplican a este producto, en el orden del selector. */
-export function tiposPara(clasificacion: Enums<'clasificacion_articulo'> | null): TipoMovimiento[] {
+export function tiposPara(
+  clasificacion: Enums<'clasificacion_articulo'> | null,
+  estado: Enums<'estado_existencia'> | null = null,
+): TipoMovimiento[] {
   const todos = Object.keys(MOVIMIENTOS) as TipoMovimiento[]
+  const deBaja = estado === 'baja'
 
   return todos.filter((t) => {
+    if ((MOVIMIENTOS[t].dadoDeBaja === 'solo') !== deBaja) return false
+
     const permitidas = MOVIMIENTOS[t].clasificaciones
     if (permitidas === null) return true
     // Sin clasificación no se esconde nada: es un dato que falta, no un «no».
@@ -166,6 +224,18 @@ export function registroDe(valores: ValoresMovimiento, ctx: Contexto): Registro 
 
   if (definicion.tipo === null) {
     return { clase: 'laboratorio', laboratorioId: Number(valores.laboratorio) }
+  }
+
+  // Baja y reactivación: la cantidad la decide el trigger, y la fecha es la
+  // de hoy, que es cuando el frasco deja de estar (o vuelve).
+  if (definicion.cantidad === null) {
+    return {
+      clase: 'movimiento',
+      tipo: definicion.tipo,
+      cantidad: 0,
+      motivo: motivoDe(valores),
+      ocurridoEn: null,
+    }
   }
 
   const capturada = Number(valores.cantidad)

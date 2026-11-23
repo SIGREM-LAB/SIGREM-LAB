@@ -236,4 +236,44 @@ describe('DialogoMovimiento', () => {
     expect(await screen.findByText(/donde ya está/)).toBeInTheDocument()
     expect(cambiar).not.toHaveBeenCalled()
   })
+
+  // Es el frasco completo y lo saca de todas partes: eso se dice antes de
+  // pulsar, con la cantidad a la vista.
+  test('dar de baja avisa qué sale, exige motivo y manda cero', async () => {
+    const usuario = userEvent.setup()
+    pintar()
+
+    await elegirTipo(usuario, 'Dar de baja')
+    expect(screen.getByText(/frasco completo/i)).toHaveTextContent('1500 mL')
+    expect(screen.queryByLabelText(/Cantidad/)).not.toBeInTheDocument()
+
+    await usuario.click(screen.getByRole('button', { name: /Dar de baja/ }))
+    expect(registrar).not.toHaveBeenCalled()
+
+    await usuario.type(screen.getByLabelText(/Motivo de la baja/), 'Se desechó')
+    await usuario.click(screen.getByRole('button', { name: /Dar de baja/ }))
+
+    expect(registrar).toHaveBeenCalledTimes(1)
+    expect(registrar.mock.calls[0][0]).toEqual({
+      existenciaId: 42,
+      tipo: 'baja',
+      cantidad: 0,
+      motivo: 'Se desechó',
+      ocurridoEn: null,
+    })
+  })
+
+  test('dado de baja, abre directo en reactivar', async () => {
+    const usuario = userEvent.setup()
+    pintar({ fila: { ...FILA, estado: 'baja', cantidad: 0 } })
+
+    expect(screen.getByRole('combobox', { name: /Tipo de movimiento/ })).toHaveTextContent(
+      'Reactivar',
+    )
+
+    await usuario.type(screen.getByLabelText(/Motivo de la reactivación/), 'Frasco equivocado')
+    await usuario.click(screen.getByRole('button', { name: /Reactivar/ }))
+
+    expect(registrar.mock.calls[0][0]).toMatchObject({ tipo: 'reactivacion', cantidad: 0 })
+  })
 })

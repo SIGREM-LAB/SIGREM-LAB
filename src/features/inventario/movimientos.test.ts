@@ -19,13 +19,14 @@ function valores(cambios: Partial<ValoresMovimiento> = {}): ValoresMovimiento {
 const CTX = { saldo: 1500, unidad: 'mL', laboratorioActual: 2 }
 
 describe('tiposPara', () => {
-  test('los cinco de siempre aplican a cualquier producto', () => {
+  test('los seis de siempre aplican a cualquier producto', () => {
     expect(tiposPara('equipo')).toEqual([
       'entrada',
       'consumo',
       'ajuste',
       'merma',
       'cambio_lab',
+      'baja',
     ])
   })
 
@@ -39,7 +40,18 @@ describe('tiposPara', () => {
 
   // Sin clasificación no se esconde nada: es un dato que falta, no un «no».
   test('sin clasificación se ofrecen todos', () => {
-    expect(tiposPara(null)).toHaveLength(6)
+    expect(tiposPara(null)).toHaveLength(7)
+  })
+
+  // Sobre algo dado de baja la base rechaza cualquier otro movimiento, así que
+  // lo único que tiene sentido ofrecer es deshacerla.
+  test('dado de baja, lo único que se ofrece es reactivarlo', () => {
+    expect(tiposPara('reactivo', 'baja')).toEqual(['reactivar'])
+  })
+
+  test('reactivar no se ofrece si no está dado de baja', () => {
+    expect(tiposPara('reactivo', 'disponible')).not.toContain('reactivar')
+    expect(tiposPara('reactivo', 'agotado')).toContain('baja')
   })
 })
 
@@ -112,6 +124,27 @@ describe('registroDe', () => {
   })
 })
 
+describe('registroDe en baja y reactivación', () => {
+  // La cantidad de las dos la decide el trigger bajo bloqueo: la baja es todo
+  // lo que hay y la reactivación devuelve lo que se llevó la baja. El cliente
+  // manda cero para no competir con un saldo que pudo cambiar.
+  test('la baja va con cantidad cero y sin fecha', () => {
+    expect(registroDe(valores({ tipo: 'baja', motivo: 'Se desechó' }), CTX)).toEqual({
+      clase: 'movimiento',
+      tipo: 'baja',
+      cantidad: 0,
+      motivo: 'Se desechó',
+      ocurridoEn: null,
+    })
+  })
+
+  test('la reactivación se guarda con su propio tipo', () => {
+    expect(
+      registroDe(valores({ tipo: 'reactivar', motivo: 'Fue el frasco equivocado' }), CTX),
+    ).toMatchObject({ clase: 'movimiento', tipo: 'reactivacion', cantidad: 0 })
+  })
+})
+
 describe('fechaDe', () => {
   // `ocurrido_en` tiene `default now()`. Mandar la de hoy la dejaría a las 00:00
   // y desordenaría los movimientos del mismo día, que es donde se leen.
@@ -173,6 +206,13 @@ describe('esquemaDeMovimiento', () => {
     expect(revisar({ tipo: 'entrada', cantidad: '10' }).success).toBe(true)
   })
 
+  // Sin motivo, una baja es un frasco que desapareció sin explicación.
+  test('la baja y la reactivación exigen motivo, no cantidad', () => {
+    expect(errorEn({ tipo: 'baja' }, 'motivo')).toBeDefined()
+    expect(errorEn({ tipo: 'reactivar' }, 'motivo')).toBeDefined()
+    expect(revisar({ tipo: 'baja', motivo: 'Se desechó' }).success).toBe(true)
+  })
+
   test('el cambio de laboratorio exige destino, y uno distinto del actual', () => {
     expect(errorEn({ tipo: 'cambio_lab', laboratorio: '' }, 'laboratorio')?.message).toMatch(
       /destino/,
@@ -201,6 +241,8 @@ describe('MOVIMIENTOS', () => {
       merma: 'merma',
       caducado: 'merma',
       cambio_lab: null,
+      baja: 'baja',
+      reactivar: 'reactivacion',
     })
   })
 })

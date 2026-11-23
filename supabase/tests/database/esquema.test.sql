@@ -7,7 +7,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 
-select plan(92);
+select plan(103);
 
 -- Las pruebas corren como postgres, que se salta la RLS. Es lo correcto aqui:
 -- este archivo prueba la forma del esquema, no quien puede ver que. Eso es
@@ -39,8 +39,8 @@ select set_eq(
 select set_eq(
   $$ select unnest(enum_range(null::public.tipo_movimiento))::text $$,
   array['carga_inicial','entrada','consumo','merma','ajuste_conteo',
-        'prestamo','devolucion','baja'],
-  'tipo_movimiento incluye carga_inicial'
+        'prestamo','devolucion','baja','reactivacion'],
+  'tipo_movimiento incluye carga_inicial y reactivacion'
 );
 
 -- La forma de dos argumentos de unaccent es la unica inmutable, y por eso la
@@ -902,6 +902,112 @@ select isnt(
     where n.nspname = 'private' and p.proname = 'puede_reportar'),
   null,
   'puede_reportar tiene cuerpo propio'
+);
+
+
+-- ---------------------------------------------------------------------------
+-- Baja y reactivacion
+-- ---------------------------------------------------------------------------
+-- La cantidad de las dos la pone el trigger: aqui se manda 0 a proposito.
+select pg_temp.como_postgres();
+
+insert into public.existencia (id, articulo_id, almacen_id)
+overriding system value
+values (901001, 900001, pg_temp.id_almacen('N3')),   -- con saldo
+       (901002, 900001, pg_temp.id_almacen('N3'));   -- frasco vacio
+
+insert into public.movimiento (existencia_id, tipo, cantidad, cantidad_antes,
+                               cantidad_despues, almacen_id, usuario_id)
+values (901001, 'carga_inicial', 30, 0, 0, pg_temp.id_almacen('N3'),
+        (select id from public.perfil limit 1));
+
+select lives_ok(
+  $$ insert into public.movimiento (existencia_id, tipo, cantidad, cantidad_antes,
+                                    cantidad_despues, almacen_id, usuario_id)
+     values (901001, 'baja', 0, 0, 0, pg_temp.id_almacen('N3'),
+             (select id from public.perfil limit 1)) $$,
+  'Se da de baja con un movimiento de tipo baja'
+);
+
+select is(
+  (select cantidad from public.movimiento
+    where existencia_id = 901001 and tipo = 'baja'),
+  -30::numeric(14,4),
+  'La baja se lleva todo el saldo aunque el cliente mande otra cantidad'
+);
+
+select is(
+  (select estado::text || ':' || cantidad::text from public.existencia where id = 901001),
+  'baja:0.0000',
+  'Tras la baja la existencia queda en estado baja y sin saldo'
+);
+
+select throws_ok(
+  $$ insert into public.movimiento (existencia_id, tipo, cantidad, cantidad_antes,
+                                    cantidad_despues, almacen_id, usuario_id)
+     values (901001, 'baja', 0, 0, 0, pg_temp.id_almacen('N3'),
+             (select id from public.perfil limit 1)) $$,
+  'P0001',
+  'Esta existencia ya está dada de baja',
+  'No se da de baja dos veces: un doble clic no deshace nada'
+);
+
+select throws_ok(
+  $$ insert into public.movimiento (existencia_id, tipo, cantidad, cantidad_antes,
+                                    cantidad_despues, almacen_id, usuario_id)
+     values (901001, 'entrada', 5, 0, 0, pg_temp.id_almacen('N3'),
+             (select id from public.perfil limit 1)) $$,
+  'P0001',
+  'Esta existencia está dada de baja: reactívala antes de registrarle movimientos',
+  'Sobre algo dado de baja no se registran otros movimientos'
+);
+
+select lives_ok(
+  $$ insert into public.movimiento (existencia_id, tipo, cantidad, cantidad_antes,
+                                    cantidad_despues, almacen_id, usuario_id)
+     values (901001, 'reactivacion', 0, 0, 0, pg_temp.id_almacen('N3'),
+             (select id from public.perfil limit 1)) $$,
+  'Una baja se deshace con un movimiento de reactivacion'
+);
+
+select is(
+  (select estado::text || ':' || cantidad::text from public.existencia where id = 901001),
+  'disponible:30.0000',
+  'La reactivacion devuelve lo que se llevo la baja y recalcula el estado'
+);
+
+select throws_ok(
+  $$ insert into public.movimiento (existencia_id, tipo, cantidad, cantidad_antes,
+                                    cantidad_despues, almacen_id, usuario_id)
+     values (901001, 'reactivacion', 0, 0, 0, pg_temp.id_almacen('N3'),
+             (select id from public.perfil limit 1)) $$,
+  'P0001',
+  'Esta existencia no está dada de baja: no hay nada que reactivar',
+  'No se reactiva lo que no esta dado de baja'
+);
+
+select lives_ok(
+  $$ insert into public.movimiento (existencia_id, tipo, cantidad, cantidad_antes,
+                                    cantidad_despues, almacen_id, usuario_id)
+     values (901002, 'baja', 0, 0, 0, pg_temp.id_almacen('N3'),
+             (select id from public.perfil limit 1)) $$,
+  'Un frasco vacio se da de baja con un movimiento de cero'
+);
+
+select is(
+  (select estado::text from public.existencia where id = 901002),
+  'baja',
+  'El frasco vacio queda en estado baja'
+);
+
+select throws_ok(
+  $$ insert into public.movimiento (existencia_id, tipo, cantidad, cantidad_antes,
+                                    cantidad_despues, almacen_id, usuario_id)
+     values (901001, 'consumo', 0, 0, 0, pg_temp.id_almacen('N3'),
+             (select id from public.perfil limit 1)) $$,
+  '23514',
+  null,
+  'Fuera de baja y reactivacion, un movimiento de cero sigue prohibido'
 );
 
 
