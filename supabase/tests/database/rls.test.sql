@@ -14,7 +14,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 
-select plan(178);
+select plan(183);
 
 
 -- ---------------------------------------------------------------------------
@@ -2070,6 +2070,66 @@ select throws_ok(
      values ('colado', 'Colado por el responsable', 99) $$,
   '42501', null,
   'El responsable no agrega motivos de observacion: son de la Unidad'
+);
+
+
+-- ---------------------------------------------------------------------------
+-- Baja y reactivacion
+-- ---------------------------------------------------------------------------
+-- No hay politica nueva: son movimientos y los cubre `movimiento_alta`. Lo que
+-- se prueba es que esa politica de verdad alcanza a los dos tipos nuevos, y
+-- que el responsable puede deshacer su propia baja sin pasar por el admin.
+select pg_temp.como_postgres();
+
+insert into public.existencia (id, articulo_id, almacen_id, codigo)
+overriding system value
+values (901101, 900001, pg_temp.id_almacen('N3'), 'N3-BAJA1'),
+       (901102, 900001, pg_temp.id_almacen('N4'), 'N4-BAJA1');
+
+select pg_temp.como('n3@uaeh.local');
+
+select lives_ok(
+  $$ insert into public.movimiento
+       (existencia_id, tipo, cantidad, cantidad_antes, cantidad_despues, almacen_id, usuario_id)
+     values (901101, 'baja', 0, 0, 0,
+             (select id from public.almacen where clave = 'N3'), (select auth.uid())) $$,
+  'El responsable de N3 da de baja en su almacen'
+);
+
+select is(
+  (select estado::text from public.existencia where id = 901101),
+  'baja',
+  'La baja del responsable deja la existencia en estado baja'
+);
+
+select lives_ok(
+  $$ insert into public.movimiento
+       (existencia_id, tipo, cantidad, cantidad_antes, cantidad_despues, almacen_id, usuario_id)
+     values (901101, 'reactivacion', 0, 0, 0,
+             (select id from public.almacen where clave = 'N3'), (select auth.uid())) $$,
+  'El responsable de N3 reactiva su propia baja sin el admin'
+);
+
+select throws_ok(
+  $$ insert into public.movimiento
+       (existencia_id, tipo, cantidad, cantidad_antes, cantidad_despues, almacen_id, usuario_id)
+     values (901102, 'baja', 0, 0, 0,
+             (select id from public.almacen where clave = 'N3'), (select auth.uid())) $$,
+  '42501',
+  null,
+  'El responsable de N3 NO da de baja en N4'
+);
+
+select pg_temp.como('lectura@uaeh.local');
+
+select throws_ok(
+  $$ insert into public.movimiento
+       (existencia_id, tipo, cantidad, cantidad_antes, cantidad_despues, almacen_id, usuario_id)
+     values (901101, 'baja', 0, 0, 0,
+             (select id from public.almacen where clave = 'N3'), (select auth.uid())) $$,
+  '42501',
+  null,
+  'Un usuario de consulta NO da de baja'
 );
 
 
